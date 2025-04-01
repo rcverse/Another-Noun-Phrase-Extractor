@@ -21,33 +21,19 @@ jobs:
       uses: actions/setup-python@v5
       with:
         python-version: ${{ matrix.python-version }}
-    - name: Install dependencies
+    - name: Install core dependencies
       run: |
         python -m pip install --upgrade pip
-        pip install -e .
         pip install pytest pytest-cov
-    - name: Download NLTK models
+        pip install spacy benepar nltk
+    - name: Download models
       run: |
         python -c "import nltk; nltk.download('punkt')"
-      continue-on-error: true
-    - name: Download Benepar models
-      run: |
         python -c "import benepar; benepar.download('benepar_en3')"
-      continue-on-error: true
-    - name: Download spaCy models
-      run: |
         python -c "import spacy; spacy.cli.download('en_core_web_sm')"
-      continue-on-error: true
-    - name: Verify model downloads
+    - name: Install package
       run: |
-        python -c "
-        import nltk
-        import benepar
-        import spacy
-        assert nltk.data.find('tokenizers/punkt') is not None
-        assert benepar.download('benepar_en3') is not None
-        assert spacy.util.is_package('en_core_web_sm')
-        "
+        pip install -e .
     - name: Run tests
       run: |
         pytest tests/ --cov=anpe --cov-report=xml
