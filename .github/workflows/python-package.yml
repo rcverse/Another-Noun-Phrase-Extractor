@@ -40,12 +40,13 @@ jobs:
       run: |
         if [[ "${{ runner.os }}" == "Windows" ]]; then
           mkdir -p "$USERPROFILE/nltk_data"
-          export NLTK_DATA="$USERPROFILE/nltk_data"
+          echo "NLTK_DATA=$USERPROFILE/nltk_data" >> $GITHUB_ENV
         else
           mkdir -p ~/nltk_data
-          export NLTK_DATA=~/nltk_data
-        fi
+          echo "NLTK_DATA=~/nltk_data" >> $GITHUB_ENV
     - name: Download NLTK models
+      env:
+        NLTK_DATA: ${{ env.NLTK_DATA }}
       run: |
         python -c "import nltk; nltk.download('punkt', download_dir='$NLTK_DATA')"
         python -c "import nltk; nltk.download('punkt_tab', download_dir='$NLTK_DATA')"
