@@ -44,6 +44,7 @@ jobs:
         else
           mkdir -p ~/nltk_data
           echo "NLTK_DATA=~/nltk_data" >> $GITHUB_ENV
+        fi
     - name: Download NLTK models
       env:
         NLTK_DATA: ${{ env.NLTK_DATA }}
