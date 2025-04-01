@@ -1,6 +1,7 @@
 # ANPE: Another Noun Phrase Extractor
 
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+[![Python Version](https://img.shields.io/badge/python-3.9+-blue.svg)](https://www.python.org/)
 [![Python Version](https://img.shields.io/badge/python-<=3.12-blue.svg)](https://www.python.org/)
 [![pytest](https://img.shields.io/badge/pytest-passing-brightgreen)](https://github.com/richard20000321/anpe/actions/workflows/python-package.yml)
 
@@ -8,7 +9,7 @@ ANPE (*Another Noun Phrase Extractor*) is a Python library for **directly extrac
 
 ANPE simplifies noun phrase extraction to its essence - **input text, get a structured list of NPs**. The library provides flexible configuration options to target specific structural types of NP or length requirements, as well as options to export to files in multiple formats directly. This provides an effective tool for linguistic analysis, corpus studies, and NLP research where quick, reliable NP identification is needed.
 
-> **⚠️ Python Version Requirement**: ANPE requires Python 3.12 or lower. It is not compatible with Python 3.13 or higher due to dependencies (especially spaCy) that currently only support up to Python 3.12.
+> **⚠️ Python Version Requirement**: ANPE requires Python 3.9 to 3.12. It is not compatible with Python 3.13 or higher and 3.8 or lower due to dependencies (especially spaCy) that currently only support up to Python 3.12.
 
 **Key Features**:
 1. **✅Precision Extraction**: Accurate noun phrase identification using modern parsing techniques
@@ -59,7 +60,7 @@ ANPE relies on several pre-trained models for its functionality.
 3. **NLTK Model**: `punkt` (Punkt tokenizer for sentence splitting).
 
 #### **Python Version Compatibility**
-ANPE is compatible with Python 3.7 through 3.12. It is not compatible with Python 3.13 or higher due to dependencies that currently only support up to Python 3.12. Make sure you have a supported Python version installed before proceeding.
+ANPE is compatible with Python 3.9 through 3.12. It is not compatible with Python versions below 3.9 due to dependencies that require Python 3.9 or higher. Make sure you have a supported Python version installed before proceeding.
 
 To check your Python version, run:
 ```bash
