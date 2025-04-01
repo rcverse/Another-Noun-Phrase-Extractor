@@ -27,27 +27,34 @@ jobs:
         pip install pytest pytest-cov
         # Install PyTorch (CPU only)
         pip install torch --extra-index-url https://download.pytorch.org/whl/cpu
-      timeout-minutes: 5
+      timeout-minutes: 10
     - name: Install spaCy and NLTK
       run: |
         pip install spacy==3.7.5 nltk
-      timeout-minutes: 5
+      timeout-minutes: 10
     - name: Install benepar
       run: |
         pip install benepar
-      timeout-minutes: 5
+      timeout-minutes: 10
     - name: Set NLTK data path
       run: |
-        mkdir -p ~/nltk_data
-        export NLTK_DATA=~/nltk_data
+        if [[ "${{ runner.os }}" == "Windows" ]]; then
+          mkdir -p "$USERPROFILE/nltk_data"
+          export NLTK_DATA="$USERPROFILE/nltk_data"
+        else
+          mkdir -p ~/nltk_data
+          export NLTK_DATA=~/nltk_data
+        fi
     - name: Download NLTK models
       run: |
-        python -c "import nltk; nltk.download('punkt', download_dir='~/nltk_data')"
-        python -c "import nltk; nltk.download('punkt_tab', download_dir='~/nltk_data')"
+        python -c "import nltk; nltk.download('punkt', download_dir='$NLTK_DATA')"
+        python -c "import nltk; nltk.download('punkt_tab', download_dir='$NLTK_DATA')"
+      timeout-minutes: 10
     - name: Download other models
       run: |
-        python -c "import benepar; benepar.download('benepar_en3')"
-        python -c "import spacy; spacy.cli.download('en_core_web_sm')"
+        python -c "import benepar; print('Downloading benepar_en3'); benepar.download('benepar_en3')"
+        python -c "import spacy; print('Downloading en_core_web_sm'); spacy.cli.download('en_core_web_sm')"
+      timeout-minutes: 10
     - name: Install package
       run: |
         pip install -e .
@@ -56,6 +63,7 @@ jobs:
         NLTK_DATA: ~/nltk_data
       run: |
         pytest tests/ --cov=anpe --cov-report=xml
+      timeout-minutes: 5
     - name: Upload coverage to Codecov
       uses: codecov/codecov-action@v4
       with:
