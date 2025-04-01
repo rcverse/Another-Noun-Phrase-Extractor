@@ -27,6 +27,17 @@ jobs:
         pip install pytest pytest-cov
         # Install other dependencies
         pip install spacy benepar nltk
+        # Install PyTorch (CPU only)
+        pip install torch --extra-index-url https://download.pytorch.org/whl/cpu
+      timeout-minutes: 5
+    - name: Install spaCy and NLTK
+      run: |
+        pip install spacy==3.7.5 nltk
+      timeout-minutes: 5
+    - name: Install benepar
+      run: |
+        pip install benepar
+      timeout-minutes: 5
     - name: Download models
       run: |
         python -c "import nltk; nltk.download('punkt')"
