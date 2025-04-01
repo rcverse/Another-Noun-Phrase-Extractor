@@ -1,6 +1,6 @@
 """Logging functionality for ANPE."""
 
-import logging
+import logging as python_logging  # Renamed to avoid collision
 import os
 import sys
 from pathlib import Path
@@ -31,7 +31,7 @@ class ANPELogger:
                 self.set_log_file(log_file)
             return
             
-        self.logger = logging.getLogger('anpe')
+        self.logger = python_logging.getLogger('anpe')  # Updated reference
         self.log_level = log_level or os.environ.get('ANPE_LOG_LEVEL', 'INFO')
         self.log_file = log_file
         
@@ -49,13 +49,13 @@ class ANPELogger:
             self.logger.handlers.clear()
         
         # Configure logger level
-        self.logger.setLevel(getattr(logging, self.log_level.upper()))
+        self.logger.setLevel(getattr(python_logging, self.log_level.upper()))  # Updated reference
         
         # Create formatter
-        formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+        formatter = python_logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')  # Updated reference
         
         # Create console handler
-        console_handler = logging.StreamHandler(stream=sys.stdout)
+        console_handler = python_logging.StreamHandler(stream=sys.stdout)  # Updated reference
         console_handler.setFormatter(formatter)
         self.logger.addHandler(console_handler)
         
@@ -65,7 +65,7 @@ class ANPELogger:
                 file_path = Path(self.log_file)
                 file_path.parent.mkdir(parents=True, exist_ok=True)
                 
-                file_handler = logging.FileHandler(file_path, encoding='utf-8')
+                file_handler = python_logging.FileHandler(file_path, encoding='utf-8')  # Updated reference
                 file_handler.setFormatter(formatter)
                 self.logger.addHandler(file_handler)
                 self.logger.info(f"File logging enabled: {file_path}")
@@ -79,7 +79,7 @@ class ANPELogger:
         Change the logging level.
         """
         self.log_level = level.upper()
-        self.logger.setLevel(getattr(logging, self.log_level))
+        self.logger.setLevel(getattr(python_logging, self.log_level))  # Updated reference
         
         # Log the level change
         self.logger.debug(f"Log level changed to {self.log_level}")
@@ -89,7 +89,7 @@ class ANPELogger:
         Get a logger instance, optionally for a specific component.
         """
         if name:
-            return logging.getLogger(f'anpe.{name}')
+            return python_logging.getLogger(f'anpe.{name}')  # Updated reference
         return self.logger
 
     def set_log_file(self, log_file: str):

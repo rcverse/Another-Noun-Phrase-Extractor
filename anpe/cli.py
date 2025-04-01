@@ -8,6 +8,7 @@ import datetime
 from anpe import ANPEExtractor
 from anpe.utils.logging import ANPELogger, get_logger
 from anpe.utils.export import ANPEExporter
+from anpe.utils.setup_models import setup_models
 
 # Initialize logger at module level
 logger = get_logger("cli")
@@ -66,6 +67,13 @@ def parse_args(args: Optional[List[str]] = None) -> argparse.Namespace:
     
     # Version command
     version_parser = subparsers.add_parser("version", help="Display version information")
+    
+    # Setup command
+    setup_parser = subparsers.add_parser('setup', help='Setup required models')
+    setup_parser.add_argument("--log-level", choices=["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"],
+                        default="INFO", help="Logging level")
+    setup_parser.add_argument("--log-dir",
+                        help="Directory path for log files")
     
     return parser.parse_args(args)
 
@@ -208,15 +216,16 @@ def main(args: Optional[List[str]] = None) -> int:
     try:
         # Convert log directory to file path if specified
         log_file = None
-        if parsed_args.log_dir:
+        if hasattr(parsed_args, 'log_dir') and parsed_args.log_dir:
             log_dir = Path(parsed_args.log_dir)
             log_dir.mkdir(parents=True, exist_ok=True)
             timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
             log_file = str(log_dir / f"log_anpe_export_{timestamp}.log")
         
         # Initialize logger with proper configuration
+        log_level = parsed_args.log_level if hasattr(parsed_args, 'log_level') else "INFO"
         ANPELogger(
-            log_level=parsed_args.log_level, 
+            log_level=log_level, 
             log_file=log_file
         )
         logger = get_logger("cli")
@@ -253,6 +262,14 @@ def main(args: Optional[List[str]] = None) -> int:
                 )
             
             return 0
+        
+        elif parsed_args.command == "setup":
+            if setup_models():
+                logger.info("All models installed successfully")
+                return 0
+            else:
+                logger.error("Failed to install some models")
+                return 1
         
         else:
             logger.error(f"Unknown command: {parsed_args.command}")

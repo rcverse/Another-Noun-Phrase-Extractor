@@ -1,9 +1,8 @@
-from typing import Dict, List, Optional, Tuple, Union, Any
+from typing import Dict, List, Optional, Any
 import spacy
 import benepar
 import nltk
 from nltk.tree import Tree
-from spacy.tokens import Span, Doc
 import datetime
 import os
 import warnings

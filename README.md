@@ -1,10 +1,8 @@
 # ANPE: Another Noun Phrase Extractor
 
-Extract noun phrases from text with ease.
-
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 [![Python Version](https://img.shields.io/badge/python-<=3.12-blue.svg)](https://www.python.org/)
-
+[![pytest](https://img.shields.io/badge/pytest-passing-brightgreen)](https://github.com/richard20000321/anpe/actions/workflows/python-package.yml)
 
 ANPE (*Another Noun Phrase Extractor*) is a Python library for **directly extracting noun phrases from text**. The name reflects its purpose as a straightforward alternative to existing NP extraction tools with simplicity while maintaining high accuracy. It uses the [Berkeley Neural Parser](https://github.com/nikitakit/self-attentive-parser) with [spaCy](https://spacy.io/) and [NLTK](https://www.nltk.org/) for precise parsing and provides clean, hierarchical outputs that can be tailored to your needs.
 
@@ -71,20 +69,48 @@ python --version
 If you need to install Python 3.12, you can download it from the [official Python website](https://www.python.org/downloads/release/python-3120/).
 
 #### **Automatic Setup**
-ANPE provides a convenient utility for installing all required models in one go:
 
+ANPE provides multiple ways to install the required models:
+
+##### Recommended: Using the CLI
+```bash
+anpe setup
+```
+
+You can also specify logging options:
+```bash
+anpe setup --log-level DEBUG --log-dir logs
+```
+
+The setup process supports the following logging options:
+- `--log-level`: Set the logging level (DEBUG, INFO, WARNING, ERROR, CRITICAL)
+- `--log-dir`: Specify a directory for log files
+
+Example with logging:
+```bash
+anpe setup --log-level DEBUG --log-dir logs
+```
+
+This will create detailed logs in the `logs/` directory.
+
+##### Alternative: Running as a Script
 ```bash
 python -m anpe.utils.setup_models
 ```
-Or from within your Python code:
 
+Or from within your Python code:
 ```python
 from anpe.utils.setup_models import setup_models
 setup_models()
 ```
 
-This utility handles the installation of the spaCy model, Benepar parser model, and NLTK Punkt tokenizer, making the setup process much simpler. 
-When you run the extractor, the package will automatically check if the models are installed and install them if they're not. However, it is recommended to run the setup utility before you start using the extractor for the first time.
+This utility handles the installation of:
+1. **spaCy Model**: `en_core_web_sm` (English language model)
+2. **Benepar Model**: `benepar_en3` (English constituency parser)
+3. **NLTK Model**: `punkt` (Punkt tokenizer)
+
+> **Note**: When you run the extractor, the package will automatically check if the models are installed and install them if they're not. However, it is recommended to run the setup utility before you start using the extractor for the first time.
+
 
 #### **Manual Setup**
 If automatic setup fails or you prefer to manually download the models, you can run install the three models manually:
@@ -513,73 +539,92 @@ ANPE provides a powerful command-line interface for text processing, providing e
 ### Basic Syntax
 
 ```bash
-python -m anpe [command] [options]
+anpe [command] [options]
 ```
 
 ### Available Commands
 
-| Command | Description |
-|---------|-------------|
-| `extract` | Extract noun phrases from text |
-| `version` | Display the ANPE version |
+| Command | Description | Example |
+|---------|-------------|---------|
+| `extract` | Extract noun phrases from text | `anpe extract "Sample text"` |
+| `setup` | Install required models | `anpe setup` |
+| `version` | Display the ANPE version | `anpe version` |
 
 ### Available Options
 
-#### Input Options
+#### Setup Command Options
 
 | Option | Description | Example |
 |--------|-------------|---------|
-| `text` | Direct text input (positional argument) | `python -m anpe extract "Sample text"` |
-| `-f, --file` | Input file path | `python -m anpe extract -f input.txt` |
-| `-d, --dir` | Input directory for batch processing | `python -m anpe extract -d input_directory` |
+| `--log-level` | Set the logging level (DEBUG, INFO, WARNING, ERROR, CRITICAL) | `anpe setup --log-level DEBUG` |
+| `--log-dir` | Directory path for log files | `anpe setup --log-dir logs` |
 
-#### Processing Options
-
-| Option | Description | Example |
-|--------|-------------|---------|
-| `--metadata` | Include metadata about each noun phrase (length and structural analysis) | `python -m anpe extract --metadata` |
-| `--nested` | Extract nested noun phrases (maintains parent-child relationships) | `python -m anpe extract --nested` |
-| `--min-length` | Minimum NP length in tokens | `python -m anpe extract --min-length 2` |
-| `--max-length` | Maximum NP length in tokens | `python -m anpe extract --max-length 10` |
-| `--no-pronouns` | Exclude pronouns from results | `python -m anpe extract --no-pronouns` |
-| `--no-newline-breaks` | Don't treat newlines as sentence boundaries | `python -m anpe extract --no-newline-breaks` |
-| `--structures` | Comma-separated list of structure patterns to include | `python -m anpe extract --structures "determiner,named_entity"` |
-
-#### Output Options
+#### Input Options (for extract command)
 
 | Option | Description | Example |
 |--------|-------------|---------|
-| `-o, --output-dir` | Output directory for results | `python -m anpe extract -o output_dir` |
-| `-t, --type` | Output format (txt, csv, json) | `python -m anpe extract -t json` |
+| `text` | Direct text input (positional argument) | `anpe extract "Sample text"` |
+| `-f, --file` | Input file path | `anpe extract -f input.txt` |
+| `-d, --dir` | Input directory for batch processing | `anpe extract -d input_directory` |
 
-#### Logging Options
+#### Processing Options (for extract command)
 
 | Option | Description | Example |
 |--------|-------------|---------|
-| `--log-level` | Logging level (DEBUG, INFO, WARNING, ERROR, CRITICAL) | `python -m anpe extract --log-level DEBUG` |
-| `--log-dir` | Directory path for log files (automatically generates timestamped log files) | `python -m anpe extract --log-dir ./logs` |
+| `--metadata` | Include metadata about each noun phrase (length and structural analysis) | `anpe extract --metadata` |
+| `--nested` | Extract nested noun phrases (maintains parent-child relationships) | `anpe extract --nested` |
+| `--min-length` | Minimum NP length in tokens | `anpe extract --min-length 2` |
+| `--max-length` | Maximum NP length in tokens | `anpe extract --max-length 10` |
+| `--no-pronouns` | Exclude pronouns from results | `anpe extract --no-pronouns` |
+| `--no-newline-breaks` | Don't treat newlines as sentence boundaries | `anpe extract --no-newline-breaks` |
+| `--structures` | Comma-separated list of structure patterns to include | `anpe extract --structures "determiner,named_entity"` |
+
+#### Output Options (for extract command)
+
+| Option | Description | Example |
+|--------|-------------|---------|
+| `-o, --output-dir` | Output directory for results | `anpe extract -o output_dir` |
+| `-t, --type` | Output format (txt, csv, json) | `anpe extract -t json` |
+
+#### Logging Options (for all commands)
+
+| Option | Description | Example |
+|--------|-------------|---------|
+| `--log-level` | Logging level (DEBUG, INFO, WARNING, ERROR, CRITICAL) | `anpe extract --log-level DEBUG` |
+| `--log-dir` | Directory path for log files (automatically generates timestamped log files) | `anpe extract --log-dir ./logs` |
 
 ### Example Commands
 
+**Setup models with logging:**
+```bash
+anpe setup --log-level DEBUG --log-dir logs
+```
+
 **Extract and output to JSON:**
 ```bash
-python -m anpe extract -f input.txt -o output_dir -t json
+anpe extract -f input.txt -o output_dir -t json
 ```
 
 **Batch processing:**
 ```bash
-python -m anpe extract -d input_directory --output-dir output_directory -t json --metadata
+anpe extract -d input_directory --output-dir output_directory -t json --metadata
 ```
 
 **Advanced extraction with filters:**
 ```bash
-python -m anpe extract -f input.txt --min-length 2 --max-length 10 --no-pronouns --structures "determiner,named_entity" -o output_dir
+anpe extract -f input.txt --min-length 2 --max-length 10 --no-pronouns --structures "determiner,named_entity" -o output_dir
 ```
 
 **With logging:**
 ```bash
-python -m anpe extract -f input.txt --log-dir ./logs --log-level DEBUG
+anpe extract -f input.txt --log-dir ./logs --log-level DEBUG
 ```
+
+**Check version:**
+```bash
+anpe version
+```
+
 
 ## Hierarchical ID System
 
