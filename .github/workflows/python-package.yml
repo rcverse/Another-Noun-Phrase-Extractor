@@ -49,13 +49,22 @@ jobs:
       run: |
         mkdir -p ~/nltk_data
         echo "NLTK_DATA=~/nltk_data" >> $GITHUB_ENV
-    - name: Download NLTK models
+    - name: Download NLTK models (Windows)
+      if: runner.os == 'Windows'
+      shell: pwsh
+      env:
+        NLTK_DATA: ${{ env.NLTK_DATA }}
+      run: |
+        python -c "import nltk; nltk.download('punkt', download_dir='$env:NLTK_DATA')"
+        python -c "import nltk; nltk.download('punkt_tab', download_dir='$env:NLTK_DATA')"
+    - name: Download NLTK models (macOS/Linux)
+      if: runner.os != 'Windows'
+      shell: bash
       env:
         NLTK_DATA: ${{ env.NLTK_DATA }}
       run: |
         python -c "import nltk; nltk.download('punkt', download_dir='$NLTK_DATA')"
         python -c "import nltk; nltk.download('punkt_tab', download_dir='$NLTK_DATA')"
-      timeout-minutes: 10
     - name: Download other models
       run: |
         python -c "import benepar; print('Downloading benepar_en3'); benepar.download('benepar_en3')"
