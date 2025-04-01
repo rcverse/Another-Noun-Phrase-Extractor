@@ -55,8 +55,9 @@ jobs:
       env:
         NLTK_DATA: ${{ env.NLTK_DATA }}
       run: |
-        python -c "import nltk; nltk.download('punkt', download_dir='$env:NLTK_DATA')"
-        python -c "import nltk; nltk.download('punkt_tab', download_dir='$env:NLTK_DATA')"
+        $nltkDataPath = $env:NLTK_DATA -replace '\\', '\\'
+        python -c "import nltk; nltk.download('punkt', download_dir=r'$nltkDataPath')"
+        python -c "import nltk; nltk.download('punkt_tab', download_dir=r'$nltkDataPath')"
     - name: Download NLTK models (macOS/Linux)
       if: runner.os != 'Windows'
       shell: bash
