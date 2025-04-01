@@ -36,15 +36,24 @@ jobs:
       run: |
         pip install benepar
       timeout-minutes: 5
-    - name: Download models
+    - name: Set NLTK data path
       run: |
-        python -c "import nltk; nltk.download('punkt')"
+        mkdir -p ~/nltk_data
+        export NLTK_DATA=~/nltk_data
+    - name: Download NLTK models
+      run: |
+        python -c "import nltk; nltk.download('punkt', download_dir='~/nltk_data')"
+        python -c "import nltk; nltk.download('punkt_tab', download_dir='~/nltk_data')"
+    - name: Download other models
+      run: |
         python -c "import benepar; benepar.download('benepar_en3')"
         python -c "import spacy; spacy.cli.download('en_core_web_sm')"
     - name: Install package
       run: |
         pip install -e .
     - name: Run tests
+      env:
+        NLTK_DATA: ~/nltk_data
       run: |
         pytest tests/ --cov=anpe --cov-report=xml
     - name: Upload coverage to Codecov
