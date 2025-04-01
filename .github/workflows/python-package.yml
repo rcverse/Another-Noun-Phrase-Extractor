@@ -36,11 +36,19 @@ jobs:
       run: |
         pip install benepar
       timeout-minutes: 10
-    - name: Set NLTK data path
+    - name: Set NLTK data path (Windows)
+      if: runner.os == 'Windows'
+      shell: pwsh
+      run: |
+        $nltkDataPath = "$env:USERPROFILE\nltk_data"
+        mkdir -p $nltkDataPath
+        echo "NLTK_DATA=$nltkDataPath" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+    - name: Set NLTK data path (macOS/Linux)
+      if: runner.os != 'Windows'
       shell: bash
       run: |
         mkdir -p ~/nltk_data
-        echo "NLTK_DATA=$HOME/nltk_data" >> $GITHUB_ENV
+        echo "NLTK_DATA=~/nltk_data" >> $GITHUB_ENV
     - name: Download NLTK models
       env:
         NLTK_DATA: ${{ env.NLTK_DATA }}
