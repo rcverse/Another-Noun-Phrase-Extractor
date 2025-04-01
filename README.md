@@ -3,12 +3,14 @@
 Extract noun phrases from text with ease.
 
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
-[![Python Version](https://img.shields.io/badge/python-3.7+-blue.svg)](https://www.python.org/)
+[![Python Version](https://img.shields.io/badge/python-<=3.12-blue.svg)](https://www.python.org/)
 
 
 ANPE (*Another Noun Phrase Extractor*) is a Python library for **directly extracting noun phrases from text**. The name reflects its purpose as a straightforward alternative to existing NP extraction tools with simplicity while maintaining high accuracy. It uses the [Berkeley Neural Parser](https://github.com/nikitakit/self-attentive-parser) with [spaCy](https://spacy.io/) and [NLTK](https://www.nltk.org/) for precise parsing and provides clean, hierarchical outputs that can be tailored to your needs.
 
 ANPE simplifies noun phrase extraction to its essence - **input text, get a structured list of NPs**. The library provides flexible configuration options to target specific structural types of NP or length requirements, as well as options to export to files in multiple formats directly. This provides an effective tool for linguistic analysis, corpus studies, and NLP research where quick, reliable NP identification is needed.
+
+> **⚠️ Python Version Requirement**: ANPE requires Python 3.12 or lower. It is not compatible with Python 3.13 or higher due to dependencies (especially spaCy) that currently only support up to Python 3.12.
 
 **Key Features**:
 1. **✅Precision Extraction**: Accurate noun phrase identification using modern parsing techniques
@@ -22,6 +24,7 @@ ANPE simplifies noun phrase extraction to its essence - **input text, get a stru
 - [Features](#features)
 - [Installation](#installation)
 - [Usage](#usage)
+- [Testing](#testing)
 - [Contributing](#contributing)
 - [License](#license)
 
@@ -57,6 +60,16 @@ ANPE relies on several pre-trained models for its functionality.
 2. **Benepar Model**: `benepar_en3` (English constituency parser for syntactic analysis).
 3. **NLTK Model**: `punkt` (Punkt tokenizer for sentence splitting).
 
+#### **Python Version Compatibility**
+ANPE is compatible with Python 3.7 through 3.12. It is not compatible with Python 3.13 or higher due to dependencies that currently only support up to Python 3.12. Make sure you have a supported Python version installed before proceeding.
+
+To check your Python version, run:
+```bash
+python --version
+```
+
+If you need to install Python 3.12, you can download it from the [official Python website](https://www.python.org/downloads/release/python-3120/).
+
 #### **Automatic Setup**
 ANPE provides a convenient utility for installing all required models in one go:
 
@@ -90,6 +103,54 @@ Install NLTK Punkt Tokenizer:
 ``` python
 import nltk
 nltk.download('punkt')
+```
+
+## Testing
+
+ANPE uses pytest for testing. The test suite includes unit tests, integration tests, and CLI tests that verify the functionality of the package.
+
+### Running Tests
+
+To run the tests, you need to have pytest installed:
+
+```bash
+pip install pytest
+```
+
+Then, you can run the tests with:
+
+```bash
+python -m pytest
+```
+
+### Test Structure
+
+The test suite is organized into several files that test different aspects of the package:
+
+- **test_extractor.py**: Tests the core functionality of the `ANPEExtractor` class, including basic extraction, metadata, nested structures, and custom configurations.
+- **test_cli.py**: Tests the command-line interface functionality.
+- **test_integration.py**: Tests the integration between different components of the package.
+- **test_utils.py**: Tests utility functions like exporting, logging, and structural analysis.
+
+### Adding New Tests
+
+When contributing to ANPE, please consider adding tests for your changes. Tests should be added to the appropriate file based on what component they are testing.
+
+For example, if you are adding a new feature to the extractor, you should add tests to `test_extractor.py`:
+
+```python
+def test_my_new_feature(self):
+    """Test the new feature."""
+    extractor = ANPEExtractor()
+    # Test setup and assertions
+```
+
+If you are adding a new utility function, you should add tests to `test_utils.py`:
+
+```python
+def test_my_utility_function(self):
+    """Test the utility function."""
+    # Test setup and assertions
 ```
 
 ## Library API Usage
