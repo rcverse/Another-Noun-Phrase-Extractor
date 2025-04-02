@@ -23,6 +23,7 @@ Currently, ANPE is only tested on **English** and compatible with Python through
 - [Features](#features)
 - [Installation](#installation)
 - [Usage](#usage)
+- [GUI Application](#gui-application)
 - [Contributing](#contributing)
 - [Troubleshooting](#troubleshooting)
 
@@ -573,6 +574,39 @@ The system categorizes patterns into fundamental types, organized from simple to
 | **others** | Other NP structures that are not identifed | N/A |  
 
 For a comprehensive explanation of all structure patterns and their detection logic, please refer to the [structure_patterns.md](structure_patterns.md) file included in the repository. This system enables precise identification of noun phrase structures while maintaining high processing efficiency.
+
+## GUI Application
+
+》***"Oh no, python again! I'm just an linguistic guy, kill me already!😵"***
+No worries, ANPE provides a graphical user interface (GUI) for easier interaction with the library. Simply download from release, and run it on your computer.
+
+### Starting the GUI
+
+You can launch the GUI application in several ways:
+
+1. **From the command line**:
+   ```bash
+   python -m anpe_gui
+   ```
+
+2. **Using the provided script**:
+   ```bash
+   python run_anpe_gui.py
+   ```
+
+3. **Using the standalone executable** (if built):
+   Simply download and run the executable for your platform.
+
+### GUI Features
+
+- **User-friendly interface** for text and file input
+- **Batch processing** of multiple files
+- **Visual configuration** of all ANPE settings
+- **Real-time progress tracking** for large files
+- **Results visualization** with export options
+- **Integrated logging** display
+
+For more details, see the [ANPE GUI README](anpe_gui/README.md).
 
 ## Contributing
 
