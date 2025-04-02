@@ -6,7 +6,7 @@ build-backend = "hatchling.build"
 name = "anpe"
 version = "0.1.0"
 authors = [
-    {name = "Richard", email = "Richard20000321@gmail.com"},
+    {name = "Richard", email = "rcverse6@gmail.com"},
 ]
 description = "Another Noun Phrase Extractor using the Berkeley Neural Parser"
 readme = "README.md"
@@ -34,10 +34,10 @@ dependencies = [
 ]
 
 [project.urls]
-Homepage = "https://github.com/richard20000321/anpe"
-Documentation = "https://github.com/richard20000321/anpe"
-"Bug Tracker" = "https://github.com/richard20000321/anpe/issues"
-"Source Code" = "https://github.com/richard20000321/anpe"
+Homepage = "https://github.com/rcverse/anpe"
+Documentation = "https://github.com/rcverse/anpe"
+"Bug Tracker" = "https://github.com/rcverse/anpe/issues"
+"Source Code" = "https://github.com/rcverse/anpe"
 
 [project.scripts]
 anpe = "anpe.cli:main"

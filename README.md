@@ -2,15 +2,15 @@
 
 ![ANPE Banner](/pics/banner.png)
 
-[![Build Status](https://github.com/richard20000321/anpe/actions/workflows/python-package.yml/badge.svg)](https://github.com/richard20000321/anpe/actions/workflows/python-package.yml)
-[![pytest](https://img.shields.io/badge/pytest-passing-brightgreen)](https://github.com/richard20000321/anpe/actions/workflows/python-package.yml)
+[![Build Status](https://github.com/rcverse/anpe/actions/workflows/python-package.yml/badge.svg)](https://github.com/rcverse/anpe/actions/workflows/python-package.yml)
+[![pytest](https://img.shields.io/badge/pytest-passing-brightgreen)](https://github.com/rcverse/anpe/actions/workflows/python-package.yml)
 [![Python Version](https://img.shields.io/badge/python-3.9+-blue.svg)](https://www.python.org/)
 [![Python Version](https://img.shields.io/badge/python-<=3.12-blue.svg)](https://www.python.org/)
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
 ANPE (*Another Noun Phrase Extractor*) is a Python library for **directly extracting complete noun phrases from text**. This library leverages the [Berkeley Neural Parser](https://github.com/nikitakit/self-attentive-parser) with [spaCy](https://spacy.io/) and [NLTK](https://www.nltk.org/) for precise parsing and NP extraction. On top of that, the library provides flexible configuration options to **include nested NP**, **filter specific structural types of NP**, or **taget length requirements**, as well as options to **export to files** in multiple structured formats directly. 
 
-Currently, ANPE is only tested on **English**.
+Currently, ANPE is only tested on **English** and compatible with Python through **3.9** to **3.12**.
 
 ## **Key Features**:
 1. **✅Precision Extraction**: Accurate noun phrase identification using modern parsing techniques
@@ -50,9 +50,6 @@ pip install anpe
 
 ### Prerequisites
 
-#### **Python Version Compatibility**
-ANPE is **compatible with Python 3.9 through 3.12**. It is not compatible with Python versions below 3.9 or higher than 3.12 due to dependencies requirements. Make sure you have a supported Python version installed before proceeding.
-
 #### **Required Models**
 ANPE relies on several pre-trained models for its functionality.
 
@@ -62,47 +59,18 @@ ANPE relies on several pre-trained models for its functionality.
    - `punkt` (Punkt tokenizer for sentence splitting).
    - `punkt_tab` (Language-specific tab-delimited tokenizer data required by Benepar).
 
-> **Note on Benepar and NLTK**: Benepar internally uses NLTK's parsing functions, which require both the `punkt` tokenizer and the `punkt_tab` language-specific data. The `punkt_tab` model is not a standard NLTK download but is automatically handled by ANPE's setup utility.
-
 #### **Automatic Setup**
 
-ANPE provides multiple ways to install the required models:
-
-##### Recommended: Using the CLI
+ANPE provides a built-in tool to setup the necessary models. When you run the extractor, the package will automatically check if the models are installed and install them if they're not. However, it is **recommended** to run the setup utility before you start using the extractor for the first time.
+To setup models, simply run the following command in terminal (Please refer to [CLI usage](#command-line-interface) for more options.):
 ```bash
 anpe setup
 ```
 
-You can also specify logging options:
-```bash
-anpe setup --log-level DEBUG --log-dir logs
-```
-
-The setup process supports the following logging options:
-- `--log-level`: Set the logging level (DEBUG, INFO, WARNING, ERROR, CRITICAL)
-- `--log-dir`: Specify a directory for log files
-
-Example with logging:
-```bash
-anpe setup --log-level DEBUG --log-dir logs
-```
-
-This will create detailed logs in the `logs/` directory.
-
-##### Alternative: Running as a Script
+Alteratively, you can run the script with:
 ```bash
 python -m anpe.utils.setup_models
 ```
-
-Or from within your Python code:
-```python
-from anpe.utils.setup_models import setup_models
-setup_models()
-```
-
-This utility handles the installation of all required models.
-> **Note**: When you run the extractor, the package will automatically check if the models are installed and install them if they're not. However, it is recommended to run the setup utility before you start using the extractor for the first time.
-
 
 #### **Manual Setup**
 If automatic setup fails or you prefer to manually download the models, you can run install the three models manually:
@@ -117,10 +85,11 @@ Install Benepar Parser Model:
 python -m benepar.download benepar_en3
 ```
 
-Install NLTK Punkt Tokenizer:
+Install NLTK Punkt Tokenizer (via python console):
 ``` python
 import nltk
 nltk.download('punkt')
+nltk.download('punkt_tab')
 ```
 
 ## Library API Usage
@@ -154,7 +123,7 @@ By defining your configuration and controlling the parameters, you can tailor yo
 ```python
 from anpe import ANPEExtractor
 
-# Configure extractor with custom settings
+# Create extractor with custom settings
 extractor = ANPEExtractor({
     "min_length": 2,
     "max_length": 5,
@@ -170,7 +139,7 @@ In the summer of 1956, Stevens, a long-serving butler at Darlington Hall, decide
 # Extract with metadata and nested NPs
 result = extractor.extract(text, metadata=True, include_nested=True)
 
-# Process results
+# Process results and print
 print(f"Found {len(result['results'])} top-level noun phrases:")
 for np in result['results']:
     print(f"• {np['noun_phrase']}")
@@ -181,8 +150,8 @@ for np in result['results']:
         print(f"  Contains {len(np['children'])} nested noun phrases")
 ```
 To achieve this, you need to customize the extraction parameters and configuration.
-### Extraction Parameters
 
+### Extraction Parameters
 The `extract()` method accepts the following parameters:
 
 | Parameter | Type | Default | Description |
@@ -202,7 +171,7 @@ The `extract()` method accepts the following parameters:
 
 ### Configuration Options
 
-ANPE provides a flexible configuration system to customize the extraction process. These options can be passed as a dictionary when initializing the extractor.
+ANPE provides a flexible configuration system to further customize the extraction process. These options can be passed as a dictionary when initializing the extractor.
 
 | Option | Type | Default | Description |
 |--------|------|---------|-------------|
@@ -230,13 +199,13 @@ custom_extractor = ANPEExtractor({
 })
 ```
 **Minimum Length Filtering**  
-The `min_length` option allows you to filter out shorter noun phrases that might not be meaningful for your analysis. For example, setting `min_length=2` will exclude single-word noun phrases. This is particularly useful when you're only interested in more substantial noun phrases that provide richer semantic content.
+The `min_length` option allows you to filter out shorter noun phrases that might not be meaningful for your analysis. For example, setting `min_length=2` will exclude single-word noun phrases.
 
 **Maximum Length Filtering**  
-The `max_length` option lets you limit the length of extracted noun phrases. This is helpful when dealing with long, complex noun phrases that might not be relevant to your analysis. For instance, setting `max_length=5` will exclude noun phrases with more than five words, focusing on more concise expressions.
+The `max_length` option lets you limit the length of extracted noun phrases. For instance, setting `max_length=5` will exclude noun phrases with more than five words, focusing on more concise expressions.
 
 **Pronoun Handling**  
-The `accept_pronouns` option controls whether pronouns like "it", "they", or "this" should be considered as valid noun phrases. When set to `False`, single-word pronouns will be excluded from the results. This is useful when you're only interested in more descriptive noun phrases rather than referential pronouns.
+The `accept_pronouns` option controls whether pronouns like "it", "they", or "this" should be considered as valid noun phrases. When set to `False`, single-word pronouns will be excluded from the results.
 
 **Structure Filtering**  
 Structure filtering allows you to target specific types of noun phrases in your extraction. You can specify a list of structure types to include in the results. When using `structure_filters`, only noun phrases that contain at least one of the specified structures will be included. This allows for targeted extraction of specific NP types.
@@ -247,13 +216,14 @@ Structure filtering allows you to target specific types of noun phrases in your 
 
 
 **Logging Control**  
-The `log_level` option controls the verbosity of the extraction process. Use `DEBUG` for detailed logging during development or troubleshooting, and `ERROR` for production environments where you only want to see critical issues. This helps in monitoring the extraction process and diagnosing any potential problems. The `log_dir` option controls whether to output log into a file. If provided with a directory, ANPE will output the log into a log file stored in the designated directory. If None, ANPE will by default output log into console.
+The `log_level` option controls the verbosity of the extraction process. Use `DEBUG` for detailed logging during development or troubleshooting, and `ERROR` for production environments where you only want to see critical issues. 
+The `log_dir` option controls whether to output log into a file. If provided with a directory, ANPE will output the log into a log file stored in the designated directory. If None, ANPE will by default output log into console.
 
 **Newline Handling**  
-The `newline_breaks` option determines whether newlines should be treated as sentence boundaries. When enabled, newlines are treated as sentence boundaries, which can be useful when processing text with irregular formatting. Disable this option if you want to treat the text as a continuous paragraph, ignoring line breaks.
+The `newline_breaks` option determines whether newlines should be treated as sentence boundaries. When set to `True` (default), newlines are treated as sentence boundaries. You may want to disable this option if you want to treat the text as a continuous paragraph, ignoring line breaks, which can be useful when processing text with irregular formatting.
 
 ### Convenient Method
-For quick, one-off extractions, you may use the `extract()` function directly. This method is simpler and avoids the need to explicitly create an extractor instance. 
+For quick, one-off extractions, you may use the `anpe.extract()` function directly. This method is simpler and avoids the need to explicitly create an extractor instance. 
 Similarly, the `extract()` function accepts the following parameters:
 - `text` (str): The input text to process.
 - `metadata` (bool, optional): Whether to include metadata (length and structure analysis). Defaults to `False`.
@@ -280,11 +250,11 @@ print(result)
 
 The `extract()` method returns a dictionary following this structure:
 
-1. **noun_phrase**: The extracted noun phrase text
-2. **id**: Hierarchical ID of the noun phrase
-3. **level**: Depth level in the hierarchy
-4. **metadata**: (*if requested*) Contains length and structures
-5. **children**: (*if nested NPs are requested*) Always appears as the last field for readability
+1. **`noun_phrase`**: The extracted noun phrase text
+2. **`id`**: Hierarchical ID of the noun phrase
+3. **`level`**: Depth level in the hierarchy
+4. **`metadata`**: (*if requested*) Contains length and structures
+5. **`children`**: (*if nested NPs are requested*) Always appears as the last field for readability
 
 ```python
 {
@@ -347,17 +317,17 @@ The `extract()` method returns a dictionary following this structure:
 
 ### Exporting Results
 
-ANPE provides a convenient method to extract NP and export the results of an extraction directly to a file in one go. 
+ANPE provides a quick method to extract NP and export the results of an extraction directly to a file in one go. 
 
 ```python
 # Export to JSON
-extractor.export(text, format="json", export_dir="/path/to/exports", metadata=True, include_nested=True)
+extractor.export(text, format="json", export_dir="/dir/to/exports", metadata=True, include_nested=True)
 
 # Export to CSV
-extractor.export(text, format="csv", export_dir="/path/to/exports" metadata=True)
+extractor.export(text, format="csv", export_dir="/dir/to/exports" metadata=True)
 
 # Export to TXT
-extractor.export(text, format="txt", export_dir="/path/to/exports")
+extractor.export(text, format="txt", export_dir="/dir/to/exports")
 ```
 
 The `export()` method accepts the same parameters as `extract()` plus:
@@ -365,16 +335,17 @@ The `export()` method accepts the same parameters as `extract()` plus:
 | Parameter | Type | Default | Description |
 |-----------|------|---------|-------------|
 | `format` | str | "txt" | Output format ("txt", "csv", or "json") |
-| `export_dir` | str | None | Path to save the output file (if None, returns the content as string)
+| `export_dir` | str | None | Path to save the output file (if None, the exported file will be saved in the current working directory)
 
-Similarly, ANPE provides a convenient method to export directly via `export()`. The usage is the same as `extract()` function, with the addition of the two aforementioned parameters.
+**Convenient Method**
+Similarly, ANPE provides a convenient method to extract NP and export files directly via `anpe.export()`. The usage is the same as `anpe.extract()` method, with the addition of the two aforementioned parameters.
 ```python
 import anpe
 # Export noun phrases to a text file
 anpe.export(
     "In the summer of 1956, Stevens, a long-serving butler at Darlington Hall, decides to take a motoring trip through the West Country.",
-    format="txt",
-    export_dir="./output",
+    format="txt", #Exclusive parameters for anpe.export()
+    export_dir="./output", #Exclusive parameters for anpe.export()
     metadata=True,
     include_nested=True,
     min_length=2,
@@ -456,7 +427,7 @@ ID,Level,Parent_ID,Noun_Phrase,Length,Structures
 
 #### TXT Format
 
-The TXT output is human-readable and shows the hierarchical structure with indentation:
+The TXT output is the most human-readable format and shows the hierarchical structure with indentation:
 
 ```
 • [3] a motoring trip through the West Country
@@ -474,7 +445,7 @@ The TXT output is human-readable and shows the hierarchical structure with inden
   Structures: [determiner, compound, quantified]
 ```
 
-> We recommend use TXT if you are only intersted in top-level NPs and would like to see a plain list directly.
+> 💡We recommend use TXT if you are only intersted in top-level NPs and would like to see a plain list directly.
 
 ## Command-line Interface
 
@@ -589,17 +560,18 @@ ANPE's structural labeling system analyzes noun phrases to identify their syntac
 
 The system categorizes patterns into fundamental types, organized from simple to complex. For a comprehensive explanation of all structure patterns and their detection logic, please refer to the [structure_patterns.md](structure_patterns.md) file included in the repository.
 
-| Type | Description | Example | Detection Rationale |
-|------|-------------|---------|---------------------|
-| **Determiner** | Contains determiners (the, a, an, this, that, these, those) | "the summer" | Presence of DET tag with dependency relation "det" |
-| **Adjectival Modifier** | Contains adjective modifiers | "unrealised love" | Presence of ADJ tag with dependency relation "amod" |
-| **Prepositional Modifier** | Prepositional phrase modifiers | "butler at Darlington Hall" | Preposition with "prep" dependency and a prepositional object |
-| **Compound** | Compound nouns forming a single conceptual unit | "Darlington Hall" | Nouns with "compound" dependency or adjacent nouns |
-| **Possessive** | Possessive constructions with markers or pronouns | "his housekeeper" | Presence of POS tag or possessive pronouns (PRP$) |
-| **Quantified** | Quantified NPs with numbers or quantity words | "two world wars" | Presence of NUM tag or quantifying determiners |
-| **Coordinated** | Coordinated elements joined by conjunctions | "Stevens and England" | Presence of coordinating conjunction (cc) and conjoined elements |
-| **Appositive** | One NP renames or explains another | "Stevens, a long-serving butler" | Presence of appositive dependency or NPs separated by comma |
-| **Relative Clause** | Clause that modifies a noun | "a past that takes in fascism" | Presence of relative pronoun introducing clause |
+| Type | Description | Example |
+|------|-------------|---------|
+| **Determiner** | Contains determiners (the, a, an, this, that, these, those) | "the summer" |
+| **Adjectival Modifier** | Contains adjective modifiers | "unrealised love" | 
+| **Prepositional Modifier** | Prepositional phrase modifiers | "butler at Darlington Hall" | 
+| **Compound** | Compound nouns forming a single conceptual unit | "Darlington Hall" | 
+| **Possessive** | Possessive constructions with markers or pronouns | "his housekeeper" | 
+| **Quantified** | Quantified NPs with numbers or quantity words | "two world wars" | 
+| **Coordinated** | Coordinated elements joined by conjunctions | "Stevens and England" | 
+| **Appositive** | One NP renames or explains another | "Stevens, a long-serving butler" |
+| **Relative Clause** | Clause that modifies a noun | "a past that takes in fascism" |
+| **others** | Other NP structures that are not identifed | N/A |  
 
 For a comprehensive explanation of all structure patterns and their detection logic, please refer to the [structure_patterns.md](structure_patterns.md) file included in the repository. This system enables precise identification of noun phrase structures while maintaining high processing efficiency.
 
@@ -613,7 +585,7 @@ Contributions are welcome! Here are some ways you can contribute:
 
 ### Testing
 
-ANPE uses pytest for testing. The test suite includes unit tests, integration tests, and CLI tests that verify the functionality of the package.
+ANPE uses `pytest` for testing. The test suite includes unit tests, integration tests, and CLI tests that verify the functionality of the package.
 
 #### Running Tests
 
@@ -675,11 +647,11 @@ If you use ANPE in your research or projects, please cite it as follows:
 @software{Chen_ANPE_2024,
   author = {Chen, Nuo},
   title = {{ANPE: Another Noun Phrase Extractor}},
-  url = {https://github.com/richard20000321/anpe},
+  url = {https://github.com/rcverse/anpe},
   version = {0.1.0},
   year = {2025}
 }
 ```
 
 ### Plain Text (APA style)
-Chen, N. (2025). *ANPE: Another Noun Phrase Extractor* (Version 0.1.0) [Computer software]. Retrieved from https://github.com/richard20000321/anpe
+Chen, N. (2025). *ANPE: Another Noun Phrase Extractor* (Version 0.1.0) [Computer software]. Retrieved from https://github.com/rcverse/anpe
