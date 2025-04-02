@@ -12,7 +12,7 @@ ANPE (*Another Noun Phrase Extractor*) is a Python library for **directly extrac
 
 Currently, ANPE is only tested on **English**.
 
-**Key Features**:
+## **Key Features**:
 1. **✅Precision Extraction**: Accurate noun phrase identification using modern parsing techniques
 2. **🏷️Structural Labelling**: Identifies and labels NPs with their different syntactic patterns
 3. **✍🏻Hierarchical Analysis**: Supports both top-level and nested noun phrases
