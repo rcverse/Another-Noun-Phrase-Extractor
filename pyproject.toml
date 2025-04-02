@@ -1,16 +1,18 @@
 [build-system]
-requires = ["setuptools>=42", "wheel"]
-build-backend = "setuptools.build_meta"
+requires = ["hatchling>=1.18.0"]
+build-backend = "hatchling.build"
 
 [project]
 name = "anpe"
 version = "0.1.0"
 authors = [
-    { name="Richard", email="Richard20000321@gmail.com" },
+    {name = "Richard", email = "Richard20000321@gmail.com"},
 ]
 description = "Another Noun Phrase Extractor using the Berkeley Neural Parser"
 readme = "README.md"
-requires-python = ">=3.9"
+requires-python = ">=3.9,<3.13"
+license = {text = "MIT"}
+keywords = ["nlp", "parsing", "noun phrase", "linguistics", "text processing", "natural language processing"]
 classifiers = [
     "Programming Language :: Python :: 3",
     "Programming Language :: Python :: 3.9",
@@ -25,17 +27,28 @@ classifiers = [
     "Intended Audience :: Developers",
     "Natural Language :: English",
 ]
+dependencies = [
+    "spacy>=3.5.0",
+    "benepar>=0.2.0",
+    "nltk>=3.8.0,
+]
 
 [project.urls]
 Homepage = "https://github.com/richard20000321/anpe"
-BugTracker = "https://github.com/richard20000321/anpe/issues"
+"Bug Tracker" = "https://github.com/richard20000321/anpe/issues"
 Documentation = "https://github.com/richard20000321/anpe"
-SourceCode = "https://github.com/richard20000321/anpe"
+"Source Code" = "https://github.com/richard20000321/anpe"
 
 [project.scripts]
 anpe = "anpe.cli:main"
 
-[project.dependencies]
-spacy = ">=3.5.0"
-benepar = ">=0.2.0"
-nltk = ">=3.8.0"
+[tool.hatch.build.targets.wheel]
+packages = ["anpe"]
+
+[tool.hatch.build.targets.sdist]
+include = [
+    "anpe",
+    "README.md",
+    "LICENSE",
+    "MANIFEST.in",
+]
