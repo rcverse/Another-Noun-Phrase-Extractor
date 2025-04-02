@@ -1,4 +1,5 @@
 include LICENSE
 include README.md
 include requirements.txt
+include structure_patterns.md
 recursive-include anpe/config *.py
