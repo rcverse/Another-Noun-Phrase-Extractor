@@ -1,15 +1,18 @@
 # ANPE: Another Noun Phrase Extractor
 
-[![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+[![Build Status](https://github.com/richard20000321/anpe/actions/workflows/python-package.yml/badge.svg)](https://github.com/richard20000321/anpe/actions/workflows/python-package.yml)
+[![pytest](https://img.shields.io/badge/pytest-passing-brightgreen)](https://github.com/richard20000321/anpe/actions/workflows/python-package.yml)
 [![Python Version](https://img.shields.io/badge/python-3.9+-blue.svg)](https://www.python.org/)
 [![Python Version](https://img.shields.io/badge/python-<=3.12-blue.svg)](https://www.python.org/)
-[![pytest](https://img.shields.io/badge/pytest-passing-brightgreen)](https://github.com/richard20000321/anpe/actions/workflows/python-package.yml)
+[![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
 ANPE (*Another Noun Phrase Extractor*) is a Python library for **directly extracting noun phrases from text**. The name reflects its purpose as a straightforward alternative to existing NP extraction tools with simplicity while maintaining high accuracy. It uses the [Berkeley Neural Parser](https://github.com/nikitakit/self-attentive-parser) with [spaCy](https://spacy.io/) and [NLTK](https://www.nltk.org/) for precise parsing and provides clean, hierarchical outputs that can be tailored to your needs.
 
 ANPE simplifies noun phrase extraction to its essence - **input text, get a structured list of NPs**. The library provides flexible configuration options to target specific structural types of NP or length requirements, as well as options to export to files in multiple formats directly. This provides an effective tool for linguistic analysis, corpus studies, and NLP research where quick, reliable NP identification is needed.
 
-> **⚠️ Python Version Requirement**: ANPE requires Python 3.9 to 3.12. It is not compatible with Python 3.13 or higher and 3.8 or lower due to dependencies (especially spaCy) that currently only support up to Python 3.12.
+Currently, ANPE is only tested on **English**.
+
+
 
 **Key Features**:
 1. **✅Precision Extraction**: Accurate noun phrase identification using modern parsing techniques
@@ -23,9 +26,8 @@ ANPE simplifies noun phrase extraction to its essence - **input text, get a stru
 - [Features](#features)
 - [Installation](#installation)
 - [Usage](#usage)
-- [Testing](#testing)
 - [Contributing](#contributing)
-- [License](#license)
+- [Troubleshooting](#troubleshooting)
 
 
 
@@ -52,22 +54,14 @@ pip install anpe
 
 ### Prerequisites
 
-ANPE relies on several pre-trained models for its functionality.
+#### **Python Version Compatibility**
+ANPE is **compatible with Python 3.9 through 3.12**. It is not compatible with Python versions below 3.9 or higher than 3.12 due to dependencies requirements. Make sure you have a supported Python version installed before proceeding.
 
 #### **Required Models**
+ANPE relies on several pre-trained models for its functionality.
 1. **spaCy Model**: `en_core_web_sm` (English language model for tokenization and sentence segmentation).
 2. **Benepar Model**: `benepar_en3` (English constituency parser for syntactic analysis).
 3. **NLTK Model**: `punkt` (Punkt tokenizer for sentence splitting).
-
-#### **Python Version Compatibility**
-ANPE is compatible with Python 3.9 through 3.12. It is not compatible with Python versions below 3.9 due to dependencies that require Python 3.9 or higher. Make sure you have a supported Python version installed before proceeding.
-
-To check your Python version, run:
-```bash
-python --version
-```
-
-If you need to install Python 3.12, you can download it from the [official Python website](https://www.python.org/downloads/release/python-3120/).
 
 #### **Automatic Setup**
 
@@ -105,11 +99,7 @@ from anpe.utils.setup_models import setup_models
 setup_models()
 ```
 
-This utility handles the installation of:
-1. **spaCy Model**: `en_core_web_sm` (English language model)
-2. **Benepar Model**: `benepar_en3` (English constituency parser)
-3. **NLTK Model**: `punkt` (Punkt tokenizer)
-
+This utility handles the installation of all required models.
 > **Note**: When you run the extractor, the package will automatically check if the models are installed and install them if they're not. However, it is recommended to run the setup utility before you start using the extractor for the first time.
 
 
@@ -130,54 +120,6 @@ Install NLTK Punkt Tokenizer:
 ``` python
 import nltk
 nltk.download('punkt')
-```
-
-## Testing
-
-ANPE uses pytest for testing. The test suite includes unit tests, integration tests, and CLI tests that verify the functionality of the package.
-
-### Running Tests
-
-To run the tests, you need to have pytest installed:
-
-```bash
-pip install pytest
-```
-
-Then, you can run the tests with:
-
-```bash
-python -m pytest
-```
-
-### Test Structure
-
-The test suite is organized into several files that test different aspects of the package:
-
-- **test_extractor.py**: Tests the core functionality of the `ANPEExtractor` class, including basic extraction, metadata, nested structures, and custom configurations.
-- **test_cli.py**: Tests the command-line interface functionality.
-- **test_integration.py**: Tests the integration between different components of the package.
-- **test_utils.py**: Tests utility functions like exporting, logging, and structural analysis.
-
-### Adding New Tests
-
-When contributing to ANPE, please consider adding tests for your changes. Tests should be added to the appropriate file based on what component they are testing.
-
-For example, if you are adding a new feature to the extractor, you should add tests to `test_extractor.py`:
-
-```python
-def test_my_new_feature(self):
-    """Test the new feature."""
-    extractor = ANPEExtractor()
-    # Test setup and assertions
-```
-
-If you are adding a new utility function, you should add tests to `test_utils.py`:
-
-```python
-def test_my_utility_function(self):
-    """Test the utility function."""
-    # Test setup and assertions
 ```
 
 ## Library API Usage
@@ -668,27 +610,57 @@ Contributions are welcome! Here are some ways you can contribute:
 2. **Suggest features**: Submit issues for feature requests
 3. **Submit pull requests**: Implement new features or fix bugs
 
-### Development Setup
+### Testing
 
-1. Clone the repository:
+ANPE uses pytest for testing. The test suite includes unit tests, integration tests, and CLI tests that verify the functionality of the package.
+
+#### Running Tests
+
+To run the tests, you need to have pytest installed:
+
 ```bash
-git clone https://github.com/yourusername/anpe.git
-cd anpe
+pip install pytest
 ```
 
-2. Create a virtual environment and install dependencies:
+Then, you can run the tests with:
+
 ```bash
-python -m venv venv
-source venv/bin/activate  # On Windows: venv\Scripts\activate
-pip install -e ".[dev]"   # Install package in development mode with dev dependencies
+python -m pytest
 ```
 
-### **Troubleshooting**
+#### Test Structure
+
+The test suite is organized into several files that test different aspects of the package:
+
+- **test_extractor.py**: Tests the core functionality of the `ANPEExtractor` class, including basic extraction, metadata, nested structures, and custom configurations.
+- **test_cli.py**: Tests the command-line interface functionality.
+- **test_integration.py**: Tests the integration between different components of the package.
+- **test_utils.py**: Tests utility functions like exporting, logging, and structural analysis.
+
+#### Adding New Tests
+
+When contributing to ANPE, please consider adding tests for your changes. Tests should be added to the appropriate file based on what component they are testing.
+
+For example, if you are adding a new feature to the extractor, you should add tests to `test_extractor.py`:
+
+```python
+def test_my_new_feature(self):
+    """Test the new feature."""
+    extractor = ANPEExtractor()
+    # Test setup and assertions
+```
+
+If you are adding a new utility function, you should add tests to `test_utils.py`:
+
+```python
+def test_my_utility_function(self):
+    """Test the utility function."""
+    # Test setup and assertions
+```
+
+## **Troubleshooting**
 If you encounter issues with model setup:
 1. Ensure you have an active internet connection.
-2. Verify that the required directories have write permissions.
-3. Run the `setup_models` utility manually and check the logs for errors.
-4. If the issue persists, delete the model directories and retry the setup.
-5. For specific model installation issues, refer to the documentation for [spaCy](https://spacy.io/), [Benepar](https://github.com/nikitakit/self-attentive-parser), and [NLTK](https://www.nltk.org/).
-
-For further assistance, please refer to the [spaCy](https://spacy.io/), [Benepar](https://github.com/nikitakit/self-attentive-parser), and [NLTK](https://www.nltk.org/) documentation.
+2. Run the `setup_models` utility manually and check the logs for errors.
+3. If the issue persists, delete the model directories and retry the setup.
+4. For specific model installation issues, refer to the documentation for [spaCy](https://spacy.io/), [Benepar](https://github.com/nikitakit/self-attentive-parser), and [NLTK](https://www.nltk.org/).

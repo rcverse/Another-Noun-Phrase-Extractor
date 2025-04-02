@@ -30,7 +30,7 @@ jobs:
       timeout-minutes: 10
     - name: Install spaCy and NLTK
       run: |
-        pip install spacy==3.7.5 nltk
+        pip install spacy nltk
       timeout-minutes: 10
     - name: Install benepar
       run: |
@@ -57,7 +57,6 @@ jobs:
       run: |
         $nltkDataPath = $env:NLTK_DATA -replace '\\', '\\'
         python -c "import nltk; nltk.download('punkt', download_dir=r'$nltkDataPath')"
-        python -c "import nltk; nltk.download('punkt_tab', download_dir=r'$nltkDataPath')"
     - name: Download NLTK models (macOS/Linux)
       if: runner.os != 'Windows'
       shell: bash
@@ -65,7 +64,6 @@ jobs:
         NLTK_DATA: ${{ env.NLTK_DATA }}
       run: |
         python -c "import nltk; nltk.download('punkt', download_dir='$NLTK_DATA')"
-        python -c "import nltk; nltk.download('punkt_tab', download_dir='$NLTK_DATA')"
     - name: Download other models
       run: |
         python -c "import benepar; print('Downloading benepar_en3'); benepar.download('benepar_en3')"

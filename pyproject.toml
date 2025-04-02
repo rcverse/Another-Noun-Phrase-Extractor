@@ -1,0 +1,41 @@
+[build-system]
+requires = ["setuptools>=42", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "anpe"
+version = "0.1.0"
+authors = [
+    { name="Richard", email="Richard20000321@gmail.com" },
+]
+description = "Another Noun Phrase Extractor using the Berkeley Neural Parser"
+readme = "README.md"
+requires-python = ">=3.9"
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+    "Development Status :: 4 - Beta",
+    "Topic :: Text Processing :: Linguistic",
+    "Intended Audience :: Science/Research",
+    "Intended Audience :: Developers",
+    "Natural Language :: English",
+]
+
+[project.urls]
+Homepage = "https://github.com/richard20000321/anpe"
+BugTracker = "https://github.com/richard20000321/anpe/issues"
+Documentation = "https://github.com/richard20000321/anpe"
+SourceCode = "https://github.com/richard20000321/anpe"
+
+[project.scripts]
+anpe = "anpe.cli:main"
+
+[project.dependencies]
+spacy = ">=3.5.0"
+benepar = ">=0.2.0"
+nltk = ">=3.8.0"

@@ -2,7 +2,7 @@
 
 All notable changes to the ANPE project will be documented in this file.
 
-## [0.1.0] - 2023-04-01
+## [0.1.0] - 2023-04-02
 
 ### Added
 - Initial release of ANPE (Another Noun Phrase Extractor)
