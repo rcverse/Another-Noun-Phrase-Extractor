@@ -4,8 +4,7 @@
 
 [![Build Status](https://github.com/rcverse/anpe/actions/workflows/python-package.yml/badge.svg)](https://github.com/rcverse/anpe/actions/workflows/python-package.yml)
 [![pytest](https://img.shields.io/badge/pytest-passing-brightgreen)](https://github.com/rcverse/anpe/actions/workflows/python-package.yml)
-[![Python Version](https://img.shields.io/badge/python-3.9+-blue.svg)](https://www.python.org/)
-[![Python Version](https://img.shields.io/badge/python-<=3.12-blue.svg)](https://www.python.org/)
+![PyPI - Python Version](https://img.shields.io/pypi/pyversions/anpe)
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
 ANPE (*Another Noun Phrase Extractor*) is a Python library for **directly extracting complete noun phrases from text**. This library leverages the [Berkeley Neural Parser](https://github.com/nikitakit/self-attentive-parser) with [spaCy](https://spacy.io/) and [NLTK](https://www.nltk.org/) for precise parsing and NP extraction. On top of that, the library provides flexible configuration options to **include nested NP**, **filter specific structural types of NP**, or **taget length requirements**, as well as options to **export to files** in multiple structured formats directly. 
