@@ -28,13 +28,9 @@ jobs:
         # Install PyTorch (CPU only)
         pip install torch --extra-index-url https://download.pytorch.org/whl/cpu
       timeout-minutes: 10
-    - name: Install spaCy and NLTK
+    - name: Install spaCy, NLTK, and benepar
       run: |
-        pip install spacy nltk
-      timeout-minutes: 10
-    - name: Install benepar
-      run: |
-        pip install benepar
+        pip install spacy nltk benepar
       timeout-minutes: 10
     - name: Set NLTK data path (Windows)
       if: runner.os == 'Windows'
@@ -49,32 +45,29 @@ jobs:
       run: |
         mkdir -p ~/nltk_data
         echo "NLTK_DATA=~/nltk_data" >> $GITHUB_ENV
-    - name: Download NLTK models (Windows)
-      if: runner.os == 'Windows'
-      shell: pwsh
+    - name: Setup models using setup_tools
       env:
         NLTK_DATA: ${{ env.NLTK_DATA }}
       run: |
-        $nltkDataPath = $env:NLTK_DATA -replace '\\', '\\'
-        python -c "import nltk; nltk.download('punkt', download_dir=r'$nltkDataPath')"
-    - name: Download NLTK models (macOS/Linux)
-      if: runner.os != 'Windows'
-      shell: bash
+        python -m anpe.utils.setup_models
+    - name: Verify model downloads
       env:
         NLTK_DATA: ${{ env.NLTK_DATA }}
       run: |
-        python -c "import nltk; nltk.download('punkt', download_dir='$NLTK_DATA')"
-    - name: Download other models
-      run: |
-        python -c "import benepar; print('Downloading benepar_en3'); benepar.download('benepar_en3')"
-        python -c "import spacy; print('Downloading en_core_web_sm'); spacy.cli.download('en_core_web_sm')"
-      timeout-minutes: 10
+        python -c "
+        import nltk
+        import benepar
+        import spacy
+        assert nltk.data.find('tokenizers/punkt') is not None
+        assert benepar.download('benepar_en3') is not None
+        assert spacy.util.is_package('en_core_web_sm')
+        "
     - name: Install package
       run: |
         pip install -e .
     - name: Run tests
       env:
-        NLTK_DATA: ~/nltk_data
+        NLTK_DATA: ${{ env.NLTK_DATA }}
       run: |
         pytest tests/ --cov=anpe --cov-report=xml
       timeout-minutes: 5

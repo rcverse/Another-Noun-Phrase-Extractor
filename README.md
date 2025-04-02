@@ -59,9 +59,14 @@ ANPE is **compatible with Python 3.9 through 3.12**. It is not compatible with P
 
 #### **Required Models**
 ANPE relies on several pre-trained models for its functionality.
+
 1. **spaCy Model**: `en_core_web_sm` (English language model for tokenization and sentence segmentation).
 2. **Benepar Model**: `benepar_en3` (English constituency parser for syntactic analysis).
-3. **NLTK Model**: `punkt` (Punkt tokenizer for sentence splitting).
+3. **NLTK Models**:
+   - `punkt` (Punkt tokenizer for sentence splitting).
+   - `punkt_tab` (Language-specific tab-delimited tokenizer data required by Benepar).
+
+> **Note on Benepar and NLTK**: Benepar internally uses NLTK's parsing functions, which require both the `punkt` tokenizer and the `punkt_tab` language-specific data. The `punkt_tab` model is not a standard NLTK download but is automatically handled by ANPE's setup utility.
 
 #### **Automatic Setup**
 
