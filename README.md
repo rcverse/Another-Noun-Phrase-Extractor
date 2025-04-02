@@ -1,18 +1,16 @@
 # ANPE: Another Noun Phrase Extractor
 
+![ANPE Banner](/pics/banner.png)
+
 [![Build Status](https://github.com/richard20000321/anpe/actions/workflows/python-package.yml/badge.svg)](https://github.com/richard20000321/anpe/actions/workflows/python-package.yml)
 [![pytest](https://img.shields.io/badge/pytest-passing-brightgreen)](https://github.com/richard20000321/anpe/actions/workflows/python-package.yml)
 [![Python Version](https://img.shields.io/badge/python-3.9+-blue.svg)](https://www.python.org/)
 [![Python Version](https://img.shields.io/badge/python-<=3.12-blue.svg)](https://www.python.org/)
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
-ANPE (*Another Noun Phrase Extractor*) is a Python library for **directly extracting noun phrases from text**. The name reflects its purpose as a straightforward alternative to existing NP extraction tools with simplicity while maintaining high accuracy. It uses the [Berkeley Neural Parser](https://github.com/nikitakit/self-attentive-parser) with [spaCy](https://spacy.io/) and [NLTK](https://www.nltk.org/) for precise parsing and provides clean, hierarchical outputs that can be tailored to your needs.
-
-ANPE simplifies noun phrase extraction to its essence - **input text, get a structured list of NPs**. The library provides flexible configuration options to target specific structural types of NP or length requirements, as well as options to export to files in multiple formats directly. This provides an effective tool for linguistic analysis, corpus studies, and NLP research where quick, reliable NP identification is needed.
+ANPE (*Another Noun Phrase Extractor*) is a Python library for **directly extracting complete noun phrases from text**. This library leverages the [Berkeley Neural Parser](https://github.com/nikitakit/self-attentive-parser) with [spaCy](https://spacy.io/) and [NLTK](https://www.nltk.org/) for precise parsing and NP extraction. On top of that, the library provides flexible configuration options to **include nested NP**, **filter specific structural types of NP**, or **taget length requirements**, as well as options to **export to files** in multiple structured formats directly. 
 
 Currently, ANPE is only tested on **English**.
-
-
 
 **Key Features**:
 1. **✅Precision Extraction**: Accurate noun phrase identification using modern parsing techniques
@@ -28,8 +26,6 @@ Currently, ANPE is only tested on **English**.
 - [Usage](#usage)
 - [Contributing](#contributing)
 - [Troubleshooting](#troubleshooting)
-
-
 
 ## Installation
 
@@ -578,9 +574,9 @@ anpe version
 
 ANPE uses a hierarchical ID system to represent parent-child relationships between noun phrases when nested NP are captured:
 
-- Top-level NPs are assigned sequential numeric IDs: "1", "2", "3", etc.
-- Child NPs are assigned IDs that reflect their parent: "1.1", "1.2", "2.1", etc.
-- Deeper nested NPs continue this pattern: "1.1.1", "1.1.2", etc.
+- **Top-level NPs** are assigned sequential numeric IDs: "1", "2", "3", etc.
+- **Child NPs** are assigned IDs that reflect their parent: "1.1", "1.2", "2.1", etc.
+- **Deeper nested NPs** continue this pattern: "1.1.1", "1.1.2", etc.
 
 This makes it easy to identify related noun phrases across different output formats.
 
@@ -669,3 +665,21 @@ If you encounter issues with model setup:
 2. Run the `setup_models` utility manually and check the logs for errors.
 3. If the issue persists, delete the model directories and retry the setup.
 4. For specific model installation issues, refer to the documentation for [spaCy](https://spacy.io/), [Benepar](https://github.com/nikitakit/self-attentive-parser), and [NLTK](https://www.nltk.org/).
+
+## Citation
+
+If you use ANPE in your research or projects, please cite it as follows:
+
+### BibTeX
+```bibtex
+@software{Chen_ANPE_2024,
+  author = {Chen, Nuo},
+  title = {{ANPE: Another Noun Phrase Extractor}},
+  url = {https://github.com/richard20000321/anpe},
+  version = {0.1.0},
+  year = {2025}
+}
+```
+
+### Plain Text (APA style)
+Chen, N. (2025). *ANPE: Another Noun Phrase Extractor* (Version 0.1.0) [Computer software]. Retrieved from https://github.com/richard20000321/anpe
