@@ -30,13 +30,13 @@ classifiers = [
 dependencies = [
     "spacy>=3.5.0",
     "benepar>=0.2.0",
-    "nltk>=3.8.0,
+    "nltk>=3.8.0",
 ]
 
 [project.urls]
 Homepage = "https://github.com/richard20000321/anpe"
-"Bug Tracker" = "https://github.com/richard20000321/anpe/issues"
 Documentation = "https://github.com/richard20000321/anpe"
+"Bug Tracker" = "https://github.com/richard20000321/anpe/issues"
 "Source Code" = "https://github.com/richard20000321/anpe"
 
 [project.scripts]
