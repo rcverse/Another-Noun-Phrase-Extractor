@@ -576,37 +576,60 @@ The system categorizes patterns into fundamental types, organized from simple to
 For a comprehensive explanation of all structure patterns and their detection logic, please refer to the [structure_patterns.md](structure_patterns.md) file included in the repository. This system enables precise identification of noun phrase structures while maintaining high processing efficiency.
 
 ## GUI Application
+>*❗[Under development]*
+>
+> Please note that the gui app is now still being developed, no release is provided at the moment.
 
-》***"Oh no, python again! I'm just an linguistic guy, kill me already!😵"***
-No worries, ANPE provides a graphical user interface (GUI) for easier interaction with the library. Simply download from release, and run it on your computer.
+》***"Oh no, code again! I just want a quick tool, kill me already!😵"***
+
+No worries, ANPE provides a graphical user interface (GUI) for easier interaction with the library. Best part of all - it is a standalone app and requires no environment setup. Supports Mac and Windows.
+
+**Disclaimer:**
+As I do not have any knowledge of the Qt framework, this app is almost developed COMPLETELY with AI. Contributions are most weclomed to enhance this app.
+
+
+![ANPE GUI Screenshot](/pics/anpe_gui_app_windows.png) 
+
+
+### GUI Features
+
+- **User-friendly interface** with distinct Input and Output tabs.
+- **Input Modes**: Process text via Direct Text Input or File Input.
+- **File Handling**: Add single files or entire directories; view and manage the list.
+- **Batch Processing**: Automatically handles multiple files from selected directories.
+- **Visual Configuration**: Easily configure all ANPE settings:
+    - General: Include Nested Phrases, Include Metadata, Treat Newlines as Boundaries.
+    - Filtering: Min/Max NP length, Accept Pronouns.
+    - Structure Filtering: Master toggle switch and individual selection for specific NP structures (Determiner, Compound, Relative Clause, etc.).
+    - Tooltips: Hover over options for detailed explanations based on documentation.
+- **Real-time Log Viewer**: Track operations and potential issues with log level filtering.
+- **Results Visualization**: View formatted extraction results in the Output tab.
+- **Batch Result Navigation**: Use a dropdown to view results for specific files when processing batches.
+- **Export Options**: Export results to TXT, CSV, or JSON formats to a selected directory.
+- **Status Bar**: Provides feedback on application readiness, processing progress, and completion status.
+- **Workflow Control**: Process button initiates extraction, Reset button clears inputs/outputs for a new task.
 
 ### Starting the GUI
 
 You can launch the GUI application in several ways:
 
-1. **From the command line**:
-   ```bash
-   python -m anpe_gui
-   ```
+1.  **Using the provided script (Recommended for source install)**:
+    Navigate to the project root directory and run:
+    ```bash
+    python run_anpe_gui.py
+    ```
 
-2. **Using the provided script**:
-   ```bash
-   python run_anpe_gui.py
-   ```
+2.  **From the command line (If ANPE is installed as a package)**:
+    ```bash
+    python -m anpe_gui
+    ```
 
-3. **Using the standalone executable** (if built):
-   Simply download and run the executable for your platform.
+3.  **Using the standalone executable** (if built/downloaded):
+    Download the executable for your platform (e.g., from GitHub Releases) and run it directly.
 
-### GUI Features
+For more details on the GUI structure or building it from source, see the [ANPE GUI README](anpe_gui/README.md).
 
-- **User-friendly interface** for text and file input
-- **Batch processing** of multiple files
-- **Visual configuration** of all ANPE settings
-- **Real-time progress tracking** for large files
-- **Results visualization** with export options
-- **Integrated logging** display
 
-For more details, see the [ANPE GUI README](anpe_gui/README.md).
 
 ## Contributing
 
