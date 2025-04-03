@@ -1,149 +1,94 @@
 # ANPE GUI Implementation Plan
 
-## Phase 1: Technical Foundation & Module Structure
+## Phase 1: Technical Foundation
 
-### 1.1. Fix Python Module Structure
-- Create proper `__init__.py` files in all directories
-- Update relative imports to absolute imports
-- Fix module path issues in run scripts
-- Expected outcome: Application launches without import errors
+### 1.1. Module Structure
+- Fix Python module imports and package structure
+- Update package imports to ensure proper loading
+- Create consistent directory structure and necessary `__init__.py` files
 
-### 1.2. Basic Code Structure Cleanup
-- Reorganize widget classes for better separation of concerns
+### 1.2. Basic Code Cleanup
 - Standardize naming conventions across codebase
 - Remove redundant code and consolidate duplicate functions
-- Expected outcome: Cleaner, more maintainable codebase
+- Separate UI components into reusable widget classes
 
-## Phase 2: UI Component Refinement
+## Phase 2: GUI Overhaul
 
-### 2.1. Standardize Input Controls
-- Replace custom input areas with Qt standard components:
-  - Use QSpinBox for numeric inputs (min/max length)
-  - Use QCheckBox with proper styling for toggles
-  - Fix layout issues with unknown squares
-- Implementation files:
-  - `anpe_gui/widgets/standardized_inputs.py` (new)
-  - Update references in `main_window.py`
+### 2.1. Two-Tab Main Structure
+- Implement "Input" and "Output" tabs with QTabWidget
+- Add horizontal splitter for main content and log panel
+- Create header with "ANPE" and "Another Noun Phrase Extractor" subtitle
 
-### 2.2. Implement Grid Layout System
-- Convert all form layouts to QGridLayout
-- Establish consistent margin and spacing rules
-- Align all labels and inputs properly
-- Implementation files:
-  - Update all widget layout methods in `main_window.py`
-  - Create layout helper functions in `anpe_gui/utils/layout_helpers.py` (new)
+### 2.2. Input Tab Implementation
+- Create toggle buttons for File/Text input modes
+- Implement file selection list widget with action buttons
+- Design configuration sections with proper headers and spacing
+- Create master toggle for structure filtering
+- Implement QSpinBox for min/max length inputs
 
-### 2.3. Create Collapsible Panel Widget
-- Implement a collapsible section widget for configuration options
-- Include animation for smooth expand/collapse
-- Add toggle button with arrow indicator
-- Implementation files:
-  - `anpe_gui/widgets/collapsible_section.py` (new)
+### 2.3. Output Tab Implementation
+- Create results display area with proper formatting
+- Implement file selector dropdown for multiple files
+- Add action buttons for navigation and export
 
-## Phase 3: Workflow Restructuring
+### 2.4. Status Bar Implementation
+- Create global status bar at the bottom of the application window
+- Implement progress bar component with text status display
+- Connect status updates to all processing operations
+- Ensure status bar appears beneath the log panel
+- Add clear status method for operation completion
 
-### 3.1. Two-Tab Main Interface
-- Consolidate UI into two main tabs:
-  - "Input & Settings" tab (with collapsible config section)
-  - "Results" tab
-- Update step indicator to reflect new structure
-- Implementation files:
-  - Major update to `main_window.py`
-  - Update `step_indicator.py`
+### 2.5. Splash Screen Fix
+- Resize splash screen to appropriate dimensions
+- Fix progress bar positioning
+- Update text to match application title
 
-### 3.2. Configuration Section
-- Move configuration options into collapsible panel within Input tab
-- Group related settings with clear headings
-- Add save/load configuration functionality
-- Implementation files:
-  - `anpe_gui/widgets/config_panel.py` (new)
-  - Update `main_window.py`
+## Phase 3: Functional Improvements
 
-### 3.3. Button Consolidation
-- Remove duplicate "Process New Input" buttons
-- Standardize button placement and styling
-- Create consistent action flow
-- Implementation files:
-  - Update button creation and placement in `main_window.py`
+### 3.1. Processing Logic
+- Implement background worker thread for processing
+- Add progress reporting to status bar during processing
+- Create automatic tab switching after processing
+- Preserve all core ANPE functionality
 
-## Phase 4: Splash Screen Improvements
+### 3.2. Batch Processing Enhancement
+- Implement file selector for navigating results
+- Create proper progress reporting during batch processing
+- Add batch status indicators
+- Update status bar with file counts and progress
 
-### 4.1. Resize and Reposition
-- Limit splash screen to 400x300px maximum
-- Fix banner and progress bar positioning
-- Add proper margins between elements
-- Implementation files:
-  - Update `splash_screen.py`
+### 3.3. Log Panel Improvement
+- Add log filtering by level
+- Implement Clear and Copy buttons
+- Create proper log capturing from ANPE core
+- Add color coding based on log severity
 
-### 4.2. Visual Enhancements
-- Add subtle shadow effect to splash window
-- Implement smooth fade-in/fade-out animations
-- Ensure progress bar updates properly
-- Implementation files:
-  - Update `splash_screen.py` with QGraphicsEffect
-  - Add animation code using QPropertyAnimation
+## Phase 4: Testing and Refinement
 
-## Phase 5: Enhanced Logging System
-
-### 5.1. Improved Log Handling
-- Update QtLogHandler to capture all console output
-- Ensure log panel reflects configured log level
-- Add timestamps and proper formatting
-- Implementation files:
-  - Update `qt_log_handler.py`
-  - Enhance log display widget
-
-### 5.2. Log Panel Features
-- Add log level filtering (dropdown or buttons)
-- Implement simple search functionality
-- Add copy-to-clipboard feature
-- Auto-scroll with option to pause
-- Implementation files:
-  - Create `anpe_gui/widgets/enhanced_log_panel.py` (new)
-  - Update log panel references in `main_window.py`
-
-## Phase 6: Final Polish and Testing
-
-### 6.1. Visual Consistency
-- Apply consistent color scheme throughout
-- Standardize font sizes and weights
-- Ensure proper spacing and alignment everywhere
-- Implementation files:
-  - Update `theme.py`
-  - Create `anpe_gui/utils/style_constants.py` (new)
-
-### 6.2. User Experience Enhancements
-- Add tooltips to all interactive elements
-- Implement keyboard shortcuts for common actions
-- Add context-sensitive help where appropriate
-- Implementation files:
-  - Update all widget classes with tooltip information
-
-### 6.3. Cross-Platform Testing
+### 4.1. Cross-Platform Testing
 - Test on Windows, macOS, and Linux
-- Fix platform-specific issues
-- Ensure consistent appearance across environments
-- Implementation files:
-  - Create platform-specific style overrides if needed
+- Fix platform-specific display issues
+- Ensure consistent behavior across environments
 
-## Timeline Estimate
+### 4.2. User Experience Polish
+- Add tooltips for interactive elements
+- Improve error handling and user feedback
+- Ensure keyboard navigation works properly
+- Fix any remaining alignment or spacing issues
 
-- **Phase 1**: 1-2 days
-- **Phase 2**: 2-3 days
-- **Phase 3**: 2-3 days
-- **Phase 4**: 1 day
-- **Phase 5**: 1-2 days
-- **Phase 6**: 2-3 days
+## Implementation Files
 
-**Total Estimated Time**: 9-14 days
+### New Files
+- `anpe_gui/widgets/file_list_widget.py`: File selection list
+- `anpe_gui/widgets/structure_filter_widget.py`: Structure filter grid
+- `anpe_gui/widgets/enhanced_log_panel.py`: Improved log panel
+- `anpe_gui/widgets/status_bar.py`: Status bar with progress
+- `anpe_gui/utils/style_constants.py`: UI styling constants
 
-## Implementation Priority
+### Modified Files
+- `anpe_gui/main_window.py`: Two-tab UI implementation
+- `anpe_gui/splash_screen.py`: Fixed splash screen
+- `anpe_gui/app.py`: Application startup and theme
+- `anpe_gui/widgets/qt_log_handler.py`: Enhanced log handling
 
-1. Fix module structure issues (critical)
-2. Implement two-tab system with collapsible configuration
-3. Standardize input controls and fix layout issues
-4. Fix splash screen size and positioning
-5. Enhance logging system
-6. Polish and finalize
-
-This phased approach ensures that critical issues are addressed first while providing a systematic path to a fully refined UI. 
+IMPORTANT: All modifications must preserve the existing core functionality that communicates with the ANPE library. 

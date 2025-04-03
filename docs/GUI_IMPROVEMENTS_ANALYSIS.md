@@ -3,93 +3,66 @@
 ## Current Issues Analysis
 
 ### 1. Visual Layout and Alignment Issues
-- **Min/Max Length Input Areas**: Unknown squares appear beside text inputs, creating visual confusion
-- **Component Alignment**: Many UI elements are not properly aligned, creating a disorganized appearance
-- **Spacing Issues**: Inconsistent spacing between elements makes the interface look unprofessional
+- **Input Controls**: Poor alignment and unknown squares next to inputs
+- **Component Spacing**: Inconsistent spacing between elements
+- **Structure Filter Layout**: Uneven grid layout for structure types
 
-### 2. Splash Screen Problems
-- **Size Issue**: The splash screen is too large, taking up excessive screen space
-- **Progress Bar Overlap**: The loading progress bar overlaps with the banner image
-- **Proportions**: The overall proportions need adjustment for better visual balance
+### 2. Splash Screen Issues
+- **Size and Positioning**: Splash screen too large with overlapping elements
+- **Progress Bar**: Incorrectly positioned progress bar
 
-### 3. Workflow Structure Concerns
-- **Too Many Top-Level Tabs**: The current three-tab structure (Configuration, Input Selection, Results) creates unnecessary complexity
-- **Configuration Prominence**: Configuration options are given equal prominence to core functionality
-- **Workflow Logic**: The linear workflow is good but needs structural refinement
+### 3. UI Structure Needs
+- **Two-Tab System**: Need clear "Input" and "Output" tabs
+- **Fixed Configuration Section**: Configuration should be directly visible (not collapsible)
+- **Input Mode Toggles**: Need clear "File Input" and "Text Input" toggle buttons
 
-### 4. Duplicate UI Elements
-- **Redundant Buttons**: "Process New Input" button appears twice in the Results tab
-- **Inconsistent Action Placement**: Action buttons are not consistently placed across screens
+### 4. Batch Processing Limitations
+- **Progress Indication**: No progress bar during multi-file processing
+- **File Results Selection**: No way to select between processed file results
+- **Processing Feedback**: No consistent status updates during processing
 
-### 5. Log Output Limitations
-- **Limited Log Display**: The log panel shows minimal information
-- **Log Consistency**: Log output doesn't mirror the console logs as configured by the log level
-- **Log Filtering**: No way to filter or search log content
+### 5. Log Panel Improvements
+- **Log Filtering**: Need file-level log filtering
+- **Copy and Clear**: Need buttons for log management
 
-### 6. Technical Issues
-- **Module Import Error**: `ModuleNotFoundError: No module named 'anpe_gui'` when trying to run the application
+### 6. Status Bar Requirement
+- **Global Progress Bar**: Need a persistent progress bar beneath the log panel
+- **Status Text**: Need text status tracking for all operations
+- **Consistent Feedback**: Status updates should be shown for all processes
 
-## Proposed Improvements
+## Implementation Requirements
 
-### 1. Visual Layout Refinement
-- **Standardize Input Controls**: Replace custom input areas with standard QLineEdit and QSpinBox components
-- **Grid Layout Implementation**: Use QGridLayout for all form elements to ensure proper alignment
-- **Margin and Spacing System**: Implement consistent spacing rules (8px/16px/24px) between all components
-- **Visual Hierarchy**: Use font weights and sizes to create clear visual hierarchy
+### 1. Visual Layout
+- Create consistent tab structure with "Input" and "Output" tabs
+- Implement fixed-width log panel on the right side
+- Use proper input controls (QSpinBox for numeric inputs)
+- Correct header with "ANPE" and "Another Noun Phrase Extractor" subtitle
 
-### 2. Splash Screen Enhancements
-- **Fixed Size**: Limit splash screen to 400x300px maximum
-- **Separated Progress Bar**: Position the progress bar below the banner with proper margins
-- **Shadow and Animation**: Add subtle shadow to splash screen and smooth fade-in/fade-out animations
+### 2. Input Tab Features
+- File/Text input mode toggle buttons
+- File selection list with Add Files/Add Dir/Remove/Clear All buttons
+- Properly laid out configuration sections with labeled headers
+- Master toggle for structure filtering
 
-### 3. Workflow Restructuring
-- **Two-Tab System**: Consolidate the UI into two main tabs - "Input & Settings" and "Results"
-- **Collapsible Configuration**: Implement a collapsible section for configuration within the Input tab
-- **Visual Step Indicator**: Keep the step indicator but adjust to reflect the new two-tab system
-- **Save/Load Configurations**: Add ability to save and load configuration presets
+### 3. Output Tab Features
+- File selector dropdown when multiple files are processed
+- Results display area with proper formatting
+- Action buttons for returning to input or exporting results
 
-### 4. Action Button Consolidation
-- **Single Action Buttons**: Ensure each action appears only once in the interface
-- **Consistent Button Placement**: Standardize button positioning (bottom right for next/process actions)
-- **Button Hierarchy**: Use visual styling to differentiate primary and secondary actions
+### 4. Processing Improvements
+- Progress bar during file processing
+- Background worker thread to prevent UI freezing
+- Direct tab switch from Input to Output when processing completes
 
-### 5. Enhanced Logging System
-- **Full Console Mirroring**: Ensure log panel captures all console output at the configured level
-- **Log Formatting**: Improve log formatting with timestamps, levels, and color coding
-- **Log Filtering**: Add ability to filter logs by severity level
-- **Log Search**: Implement simple search functionality within the log panel
+### 5. Log Panel
+- Add filter dropdown and Clear/Copy buttons
+- Ensure proper log capture from core ANPE components
+- Implement color coding based on log level
 
-### 6. Technical Fixes
-- **Module Structure**: Fix Python module imports by ensuring proper package structure and import paths
-- **Installation Instructions**: Provide clear documentation for installation to prevent import errors
+### 6. Status Bar Implementation
+- Create global status bar at the bottom of the application
+- Include both progress bar and text status indicator
+- Ensure visibility during all processing operations
+- Connect status updates to all worker processes
 
-## Implementation Approach
-
-1. **Fix Module Structure First**:
-   - Update package imports and ensure proper `__init__.py` files
-   - Test basic application loading before UI changes
-
-2. **Layout and Component Refinement**:
-   - Standardize all input widgets using Qt standard components
-   - Implement proper layouts with consistent spacing
-   - Remove visual artifacts (unknown squares) and align all elements
-
-3. **Workflow Restructuring**:
-   - Redesign the tab structure to use two main tabs
-   - Implement collapsible configuration panel using QCollapsibleFrame
-   - Update navigation logic to match new structure
-
-4. **Splash Screen Fix**:
-   - Resize and reposition splash screen elements
-   - Fix progress bar position and animation
-
-5. **Log Panel Enhancement**:
-   - Update log handler to capture all configured output
-   - Improve formatting and add filtering capabilities
-
-6. **Final Polish**:
-   - Eliminate duplicate buttons
-   - Ensure consistent styling throughout
-   - Add tooltips and help text for improved usability
-
-By addressing these issues systematically, we'll create a more professional, intuitive, and visually appealing interface for ANPE GUI while maintaining all its functionality. 
+IMPORTANT: All improvements must preserve the existing core functionality that communicates with the ANPE library. 
