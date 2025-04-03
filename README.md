@@ -20,12 +20,63 @@ Currently, ANPE is only tested on **English** and compatible with Python through
 6. **⌨️CLI Integration**: Command-line interface for easy text processing
 
 ## Table of Contents
-- [Features](#features)
+
 - [Installation](#installation)
 - [Usage](#usage)
 - [GUI Application](#gui-application)
 - [Contributing](#contributing)
 - [Troubleshooting](#troubleshooting)
+
+## TL;DR
+
+### Quick Start
+1. **Install**:
+   ```bash
+   pip install anpe
+   ```
+2. **Setup Models**:
+   ```bash
+   anpe setup
+   ```
+3. **Extract Noun Phrases**:
+```python
+import anpe
+
+# Extract with all configurables
+result = anpe.extract(
+    "In the summer of 1956, Stevens, a long-serving butler at Darlington Hall, decides to take a motoring trip through the West Country.",
+    metadata=True,  # Function parameter
+    include_nested=True,  # Function parameter
+    min_length=2,  # Configuration option
+    max_length=10,  # Configuration option
+    accept_pronouns=False,  # Configuration option
+    structure_filters=["determiner", "compound"],  # Configuration option
+    log_level="DEBUG",  # Configuration option
+    log_dir="./logs",  # Configuration option
+    newline_breaks=False  # Configuration option
+)
+print(result)
+```
+
+### Key Configurables
+
+#### Function Parameters (used in `extract()` and `export()`)
+- **`metadata`**: Include length and structural analysis (default: `False`)
+- **`include_nested`**: Capture hierarchical relationships (default: `False`)
+- **Length Filters**: `min_length`, `max_length` (filter NPs by token count)
+- **Pronouns**: `accept_pronouns` (include/exclude single-word pronouns, default: `True`)
+- **Structures**: `structure_filters` (e.g., "determiner", "compound")
+- **Logging**: `log_level`, `log_dir` (control verbosity and output)
+- **Newline Handling**: `newline_breaks` (treat newlines as sentence boundaries, default: `True`)
+
+*These are convenient usage unified into convenient method `anpe.extract()`. Refer to full document to understand standard usage.
+
+### GUI App
+- **Standalone** app for Windows and Mac
+- **No setup** required - just download and run
+- **Visual configuration** of all ANPE settings
+- **Batch processing** for multiple files
+- **Real-time logs** and **export options** (TXT, CSV, JSON)
 
 ## Installation
 
