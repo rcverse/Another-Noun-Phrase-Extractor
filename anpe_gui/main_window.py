@@ -49,15 +49,23 @@ from anpe_gui.theme import get_stylesheet # Import the function to get the style
 
 # --- Worker for Background Initialization ---
 class ExtractorInitializer(QObject):
-    initialized = pyqtSignal(object) # Emit the extractor instance
+    initialized = pyqtSignal(object)  # Emit the extractor instance
     error = pyqtSignal(str)          # Emit error message
+    models_missing = pyqtSignal()    # New signal to indicate models need setup
 
     def run(self):
         """Initialize the ANPEExtractor in the background."""
         logging.info("WORKER: Initializing ANPEExtractor...")
         try:
-            # ANPEExtractor config is applied per-run now, initialize default here
-            extractor = ANPEExtractor() 
+            from anpe.utils import setup_models
+            # First check if models are present
+            if not setup_models.check_all_models_present():
+                logging.info("WORKER: Required models not found, setup needed.")
+                self.models_missing.emit()
+                return
+                
+            # Models are present, initialize extractor
+            extractor = ANPEExtractor()
             logging.info("WORKER: ANPEExtractor initialized successfully.")
             self.initialized.emit(extractor)
         except Exception as e:
@@ -102,15 +110,15 @@ class MainWindow(QMainWindow):
         
         self.init_worker.initialized.connect(self.on_extractor_initialized)
         self.init_worker.error.connect(self.on_extractor_init_error)
+        self.init_worker.models_missing.connect(self.on_models_missing)  # Connect new signal
         self.init_thread.started.connect(self.init_worker.run)
         
         # Clean up thread when worker finishes
         self.init_worker.initialized.connect(self.init_thread.quit)
         self.init_worker.error.connect(self.init_thread.quit)
-        # self.init_thread.finished.connect(self.init_thread.deleteLater) # Optional cleanup
-        # self.init_worker.signals.finished.connect(self.init_worker.deleteLater) # Optional cleanup
+        self.init_worker.models_missing.connect(self.init_thread.quit)  # Add quit for new signal
 
-        self.status_bar.showMessage("Initializing ANPE...") # Show status
+        self.status_bar.showMessage("Checking ANPE models...")
         self.init_thread.start()
     
     @pyqtSlot(object)
@@ -133,6 +141,30 @@ class MainWindow(QMainWindow):
         self.status_bar.showMessage("ANPE Initialization Failed! Processing disabled.", 0) # Persistent
         if hasattr(self, 'process_button'): # Check if button exists
             self.process_button.setEnabled(False) # Disable processing
+
+    @pyqtSlot()
+    def on_models_missing(self):
+        """Handle case where models are missing during initialization."""
+        logging.info("MAIN: Models missing, launching setup wizard...")
+        self.status_bar.showMessage("Required models not found. Opening setup wizard...")
+        
+        # Create and show setup wizard
+        from anpe_gui.setup_wizard import SetupWizard
+        wizard = SetupWizard(self)
+        wizard.setup_complete.connect(self.on_setup_wizard_complete)
+        wizard.setup_cancelled.connect(self.on_setup_wizard_cancelled)
+        wizard.show()
+
+    def on_setup_wizard_complete(self):
+        """Handle successful completion of the setup wizard."""
+        self.status_bar.showMessage("Model setup completed successfully. Reinitializing...", 5000)
+        # Restart initialization to verify models and initialize extractor
+        self.start_background_initialization()
+
+    def on_setup_wizard_cancelled(self):
+        """Handle cancellation of the setup wizard."""
+        self.status_bar.showMessage("Model setup cancelled. ANPE functionality limited.", 5000)
+        self.process_button.setEnabled(False)  # Disable processing since models aren't ready
 
     def setup_ui(self):
         """Set up the main UI components: Header, Splitter (Tabs | Log), Status Bar."""
@@ -180,42 +212,68 @@ class MainWindow(QMainWindow):
         """Set up the application header with text title and version."""
         header_container = QWidget()
         header_layout = QHBoxLayout(header_container)
-        # Reduced margins for tighter header
         header_layout.setContentsMargins(0, 2, 0, 2) 
         
-        # Title Area (Vertical Layout)
+        # Title Area (Horizontal Layout for title and version)
         title_area_widget = QWidget()
         title_layout = QVBoxLayout(title_area_widget)
         title_layout.setContentsMargins(0,0,0,0)
-        # Ensure minimal spacing
-        title_layout.setSpacing(0) 
+        title_layout.setSpacing(0)
         
-        # Main Title: ANPE (Reduced Font Size)
-        title_label = QLabel("ANPE")
-        title_label.setText(f'<b style="color:{PRIMARY_COLOR}; font-size: 18pt;">ANPE</b>') # Reduced size
-        title_layout.addWidget(title_label)
+        # Title row (ANPE + Version)
+        title_row = QHBoxLayout()
+        title_row.setSpacing(5)  # Small gap between title and version
         
-        # Subtitle (Reduced Font Size)
-        subtitle_label = QLabel("Another Noun Phrase Extractor")
-        subtitle_label.setText(f'<i style="color: grey; font-size: 9pt;">Another Noun Phrase Extractor</i>') # Reduced size
+        # Main Title: ANPE
+        title_label = QLabel()
+        title_label.setText(f'<b style="color:{PRIMARY_COLOR}; font-size: 18pt;">ANPE</b>')
+        title_row.addWidget(title_label)
+        
+        # Version Label (next to ANPE)
+        version_label = QLabel(f"v{self.anpe_version}")
+        version_label.setStyleSheet("color: grey; font-size: 10pt;")
+        title_row.addWidget(version_label)
+        title_row.addStretch()
+        
+        # Add title row to layout
+        title_layout.addLayout(title_row)
+        
+        # Subtitle
+        subtitle_label = QLabel()
+        subtitle_label.setText('<i style="color: grey; font-size: 9pt;">Another Noun Phrase Extractor</i>')
         title_layout.addWidget(subtitle_label)
         
+        # Add title area to header layout (left-aligned)
         header_layout.addWidget(title_area_widget)
-        header_layout.addStretch(1)  
         
-        # Version Info
-        version_label = QLabel(f"Version: {self.anpe_version}")
-        header_layout.addWidget(version_label)
+        # Add stretch to push setup button to the right
+        header_layout.addStretch()
         
+        # Setup Models Button (right-aligned)
+        settings_button = QPushButton("Setup Models")
+        settings_button.setToolTip("Check or reinstall language models")
+        settings_button.clicked.connect(self.open_setup_wizard)
+        settings_button.setStyleSheet(f"""
+            QPushButton {{
+                padding: 8px 15px;
+                border: none;
+                border-radius: 4px;
+                background-color: {PRIMARY_COLOR};
+                color: white;
+                font-size: 10pt;
+            }}
+            QPushButton:hover {{
+                background-color: #005fb8;
+            }}
+            QPushButton:pressed {{
+                background-color: #004a94;
+            }}
+        """)
+        header_layout.addWidget(settings_button)
+        
+        # Add header to main layout
         self.main_layout.addWidget(header_container)
-        
-        # Separator Line
-        separator = QFrame()
-        separator.setFrameShape(QFrame.Shape.HLine)
-        separator.setFrameShadow(QFrame.Shadow.Sunken) # Standard shadow
-        # separator.setStyleSheet(f"background-color: {SECONDARY_COLOR};") # Styling via stylesheet is preferred
-        self.main_layout.addWidget(separator)
-    
+
     def setup_input_tab(self):
         """Set up the Input tab: Mode buttons, Stacked Input Area, Config, Process Button."""
         # Main layout for the input tab page
@@ -380,22 +438,56 @@ class MainWindow(QMainWindow):
 
         # --- 4. Process Button ---
         process_reset_layout = QHBoxLayout()
-        process_reset_layout.addStretch(1) # Push buttons to the right
+        process_reset_layout.addStretch(1)
         
         # Reset Button
         self.reset_button = QPushButton("Reset")
-        self.reset_button.setStyleSheet("padding: 10px 20px; font-size: 12pt;") 
-        self.reset_button.clicked.connect(self.reset_workflow) 
+        self.reset_button.setStyleSheet(f"""
+            QPushButton {{
+                padding: 8px 15px;
+                font-size: 10pt;
+                border: none;
+                border-radius: 4px;
+                background-color: {PRIMARY_COLOR};
+                color: white;
+            }}
+            QPushButton:hover {{
+                background-color: #005fb8;
+            }}
+            QPushButton:pressed {{
+                background-color: #004a94;
+            }}
+        """)
+        self.reset_button.clicked.connect(self.reset_workflow)
         process_reset_layout.addWidget(self.reset_button)
 
         # Process Button
         self.process_button = QPushButton("Process")
-        self.process_button.setStyleSheet("padding: 10px 20px; font-size: 12pt;") 
-        self.process_button.clicked.connect(self.start_processing) 
-        self.process_button.setEnabled(False) # Disabled until extractor is ready
+        self.process_button.setStyleSheet(f"""
+            QPushButton {{
+                padding: 8px 15px;
+                font-size: 10pt;
+                border: none;
+                border-radius: 4px;
+                background-color: {PRIMARY_COLOR};
+                color: white;
+            }}
+            QPushButton:hover {{
+                background-color: #005fb8;
+            }}
+            QPushButton:pressed {{
+                background-color: #004a94;
+            }}
+            QPushButton:disabled {{
+                background-color: #cccccc;
+                color: #666666;
+            }}
+        """)
+        self.process_button.clicked.connect(self.start_processing)
+        self.process_button.setEnabled(False)
         process_reset_layout.addWidget(self.process_button)
         
-        self.input_layout.addLayout(process_reset_layout) # Add button layout to input tab
+        self.input_layout.addLayout(process_reset_layout)
 
     def setup_output_tab(self):
         """Set up the Output tab: Results display, Export options, Navigation."""
@@ -992,6 +1084,15 @@ class MainWindow(QMainWindow):
     def switch_to_output_tab(self):
          """Switch focus to the Output tab."""
          self.tab_widget.setCurrentIndex(1)
+
+    def open_setup_wizard(self):
+        """Open the setup wizard for model management."""
+        from anpe_gui.setup_wizard import SetupWizard
+        
+        wizard = SetupWizard(self)
+        wizard.setup_complete.connect(self.on_setup_wizard_complete)
+        wizard.setup_cancelled.connect(self.on_setup_wizard_cancelled)
+        wizard.show()
 
     def closeEvent(self, event):
         """Handle the window close event gracefully."""

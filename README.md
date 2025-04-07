@@ -80,7 +80,7 @@ pip install anpe
 #### **Required Models**
 ANPE relies on several pre-trained models for its functionality.
 
-1. **spaCy Model**: `en_core_web_sm` (English language model for tokenization and sentence segmentation).
+1. **spaCy Model**: `en_core_web_md` (English language model for tokenization and sentence segmentation).
 2. **Benepar Model**: `benepar_en3` (English constituency parser for syntactic analysis).
 3. **NLTK Models**:
    - `punkt` (Punkt tokenizer for sentence splitting).
@@ -104,7 +104,7 @@ If automatic setup fails or you prefer to manually download the models, you can 
 
 Install spaCy English Model:
 ```bash
-python -m spacy download en_core_web_sm
+python -m spacy download en_core_web_md
 ```
 
 Install Benepar Parser Model:

@@ -2,6 +2,7 @@
 Theme constants and stylesheet definitions for the ANPE GUI application.
 Uses a cohesive blue theme.
 """
+from PyQt6.QtGui import QPalette, QColor
 
 # --- Color Palette (Simplified Grey/White Style) --- 
 PRIMARY_COLOR = "#005A9C"     # Dark blue for key elements
