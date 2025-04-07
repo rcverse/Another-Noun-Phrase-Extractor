@@ -160,6 +160,42 @@ def remove_nltk_data(resources: List[str] = None, logger: logging.Logger = None)
     
     return success
 
+def find_resources() -> Dict[str, List[str]]:
+    """Find all existing resources in known locations."""
+    locations = find_model_locations()
+    resources = {
+        "spacy": [],
+        "benepar": [],
+        "nltk": []
+    }
+    
+    # Find spaCy models
+    try:
+        data_path = spacy.util.get_data_path()
+        if os.path.exists(data_path):
+            for item in os.listdir(data_path):
+                if item.startswith("en_core_web"):
+                    resources["spacy"].append(os.path.join(data_path, item))
+    except Exception as e:
+        pass
+    
+    # Find Benepar models
+    for base_path in locations["benepar"]:
+        if os.path.exists(base_path):
+            for item in os.listdir(base_path):
+                if item.startswith("benepar"):
+                    resources["benepar"].append(os.path.join(base_path, item))
+    
+    # Find NLTK resources
+    for nltk_path in locations["nltk"]:
+        tokenizers_path = os.path.join(nltk_path, "tokenizers")
+        if os.path.exists(tokenizers_path):
+            for item in os.listdir(tokenizers_path):
+                if item in ['punkt', 'punkt_tab']:
+                    resources["nltk"].append(os.path.join(tokenizers_path, item))
+    
+    return resources
+
 def clean_all(verbose: bool = False, logger: logging.Logger = None) -> Dict[str, bool]:
     """Remove all ANPE-related models and return status of each operation."""
     if logger is None:
@@ -168,14 +204,28 @@ def clean_all(verbose: bool = False, logger: logging.Logger = None) -> Dict[str,
     logger.info("Starting ANPE model cleanup...")
     logger.info("-" * 50)
     
-    if verbose:
-        logger.debug("Scanning for model locations...")
-        locations = find_model_locations()
-        for model_type, paths in locations.items():
-            logger.debug(f"{model_type} search paths:")
-            for path in paths:
-                logger.debug(f"  - {path}")
-        logger.debug("-" * 50)
+    # First show all found resources
+    logger.info("Scanning for existing resources...")
+    resources = find_resources()
+    
+    if any(resources.values()):
+        logger.info("Found the following resources:")
+        for model_type, paths in resources.items():
+            if paths:
+                logger.info(f"{model_type}:")
+                for path in paths:
+                    logger.info(f"  - {path}")
+    else:
+        logger.info("No ANPE-related resources found.")
+    
+    logger.info("-" * 50)
+    
+    if not any(resources.values()):
+        return {
+            "spacy": True,
+            "benepar": True,
+            "nltk": True
+        }
     
     results = {
         "spacy": remove_spacy_model(logger=logger),
