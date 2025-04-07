@@ -5,9 +5,10 @@ from typing import List, Dict, Optional, Any
 from pathlib import Path
 import datetime
 
+
+import anpe 
 from anpe import ANPEExtractor
 from anpe.utils.logging import ANPELogger, get_logger
-from anpe.utils.export import ANPEExporter
 from anpe.utils.setup_models import setup_models
 
 # Initialize logger at module level
@@ -53,10 +54,10 @@ def parse_args(args: Optional[List[str]] = None) -> argparse.Namespace:
     
     # Output options
     output_group = extract_parser.add_argument_group("Output Options")
-    output_group.add_argument("-o", "--output-dir", 
-                        help="Output directory for results")
+    output_group.add_argument("-o", "--output", 
+                        help="Output file path or directory. If a directory, a timestamped file is created.")
     output_group.add_argument("-t", "--type", choices=["txt", "csv", "json"], 
-                        default="txt", help="Output format")
+                        default="txt", help="Output format (used for filename generation if output is a directory, or content formatting)")
     
     # Logging options
     log_group = extract_parser.add_argument_group("Logging Options")
@@ -123,49 +124,74 @@ def create_extractor(args: argparse.Namespace) -> ANPEExtractor:
     logger.debug(f"Creating extractor with config: {config}")
     return ANPEExtractor(config)
 
-def process_text(text: str, output_dir: Optional[str], format: str, 
+def process_text(text: str, output: Optional[str], format: str, 
                 metadata: bool, nested: bool, extractor: ANPEExtractor) -> None:
-    """Process text and export results."""
+    """Process text and either print to stdout or export using the extractor."""
     try:
-        # Extract noun phrases
-        result = extractor.extract(
-            text, 
-            metadata=metadata,
-            include_nested=nested
-        )
-        
-        if output_dir:
-            # Export to file
-            exporter = ANPEExporter()
-            exporter.export(result, format=format, export_dir=output_dir)
+        if output:
+            # Let the extractor handle export logic (including path handling)
+            logger.info(f"Exporting results to: {output} in {format} format")
+            extractor.export(
+                text,
+                format=format,
+                output=output,
+                metadata=metadata,
+                include_nested=nested
+            )
         else:
-            # Print to stdout
+            # Extract and print to stdout
+            logger.info("Extracting results and printing to stdout")
+            result = extractor.extract(
+                text, 
+                metadata=metadata,
+                include_nested=nested
+            )
             print_result_to_stdout(result)
             
     except Exception as e:
         logger.error(f"Error processing text: {str(e)}")
         raise
 
-def process_file(input_file: str, output_dir: Optional[str], format: str,
+def process_file(input_file: str, output: Optional[str], format: str,
                 metadata: bool, nested: bool, extractor: ANPEExtractor) -> None:
     """Process a single file."""
+    logger.info(f"Processing file: {input_file}")
     try:
         with open(input_file, 'r', encoding='utf-8') as f:
             text = f.read()
-        process_text(text, output_dir, format, metadata, nested, extractor)
+        # Pass directly to process_text which now handles export or printing
+        process_text(text, output, format, metadata, nested, extractor)
     except Exception as e:
         logger.error(f"Error processing file {input_file}: {str(e)}")
-        raise
+        # Optionally re-raise or just log and continue if part of batch processing
+        # raise # Uncomment if one file failure should stop the batch
 
-def process_directory(input_dir: str, output_dir: Optional[str], format: str,
+def process_directory(input_dir: str, output: Optional[str], format: str,
                      metadata: bool, nested: bool, extractor: ANPEExtractor) -> None:
     """Process all text files in a directory."""
+    logger.info(f"Processing directory: {input_dir}")
+    processed_files = 0
     try:
         for root, _, files in os.walk(input_dir):
             for file in files:
-                if file.endswith('.txt'):
+                # Consider other text file extensions if needed
+                if file.lower().endswith('.txt'): 
                     input_file = os.path.join(root, file)
-                    process_file(input_file, output_dir, format, metadata, nested, extractor)
+                    # Note: If output is a directory, extractor.export will handle unique filenames.
+                    # If output is a file path, it will be overwritten for each input file. 
+                    # This might require further refinement depending on desired batch behavior for file output.
+                    # For now, we proceed assuming the user understands this behavior or provides a directory.
+                    if output and not Path(output).is_dir() and not output.endswith(os.sep):
+                         logger.warning(f"Output '{output}' is a file path. It will be overwritten by each file processed in the directory '{input_dir}'. Provide a directory for unique outputs per input file.")
+                    
+                    process_file(input_file, output, format, metadata, nested, extractor)
+                    processed_files += 1
+        
+        if processed_files == 0:
+            logger.warning(f"No .txt files found in directory: {input_dir}")
+        else:
+            logger.info(f"Finished processing {processed_files} file(s) from directory: {input_dir}")
+
     except Exception as e:
         logger.error(f"Error processing directory {input_dir}: {str(e)}")
         raise
@@ -244,20 +270,30 @@ def main(args: Optional[List[str]] = None) -> int:
             if parsed_args.dir:
                 process_directory(
                     parsed_args.dir,
-                    parsed_args.output_dir,
+                    parsed_args.output,
+                    parsed_args.type,
+                    parsed_args.metadata,
+                    parsed_args.nested,
+                    extractor
+                )
+            elif parsed_args.file:
+                process_file(
+                    parsed_args.file,
+                    parsed_args.output,
                     parsed_args.type,
                     parsed_args.metadata,
                     parsed_args.nested,
                     extractor
                 )
             else:
-                text = read_input_text(parsed_args)
+                # Read from stdin or direct text
+                input_text = read_input_text(parsed_args)
                 process_text(
-                    text,
-                    parsed_args.output_dir,
-                    parsed_args.type,
-                    parsed_args.metadata,
-                    parsed_args.nested,
+                    input_text, 
+                    parsed_args.output,
+                    parsed_args.type, 
+                    parsed_args.metadata, 
+                    parsed_args.nested, 
                     extractor
                 )
             

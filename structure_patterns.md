@@ -1,6 +1,6 @@
 # NP Structure Detection Patterns
 
-This document summarizes the patterns for detecting various noun phrase structures based on spaCy's dependency parsing via the `ANPEAnalyzer`.
+This document summarizes the patterns for detecting various noun phrase structures based on spaCy's dependency parsing.
 
 > **Disclaimer**: While we strive for accuracy in detecting noun phrase structures, please keep in mind that the results may vary due to **the limitations of spaCy's dependency parsing** and the **complex, sometimes ambiguous nature of English syntax**. This labeling system is a helpful tool, but it **may not be 100% accurate**. If you find any inaccuracies or have suggestions for additional structures to detect, please feel free to raise an issue on GitHub. I'll do my best to address them!
 
@@ -209,7 +209,7 @@ We check for the presence of "to" followed by a verb to identify nonfinite compl
 2. Resolving Conflicts Between Different Clause Types
 
 ### Implementation for Conflict Resolution
-We apply validation rules to remove inconsistent or implausible combinations of structures detected in a noun phrase. If no structures are detected, we assign the label "others" to avoid empty returns.
+We apply validation rules to remove inconsistent or implausible combinations of structures detected in a noun phrase. If no structures are detected, we assign the label `others` to avoid empty returns.
 
 ---
 
