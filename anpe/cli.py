@@ -8,8 +8,14 @@ import datetime
 
 import anpe 
 from anpe import ANPEExtractor
-from anpe.utils.logging import ANPELogger, get_logger
-from anpe.utils.setup_models import setup_models
+from anpe.utils.anpe_logger import ANPELogger, get_logger
+from anpe.utils.setup_models import (  # Import specific functions
+    setup_models,
+    check_all_models_present,
+    check_spacy_model,
+    check_benepar_model,
+    check_nltk_models
+)
 
 # Initialize logger at module level
 logger = get_logger("cli")
@@ -300,6 +306,23 @@ def main(args: Optional[List[str]] = None) -> int:
             return 0
         
         elif parsed_args.command == "setup":
+            # First check if models are already present
+            if check_all_models_present():
+                logger.info("All required models are already present. No installation needed.")
+                return 0
+                
+            # If not all models are present, show current status
+            logger.info("Checking current model status...")
+            results = {
+                "spacy": check_spacy_model(),
+                "benepar": check_benepar_model(),
+                "nltk": check_nltk_models()
+            }
+            for model, status in results.items():
+                logger.info(f"{model}: {'Present' if status else 'Missing'}")
+            
+            # Run the setup process
+            logger.info("Starting model installation process...")
             if setup_models():
                 logger.info("All models installed successfully")
                 return 0

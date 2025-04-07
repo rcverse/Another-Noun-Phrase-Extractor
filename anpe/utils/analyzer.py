@@ -7,7 +7,7 @@ of spaCy's dependency parsing patterns for various noun phrase structures.
 
 from typing import List
 import spacy
-from anpe.utils.logging import get_logger
+from anpe.utils.anpe_logger import get_logger
 
 
 class ANPEAnalyzer:
@@ -21,7 +21,7 @@ class ANPEAnalyzer:
         # Load spaCy model
         try:
             self.logger.debug("Loading spaCy model for analysis")
-            self.nlp = spacy.load("en_core_web_sm")
+            self.nlp = spacy.load("en_core_web_md")
             self.logger.debug("spaCy model loaded successfully")
         except Exception as e:
             self.logger.error(f"Error loading spaCy model: {str(e)}")

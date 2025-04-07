@@ -6,7 +6,7 @@ import csv
 from pathlib import Path
 
 from anpe.utils.export import ANPEExporter
-from anpe.utils.logging import ANPELogger, get_logger
+from anpe.utils.anpe_logger import ANPELogger, get_logger
 from anpe.utils.analyzer import ANPEAnalyzer
 
 class TestExporter(unittest.TestCase):

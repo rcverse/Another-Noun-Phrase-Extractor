@@ -61,7 +61,7 @@ jobs:
         import spacy
         assert nltk.data.find('tokenizers/punkt') is not None
         assert benepar.download('benepar_en3') is not None
-        assert spacy.util.is_package('en_core_web_sm')
+        assert spacy.util.is_package('en_core_web_md')
         "
     - name: Install package
       run: |

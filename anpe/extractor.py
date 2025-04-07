@@ -12,7 +12,7 @@ import sys
 
 
 from anpe.config import DEFAULT_CONFIG
-from anpe.utils.logging import get_logger, ANPELogger
+from anpe.utils.anpe_logger import get_logger, ANPELogger
 from anpe.utils.setup_models import setup_models
 from anpe.utils.export import ANPEExporter
 
@@ -84,8 +84,8 @@ class ANPEExtractor:
         # Initialize models
         try:
             # Initialize spaCy model - loading the model
-            self.logger.info("Loading spaCy model: en_core_web_sm")
-            self.nlp = spacy.load("en_core_web_sm")
+            self.logger.info("Loading spaCy model: en_core_web_md")
+            self.nlp = spacy.load("en_core_web_md")
             self.logger.info("spaCy model loaded successfully.")
 
             # Initialize spaCy configuration - adding the sentencizer to the pipeline
@@ -249,7 +249,7 @@ class ANPEExtractor:
         if output is None:
             output = os.getcwd()
         
-        path = Path(output)
+        path = Path(output).resolve()
         valid_extensions = ['.txt', '.csv', '.json']
         
         # Determine if path is a file or directory

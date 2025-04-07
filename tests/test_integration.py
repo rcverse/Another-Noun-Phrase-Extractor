@@ -92,7 +92,7 @@ class TestIntegration(unittest.TestCase):
             from anpe import ANPEExtractor
             from anpe.cli import main
             from anpe.utils.export import ANPEExporter
-            from anpe.utils.logging import ANPELogger
+            from anpe.utils.anpe_logger import ANPELogger
             from anpe.utils.analyzer import ANPEAnalyzer
             from anpe.utils.setup_models import setup_models
             self.assertTrue(True)  # If we get here, imports worked

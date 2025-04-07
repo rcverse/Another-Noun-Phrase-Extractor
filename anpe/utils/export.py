@@ -7,7 +7,7 @@ from pathlib import Path
 from typing import  Dict, Optional
 import datetime
 
-from anpe.utils.logging import get_logger
+from anpe.utils.anpe_logger import get_logger
 
 
 class ANPEExporter:
