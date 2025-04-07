@@ -47,3 +47,4 @@ htmlcov/
 *.so
 *.dll
 .pypirc
+Archive/

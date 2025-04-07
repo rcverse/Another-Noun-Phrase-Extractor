@@ -14,6 +14,7 @@ import sys
 from anpe.config import DEFAULT_CONFIG
 from anpe.utils.logging import get_logger, ANPELogger
 from anpe.utils.setup_models import setup_models
+from anpe.utils.export import ANPEExporter
 
 
 class ANPEExtractor:
@@ -213,6 +214,108 @@ class ANPEExtractor:
         }
 
         return result
+    
+    def export(self, text: str, format: str = "txt", output: Optional[str] = None, 
+             metadata: bool = False, include_nested: bool = False) -> str:
+        """
+        Extract noun phrases and export to the specified format.
+        
+        Args:
+            text: Input text string
+            format: Export format ("txt", "csv", or "json")
+            output: Path to the output file or directory. 
+                    If path ends with .txt, .csv, or .json, treated as a file.
+                    Otherwise, treated as a directory (creating a timestamped file).
+                    Defaults to the current working directory.
+            metadata: Whether to include metadata (length and structural analysis)
+            include_nested: Whether to include nested noun phrases
+            
+        Returns:
+            str: Full path to the exported file
+            
+        Raises:
+            ValueError: If an invalid format is specified.
+            IOError: If there are issues creating directories or writing the file.
+        """
+        self.logger.info(f"Extracting and exporting with metadata={metadata}, include_nested={include_nested}, format={format}")
+        
+        # Validate format
+        valid_formats = ["txt", "csv", "json"]
+        if format not in valid_formats:
+            self.logger.error(f"Invalid format: {format}. Must be one of {valid_formats}")
+            raise ValueError(f"Invalid format: {format}. Must be one of {valid_formats}")
+        
+        # Default to current directory
+        if output is None:
+            output = os.getcwd()
+        
+        path = Path(output)
+        valid_extensions = ['.txt', '.csv', '.json']
+        
+        # Determine if path is a file or directory
+        if path.suffix.lower() in valid_extensions:
+            # FILE MODE: Path has a known extension - treat as file
+            file_path = path
+            
+            # Check if file exists
+            if file_path.exists():
+                self.logger.warning(f"Output file '{file_path}' already exists and will be overwritten.")
+            
+            # Ensure parent directory exists
+            file_path.parent.mkdir(parents=True, exist_ok=True)
+            
+            # Check for extension/format mismatch
+            expected_ext = f".{format.lower()}"
+            if path.suffix.lower() != expected_ext:
+                self.logger.warning(
+                    f"Output file extension '{path.suffix}' does not match the specified format '{format}'. "
+                    f"File will be saved with {format} content but keep the original extension."
+                )
+            
+            final_filepath = str(file_path)
+            self.logger.debug(f"Output '{output}' treated as file path: {final_filepath}")
+            
+        else:
+            # Check if path has ANY extension (even if not supported)
+            if path.suffix and path.suffix != '.':
+                # Path has an unsupported extension - warn and use parent directory
+                self.logger.warning(
+                    f"File extension '{path.suffix}' is not recognized as a supported format (.txt, .csv, .json). "
+                    f"Treating '{output}' as a directory path and generating a timestamped file with .{format} extension."
+                )
+                # Use parent directory if the path is a file with unsupported extension
+                dir_path = path.parent
+            else:
+                # DIRECTORY MODE: No extension - treat as directory
+                dir_path = path
+            
+            # Ensure directory exists
+            try:
+                dir_path.mkdir(parents=True, exist_ok=True)
+            except Exception as e:
+                self.logger.error(f"Cannot create or access directory '{dir_path}': {str(e)}")
+                raise IOError(f"Cannot create or access directory '{dir_path}': {str(e)}")
+            
+            # Generate timestamped filename
+            timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+            filename = f"anpe_export_{timestamp}.{format}"
+            
+            final_filepath = str(dir_path / filename)
+            self.logger.debug(f"Output '{output}' treated as directory. Generated filepath: {final_filepath}")
+        
+        # Extract noun phrases with appropriate parameters
+        result = self.extract(text, metadata=metadata, include_nested=include_nested)
+        
+        # Use ANPEExporter for exporting
+        try:
+            exporter = ANPEExporter()
+            exported_file = exporter.export(result, format=format, output_filepath=final_filepath)
+            self.logger.info(f"Successfully exported to: {exported_file}")
+            return exported_file
+        except Exception as e:
+            self.logger.error(f"Error during file export to {final_filepath}: {str(e)}")
+            raise
+
     
     def _extract_highest_level_nps(self, tree: Tree) -> List[Tree]:
         """
@@ -543,77 +646,6 @@ class ANPEExtractor:
                 # This is what allows us to find NPs in relative clauses, PPs, etc.
                 self._find_all_nested_nps(subtree, children_list)
     
-    def export(self, text: str, format: str = "txt", export_dir: Optional[str] = None, 
-             metadata: bool = False, include_nested: bool = False) -> str:
-        """
-        Extract noun phrases and export to the specified format.
-        
-        Args:
-            text: Input text string
-            format: Export format ("txt", "csv", or "json")
-            export_dir: Directory path to save the export file (default: current directory)
-            metadata: Whether to include metadata (length and structure analysis)
-            include_nested: Whether to include nested noun phrases
-            
-        Returns:
-            str: Full path to the exported file
-            
-        Raises:
-            ValueError: If an invalid format is specified or export_dir is not a valid directory
-            OSError: If there are issues with the export directory
-        """
-        self.logger.info(f"Extracting and exporting with metadata={metadata}, include_nested={include_nested}, format={format}")
-        
-        # Validate format
-        valid_formats = ["txt", "csv", "json"]
-        if format not in valid_formats:
-            self.logger.error(f"Invalid format: {format}. Must be one of {valid_formats}")
-            raise ValueError(f"Invalid format: {format}. Must be one of {valid_formats}")
-        
-        # Set default export directory if not provided
-        if export_dir is None:
-            export_dir = os.getcwd()
-            self.logger.debug(f"Using current directory as export location: {export_dir}")
-        
-        # Validate and prepare the export directory
-        try:
-            export_path = Path(export_dir)
-            
-            # Check if the path exists and is a directory
-            if export_path.exists() and not export_path.is_dir():
-                raise ValueError(
-                    f"The provided path '{export_dir}' points to a file, not a directory. "
-                    "Please provide a directory path where the export file can be saved. "
-                )
-            
-            # Create the directory if it doesn't exist
-            export_path.mkdir(parents=True, exist_ok=True)  
-            self.logger.debug(f"Export directory verified/created: {export_dir}")
-
-        except Exception as e:
-            self.logger.error(f"Error with export directory: {str(e)}")
-            raise
-        
-        # Generate consistent filename
-        timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
-        filename = f"anpe_export_{timestamp}.{format}"
-        export_path = str(Path(export_dir) / filename)
-        self.logger.debug(f"Generated export path: {export_path}")
-        
-        # Extract noun phrases with appropriate parameters
-        result = self.extract(text, metadata=metadata, include_nested=include_nested)
-        
-        # Use ANPEExporter for exporting
-        try:
-            from anpe.utils.export import ANPEExporter
-            exporter = ANPEExporter()
-            # Pass the directory, not the full file path
-            exported_file = exporter.export(result, format=format, export_dir=export_dir)
-            self.logger.info(f"Successfully exported to: {exported_file}")
-            return exported_file
-        except Exception as e:
-            self.logger.error(f"Error exporting: {str(e)}")
-            raise
 
 def extract(text: str, metadata: bool = False, include_nested: bool = False, **kwargs) -> Dict:
     """
@@ -623,7 +655,7 @@ def extract(text: str, metadata: bool = False, include_nested: bool = False, **k
     extractor = ANPEExtractor(kwargs)
     return extractor.extract(text, metadata=metadata, include_nested=include_nested)
 
-def export(text: str, format: str = "txt", export_dir: Optional[str] = None, 
+def export(text: str, format: str = "txt", output: Optional[str] = None, 
            metadata: bool = False, include_nested: bool = False, **kwargs) -> str:
     """
     Convenience function to extract and export noun phrases in one step.
@@ -632,5 +664,5 @@ def export(text: str, format: str = "txt", export_dir: Optional[str] = None,
     extractor = ANPEExtractor(kwargs)
     
     # Extract and export the results
-    return extractor.export(text, format=format, export_dir=export_dir, 
+    return extractor.export(text, format=format, output=output, 
                            metadata=metadata, include_nested=include_nested)

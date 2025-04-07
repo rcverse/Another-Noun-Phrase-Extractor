@@ -20,12 +20,24 @@ class ANPEExporter:
     
     def export(self, 
                data: Dict,
-               format: str = "txt", 
-               export_dir: Optional[str] = None) -> str:
+               format: str,
+               output_filepath: str) -> str:
         """
         Export noun phrases to file.
+
+        Args:
+            data: Dictionary containing extraction results.
+            format: Export format ("txt", "csv", or "json").
+            output_filepath: Full path to the output file.
+            
+        Returns:
+            The path to the exported file (output_filepath).
+            
+        Raises:
+            ValueError: If an invalid format is specified or data structure is incorrect.
+            IOError: If there are issues writing the file.
         """
-        self.logger.info(f"Exporting noun phrases in {format} format")
+        self.logger.info(f"Exporting noun phrases to {output_filepath} in {format} format")
         
         # Validate format
         valid_formats = ["txt", "csv", "json"]
@@ -34,56 +46,32 @@ class ANPEExporter:
             self.logger.error(error_msg)
             raise ValueError(error_msg)
         
-        # Use current directory if no export directory is provided
-        if not export_dir:
-            export_dir = os.getcwd()
-            self.logger.debug(f"No export directory provided, using current directory")
-        
-        # Create directory path object
-        dir_path = Path(export_dir)
-        
-        # Ensure directory exists
-        try:
-            dir_path.mkdir(parents=True, exist_ok=True)
-            self.logger.debug(f"Export directory verified/created: {export_dir}")
-        except Exception as e:
-            self.logger.error(f"Error with export directory: {str(e)}")
-            raise ValueError(f"Invalid export directory: {export_dir}")
-            
-        # Generate timestamped filename
-        timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
-        filename = f"anpe_export_{timestamp}.{format}"
-        
-        # Create full path
-        export_path = str(dir_path / filename)
-        self.logger.debug(f"Generated export path: {export_path}")
-        
         # Check data structure
         if not isinstance(data, dict) or "results" not in data:
             error_msg = "Invalid data structure. Expected dictionary with 'results' key"
             self.logger.error(error_msg)
             raise ValueError(error_msg)
         
-        self.logger.debug(f"Exporting {len(data['results'])} top-level noun phrases")
+        self.logger.debug(f"Exporting {len(data['results'])} top-level noun phrases to {output_filepath}")
         
         # Export based on format
         try:
             if format == "txt":
-                return self._export_txt(data, export_path)
+                return self._export_txt(data, output_filepath)
             elif format == "csv":
-                return self._export_csv(data, export_path)
+                return self._export_csv(data, output_filepath)
             elif format == "json":
-                return self._export_json(data, export_path)
+                return self._export_json(data, output_filepath)
         except Exception as e:
-            self.logger.error(f"Error exporting to {format}: {str(e)}")
+            self.logger.error(f"Error exporting to {format} at {output_filepath}: {str(e)}")
             raise
     
-    def _export_txt(self, data, export_path):
+    def _export_txt(self, data, output_filepath):
         """Export to text file with hierarchical structure."""
-        self.logger.debug(f"Exporting to text file: {export_path}")
+        self.logger.debug(f"Exporting to text file: {output_filepath}")
         
         try:
-            with open(export_path, 'w', encoding='utf-8') as f:
+            with open(output_filepath, 'w', encoding='utf-8') as f:
                 f.write(f"ANPE Noun Phrase Extraction Results\n")
                 f.write(f"Timestamp: {data['metadata'].get('timestamp', datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S'))}\n")
                 f.write(f"Includes Nested NPs: {data['metadata'].get('includes_nested', False)}\n")
@@ -93,8 +81,8 @@ class ANPEExporter:
                 for np_item in data['results']:
                     self._write_np_to_txt(f, np_item, level=0)
             
-            self.logger.info(f"Successfully exported to text file: {export_path}")
-            return export_path
+            self.logger.info(f"Successfully exported to text file: {output_filepath}")
+            return output_filepath
             
         except Exception as e:
             self.logger.error(f"Error exporting to text file: {str(e)}")
@@ -126,9 +114,9 @@ class ANPEExporter:
         if level == 0:
             file.write("\n")
     
-    def _export_csv(self, data, export_path):
+    def _export_csv(self, data, output_filepath):
         """Export to CSV file with flattened hierarchy."""
-        self.logger.debug(f"Exporting to CSV file: {export_path}")
+        self.logger.debug(f"Exporting to CSV file: {output_filepath}")
         
         try:
             # Flatten the hierarchical structure
@@ -139,7 +127,7 @@ class ANPEExporter:
             # Determine which columns to include
             includes_metadata = data['metadata'].get('includes_metadata', False)
             
-            with open(export_path, 'w', newline='', encoding='utf-8') as f:
+            with open(output_filepath, 'w', newline='', encoding='utf-8') as f:
                 writer = csv.writer(f)
                 
                 # Write header row
@@ -168,8 +156,8 @@ class ANPEExporter:
                             np["noun_phrase"]
                         ])
             
-            self.logger.info(f"Successfully exported to CSV file: {export_path}")
-            return export_path
+            self.logger.info(f"Successfully exported to CSV file: {output_filepath}")
+            return output_filepath
             
         except Exception as e:
             self.logger.error(f"Error exporting to CSV file: {str(e)}")
@@ -209,20 +197,20 @@ class ANPEExporter:
             
         return flattened_list
     
-    def _export_json(self, data, export_path):
+    def _export_json(self, data, output_filepath):
         """Export to JSON file with hierarchical structure."""
-        self.logger.debug(f"Exporting to JSON file: {export_path}")
+        self.logger.debug(f"Exporting to JSON file: {output_filepath}")
         
         try:
             # Clean up non-JSON-serializable objects if any
             cleaned_data = self._clean_for_json(data)
             
             # Write properly formatted JSON
-            with open(export_path, 'w', encoding='utf-8') as f:
+            with open(output_filepath, 'w', encoding='utf-8') as f:
                 json.dump(cleaned_data, f, indent=2)
             
-            self.logger.info(f"Successfully exported to JSON file: {export_path}")
-            return export_path
+            self.logger.info(f"Successfully exported to JSON file: {output_filepath}")
+            return output_filepath
             
         except Exception as e:
             self.logger.error(f"Error exporting to JSON file: {str(e)}")

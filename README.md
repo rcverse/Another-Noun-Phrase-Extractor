@@ -47,36 +47,12 @@ result = anpe.extract(
     "In the summer of 1956, Stevens, a long-serving butler at Darlington Hall, decides to take a motoring trip through the West Country.",
     metadata=True,  # Function parameter
     include_nested=True,  # Function parameter
-    min_length=2,  # Configuration option
-    max_length=10,  # Configuration option
-    accept_pronouns=False,  # Configuration option
-    structure_filters=["determiner", "compound"],  # Configuration option
-    log_level="DEBUG",  # Configuration option
-    log_dir="./logs",  # Configuration option
-    newline_breaks=False  # Configuration option
 )
 print(result)
 ```
 
-### Key Configurables
-
-#### Function Parameters (used in `extract()` and `export()`)
-- **`metadata`**: Include length and structural analysis (default: `False`)
-- **`include_nested`**: Capture hierarchical relationships (default: `False`)
-- **Length Filters**: `min_length`, `max_length` (filter NPs by token count)
-- **Pronouns**: `accept_pronouns` (include/exclude single-word pronouns, default: `True`)
-- **Structures**: `structure_filters` (e.g., "determiner", "compound")
-- **Logging**: `log_level`, `log_dir` (control verbosity and output)
-- **Newline Handling**: `newline_breaks` (treat newlines as sentence boundaries, default: `True`)
-
-*These are convenient usage unified into convenient method `anpe.extract()`. Refer to full document to understand standard usage.
-
 ### GUI App
-- **Standalone** app for Windows and Mac
-- **No setup** required - just download and run
-- **Visual configuration** of all ANPE settings
-- **Batch processing** for multiple files
-- **Real-time logs** and **export options** (TXT, CSV, JSON)
+[TBC]
 
 ## Installation
 
@@ -213,7 +189,7 @@ The `extract()` method accepts the following parameters:
 
 - **Metadata**: When set to `True`, the output will include two types of additional information about each noun phrase: `length` and `structures'
   - **`length`** is the number of words that the NP contains
-  - **`structures`** is the syntactic structure that the NP contains, such as `appositive`, `coodinated`, `nonfinite_complement`, etc. 
+  - **`structures`** is the syntactic structure that the NP contains, such as `appositive`, `coordinated`, `nonfinite_complement`, etc. 
 
 - **Include Nested**: When set to `True`, the output will include nested noun phrases, allowing for a hierarchical representation of noun phrases.
 
@@ -371,14 +347,14 @@ The `extract()` method returns a dictionary following this structure:
 ANPE provides a quick method to extract NP and export the results of an extraction directly to a file in one go. 
 
 ```python
-# Export to JSON
-extractor.export(text, format="json", export_dir="/dir/to/exports", metadata=True, include_nested=True)
+# Export to JSON (providing a directory - timestamped filename will be generated)
+extractor.export(text, format="json", output="/dir/to/exports", metadata=True, include_nested=True)
 
-# Export to CSV
-extractor.export(text, format="csv", export_dir="/dir/to/exports" metadata=True)
+# Export to CSV (providing a specific file path - respects the path)
+extractor.export(text, format="csv", output="/dir/to/exports/my_results.csv", metadata=True)
 
-# Export to TXT
-extractor.export(text, format="txt", export_dir="/dir/to/exports")
+# Export to TXT (using default output - current directory, timestamped filename)
+extractor.export(text, format="txt")
 ```
 
 The `export()` method accepts the same parameters as `extract()` plus:
@@ -386,17 +362,20 @@ The `export()` method accepts the same parameters as `extract()` plus:
 | Parameter | Type | Default | Description |
 |-----------|------|---------|-------------|
 | `format` | str | "txt" | Output format ("txt", "csv", or "json") |
-| `export_dir` | str | None | Path to save the output file (if None, the exported file will be saved in the current working directory)
+| `output` | Optional[str] | None | Path to the output file or directory. If a directory, a timestamped file is created. If None, defaults to the current directory. |
+
+> 📌 **Note on Output Path:** If you provide a full file path to `output` (e.g., `output='results/my_file.json'`), ANPE will use that exact path. If the file extension in the path (e.g., `.json`) doesn't match the specified `format` (e.g., `format='csv'`), ANPE will log a warning but still save the file using the provided path (`results/my_file.json`) with the content formatted according to the `format` parameter (`csv`).
+
 
 **Convenient Method**
 Similarly, ANPE provides a convenient method to extract NP and export files directly via `anpe.export()`. The usage is the same as `anpe.extract()` method, with the addition of the two aforementioned parameters.
 ```python
 import anpe
-# Export noun phrases to a text file
+# Export noun phrases to a text file in the specified directory
 anpe.export(
     "In the summer of 1956, Stevens, a long-serving butler at Darlington Hall, decides to take a motoring trip through the West Country.",
-    format="txt", #Exclusive parameters for anpe.export()
-    export_dir="./output", #Exclusive parameters for anpe.export()
+    format="txt", 
+    output="./output", # Can be directory or file path
     metadata=True,
     include_nested=True,
     min_length=2,
@@ -549,7 +528,7 @@ anpe [command] [options]
 
 | Option | Description | Example |
 |--------|-------------|---------|
-| `-o, --output-dir` | Output directory for results | `anpe extract -o output_dir` |
+| `-o, --output` | Output file path or directory | `anpe extract -o output_dir` or `anpe extract -o results.json` |
 | `-t, --type` | Output format (txt, csv, json) | `anpe extract -t json` |
 
 #### Logging Options (for all commands)
@@ -571,14 +550,14 @@ anpe setup --log-level DEBUG --log-dir logs
 anpe extract -f input.txt -o output_dir -t json
 ```
 
-**Batch processing:**
+**Batch processing (Outputting to a directory):**
 ```bash
-anpe extract -d input_directory --output-dir output_directory -t json --metadata
+anpe extract -d input_directory --output output_directory -t json --metadata
 ```
 
-**Advanced extraction with filters:**
+**Advanced extraction with filters (Outputting to a specific file):**
 ```bash
-anpe extract -f input.txt --min-length 2 --max-length 10 --no-pronouns --structures "determiner,named_entity" -o output_dir
+anpe extract -f input.txt --min-length 2 --max-length 10 --no-pronouns --structures "determiner,named_entity" -o results.csv -t csv
 ```
 
 **With logging:**

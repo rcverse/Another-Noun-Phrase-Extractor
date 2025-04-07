@@ -66,14 +66,15 @@ class TestExporter(unittest.TestCase):
     
     def test_export_json(self):
         """Test JSON export."""
-        self.exporter.export(self.sample_result, format="json", export_dir=self.export_dir)
+        output_filepath = self.export_dir / "test_output.json"
+        self.exporter.export(self.sample_result, format="json", output_filepath=str(output_filepath))
         
-        # Check if file was created
-        output_files = list(self.export_dir.glob("*.json"))
-        self.assertEqual(len(output_files), 1)
+        # Check if the specific file was created
+        self.assertTrue(output_filepath.exists())
+        self.assertTrue(output_filepath.is_file())
         
         # Verify content
-        with open(output_files[0], 'r', encoding='utf-8') as f:
+        with open(output_filepath, 'r', encoding='utf-8') as f:
             result = json.load(f)
         
         self.assertEqual(len(result["results"]), 2)
@@ -81,29 +82,46 @@ class TestExporter(unittest.TestCase):
     
     def test_export_csv(self):
         """Test CSV export."""
-        self.exporter.export(self.sample_result, format="csv", export_dir=self.export_dir)
+        output_filepath = self.export_dir / "test_output.csv"
+        self.exporter.export(self.sample_result, format="csv", output_filepath=str(output_filepath))
         
-        # Check if file was created
-        output_files = list(self.export_dir.glob("*.csv"))
-        self.assertEqual(len(output_files), 1)
+        # Check if the specific file was created
+        self.assertTrue(output_filepath.exists())
+        self.assertTrue(output_filepath.is_file())
         
         # Verify content
-        with open(output_files[0], 'r', encoding='utf-8', newline='') as f:
+        with open(output_filepath, 'r', encoding='utf-8', newline='') as f:
             reader = csv.reader(f)
             rows = list(reader)
         
         # Header + 3 data rows (for top-level NPs and nested child)
         self.assertEqual(len(rows), 4)
-        # Check headers (column names may be capitalized)
-        self.assertIn("Noun_Phrase", rows[0])
-        self.assertIn("ID", rows[0])
+        # Check headers
+        self.assertEqual(rows[0], ["ID", "Level", "Parent_ID", "Noun_Phrase", "Length", "Structures"])
         # Check data
-        found_team = False
-        for row in rows[1:]:  # Skip header row
-            if "The team of scientists" in str(row):
-                found_team = True
-                break
-        self.assertTrue(found_team, "Expected data 'The team of scientists' not found in CSV")
+        self.assertEqual(rows[1], ["1", "1", "", "The team of scientists", "4", "determiner|prepositional_modifier"])
+        self.assertEqual(rows[2], ["2", "1", "", "their exciting research on climate change", "6", "adjectival_modifier|prepositional_modifier|possessive|compound"])
+        self.assertEqual(rows[3], ["3", "2", "2", "climate change", "2", "compound"])
+
+    def test_export_txt(self):
+        """Test TXT export."""
+        output_filepath = self.export_dir / "test_output.txt"
+        self.exporter.export(self.sample_result, format="txt", output_filepath=str(output_filepath))
+
+        # Check if the specific file was created
+        self.assertTrue(output_filepath.exists())
+        self.assertTrue(output_filepath.is_file())
+
+        # Verify content (check for specific lines)
+        with open(output_filepath, 'r', encoding='utf-8') as f:
+            content = f.read()
+        
+        self.assertIn("ANPE Noun Phrase Extraction Results", content)
+        self.assertIn("• [1] The team of scientists", content)
+        self.assertIn("  Length: 4", content)
+        self.assertIn("  Structures: [determiner, prepositional_modifier]", content)
+        self.assertIn("• [2] their exciting research on climate change", content)
+        self.assertIn("  ◦ [3] climate change", content)
 
 class TestLogger(unittest.TestCase):
     """Test cases for ANPELogger."""
