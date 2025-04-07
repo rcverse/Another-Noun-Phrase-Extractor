@@ -31,13 +31,15 @@ class ANPEExporter:
             output_filepath: Full path to the output file.
             
         Returns:
-            The path to the exported file (output_filepath).
+            The resolved path to the exported file.
             
         Raises:
             ValueError: If an invalid format is specified or data structure is incorrect.
             IOError: If there are issues writing the file.
         """
-        self.logger.info(f"Exporting noun phrases to {output_filepath} in {format} format")
+        # Resolve the path immediately
+        resolved_path = Path(output_filepath).resolve()
+        self.logger.info(f"Exporting noun phrases to {resolved_path} in {format} format")
         
         # Validate format
         valid_formats = ["txt", "csv", "json"]
@@ -52,18 +54,18 @@ class ANPEExporter:
             self.logger.error(error_msg)
             raise ValueError(error_msg)
         
-        self.logger.debug(f"Exporting {len(data['results'])} top-level noun phrases to {output_filepath}")
+        self.logger.debug(f"Exporting {len(data['results'])} top-level noun phrases to {resolved_path}")
         
-        # Export based on format
+        # Use resolved path for all operations
         try:
             if format == "txt":
-                return self._export_txt(data, output_filepath)
+                return str(self._export_txt(data, resolved_path))
             elif format == "csv":
-                return self._export_csv(data, output_filepath)
+                return str(self._export_csv(data, resolved_path))
             elif format == "json":
-                return self._export_json(data, output_filepath)
+                return str(self._export_json(data, resolved_path))
         except Exception as e:
-            self.logger.error(f"Error exporting to {format} at {output_filepath}: {str(e)}")
+            self.logger.error(f"Error exporting to {format} at {resolved_path}: {str(e)}")
             raise
     
     def _export_txt(self, data, output_filepath):

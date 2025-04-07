@@ -128,15 +128,15 @@ class TestANPEExtractor(unittest.TestCase):
             exported_file_path = Path(exported_file_path_str)
 
             # Verify the returned path is within the directory and has the correct extension
-            self.assertEqual(exported_file_path.parent, self.output_dir.resolve())
+            self.assertEqual(exported_file_path.resolve().parent, self.output_dir.resolve())
             self.assertTrue(exported_file_path.name.startswith("anpe_export_"))
             self.assertTrue(exported_file_path.name.endswith(f".{fmt}"))
-            self.assertTrue(exported_file_path.exists())
-            self.assertTrue(exported_file_path.is_file())
+            self.assertTrue(exported_file_path.resolve().exists())
+            self.assertTrue(exported_file_path.resolve().is_file())
 
             # Basic content check (e.g., non-empty for txt)
             if fmt == "txt":
-                self.assertGreater(exported_file_path.stat().st_size, 0)
+                self.assertGreater(exported_file_path.resolve().stat().st_size, 0)
 
     def test_export_to_specific_file(self):
         """Test exporting to a specific file path."""
@@ -151,11 +151,11 @@ class TestANPEExtractor(unittest.TestCase):
         exported_file_path = Path(exported_file_path_str)
 
         # Verify the exact file was created and returned
-        self.assertEqual(exported_file_path, output_filepath.resolve())
-        self.assertTrue(exported_file_path.exists())
+        self.assertEqual(exported_file_path.resolve(), output_filepath.resolve())
+        self.assertTrue(exported_file_path.resolve().exists())
         
         # Verify content
-        with open(exported_file_path, 'r', encoding='utf-8') as f:
+        with open(exported_file_path.resolve(), 'r', encoding='utf-8') as f:
             result = json.load(f)
         self.assertIn("results", result)
         self.assertTrue(len(result["results"]) > 0)
@@ -175,11 +175,11 @@ class TestANPEExtractor(unittest.TestCase):
         exported_file_path = Path(exported_file_path_str)
 
         # Verify the file was created in the new subdirectory
-        self.assertEqual(exported_file_path, nested_output_filepath.resolve())
-        self.assertTrue(exported_file_path.parent.exists())
-        self.assertTrue(exported_file_path.parent.is_dir())
-        self.assertTrue(exported_file_path.exists())
-        self.assertGreater(exported_file_path.stat().st_size, 0)
+        self.assertEqual(exported_file_path.resolve(), nested_output_filepath.resolve())
+        self.assertTrue(exported_file_path.resolve().parent.exists())
+        self.assertTrue(exported_file_path.resolve().parent.is_dir())
+        self.assertTrue(exported_file_path.resolve().exists())
+        self.assertGreater(exported_file_path.resolve().stat().st_size, 0)
         
     def test_export_extension_mismatch(self):
         """Test export behavior when file extension mismatches format."""
@@ -194,12 +194,12 @@ class TestANPEExtractor(unittest.TestCase):
         exported_file_path = Path(exported_file_path_str)
         
         # Verify the exact file (with .txt extension) was created
-        self.assertEqual(exported_file_path, output_filepath.resolve())
-        self.assertTrue(exported_file_path.exists())
+        self.assertEqual(exported_file_path.resolve(), output_filepath.resolve())
+        self.assertTrue(exported_file_path.resolve().exists())
 
         # Verify the content is JSON despite the .txt extension
         try:
-            with open(exported_file_path, 'r', encoding='utf-8') as f:
+            with open(exported_file_path.resolve(), 'r', encoding='utf-8') as f:
                 result = json.load(f)
             self.assertIn("metadata", result)
             self.assertIn("results", result)
@@ -221,14 +221,14 @@ class TestANPEExtractor(unittest.TestCase):
         exported_file_path = Path(exported_file_path_str)
         
         # Verify that the file was created in the same directory but with a timestamped name
-        self.assertEqual(exported_file_path.parent, unsupported_path.parent)
+        self.assertEqual(exported_file_path.resolve().parent, unsupported_path.resolve().parent)
         self.assertTrue(exported_file_path.name.startswith("anpe_export_"))
         self.assertTrue(exported_file_path.name.endswith(".json"))  # Should have the format extension
         self.assertNotEqual(exported_file_path.name, "data.xlsx")   # Should not be the original name
         
         # Verify the file exists and contains valid JSON
-        self.assertTrue(exported_file_path.exists())
-        with open(exported_file_path, 'r', encoding='utf-8') as f:
+        self.assertTrue(exported_file_path.resolve().exists())
+        with open(exported_file_path.resolve(), 'r', encoding='utf-8') as f:
             data = json.load(f)
             self.assertIn("results", data)
             self.assertTrue(len(data["results"]) > 0)
