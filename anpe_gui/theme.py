@@ -164,23 +164,13 @@ def get_stylesheet():
 
     /* Checkboxes and Radio Buttons */
     QCheckBox, QRadioButton {{ spacing: 4px; }}
-    QCheckBox::indicator, QRadioButton::indicator {{ width: 14px; height: 14px; }}
-    QCheckBox::indicator:unchecked {{
-        border: 1px solid {BORDER_COLOR};
-        background-color: white;
-        border-radius: 2px;
-    }}
+    /* Remove custom indicator sizing and styling to rely on native look */
+    /* QCheckBox::indicator, QRadioButton::indicator {{ width: 14px; height: 14px; }} */
+    /* QCheckBox::indicator:unchecked {{\n        border: 1px solid {BORDER_COLOR};\n        background-color: white;\n        border-radius: 2px;\n    }} */
     /* Remove custom checked style to allow native rendering with checkmark */
-    /* QCheckBox::indicator:checked {{
-        border: 2px solid {PRIMARY_COLOR}; 
-        background-color: transparent; 
-        border-radius: 2px; 
-    }} */
-     QCheckBox::indicator:disabled {{
-        border: 1px solid #AAAAAA;
-        background-color: #DDDDDD;
-    }}
-     QRadioButton::indicator:unchecked {{
+    /* QCheckBox::indicator:checked {{\n        border: 2px solid {PRIMARY_COLOR}; \n        background-color: transparent; \n        border-radius: 2px; \n    }} */
+     /* QCheckBox::indicator:disabled {{\n        border: 1px solid #AAAAAA;\n        background-color: #DDDDDD;\n    }} */
+     QRadioButton::indicator:unchecked {{\
         border: 1px solid {SECONDARY_COLOR};
         background-color: white;
         border-radius: 8px; /* Circle */
@@ -220,7 +210,7 @@ def get_stylesheet():
         border-radius: 2px; 
     }} */
     # Keep unchecked style consistent if needed
-    QGroupBox[checkable="true"]::indicator:unchecked {{
+    /* QGroupBox[checkable="true"]::indicator:unchecked {{
          border: 1px solid {BORDER_COLOR};
          background-color: white;
          border-radius: 2px;

@@ -45,12 +45,10 @@ def setup_nltk_data_dir() -> str:
 
     except PermissionError:
         logger.error(f"Permission denied creating or accessing NLTK data directory at {nltk_user_dir}. Please check permissions.")
-        # Fallback or raise? For now, log error and return potentially non-functional path
-        # Returning allows checks to potentially still run if models exist elsewhere.
-        return nltk_user_dir # Or raise an exception?
+        return nltk_user_dir
     except Exception as e:
         logger.error(f"Unexpected error during NLTK data directory setup: {e}")
-        # Try returning a default path, though it might not work
+        # Try returning a default path
         return os.path.join(os.path.expanduser("~"), "nltk_data")
 
 # Get the primary NLTK data directory path
@@ -148,8 +146,8 @@ def _extract_zip_archive(zip_path: str, destination_dir: str, archive_name: str)
             zip_ref.extractall(destination_dir)
         logger.info(f"Successfully extracted {archive_name} to {extract_path}")
         # Optionally remove the zip file after successful extraction
-        # os.remove(zip_path)
-        # logger.debug(f"Removed {zip_path}")
+        os.remove(zip_path)
+        logger.debug(f"Removed {zip_path}")
         return True
     except zipfile.BadZipFile:
         logger.error(f"Error: {zip_path} is not a valid zip file.")
@@ -176,119 +174,122 @@ def install_spacy_model(model_name: str = "en_core_web_md") -> bool:
         return False
 
 def install_benepar_model(model_name: str = "benepar_en3") -> bool:
-    """Install the specified Benepar model."""
+    """Install the specified Benepar model, with manual extraction fallback."""
+    models_dir = os.path.join(NLTK_DATA_DIR, "models")
+    model_dir_path = os.path.join(models_dir, model_name)
+    model_zip_path = os.path.join(models_dir, f"{model_name}.zip")
+
     try:
-        logger.info(f"Downloading Benepar model: {model_name}")
-        
-        # Rely on NLTK_DATA environment variable set by setup_nltk_data_dir
+        logger.info(f"Attempting to download Benepar model '{model_name}' using subprocess...")
+        # Ensure NLTK_DATA is in the environment for the subprocess
+        current_env = dict(os.environ)
+        current_env['NLTK_DATA'] = NLTK_DATA_DIR
+        logger.debug(f"Subprocess environment will use NLTK_DATA: {current_env.get('NLTK_DATA')}")
+
         result = subprocess.run(
-            [sys.executable, '-c', 
-             f"import benepar; benepar.download('{model_name}')"], # Simplified command
-            check=True,
+            [sys.executable, '-c',
+             f"import nltk; import benepar; nltk.data.path.insert(0, '{NLTK_DATA_DIR}'); benepar.download('{model_name}')"],
+            check=False, # Don't raise error immediately, check output/result
             capture_output=True,
             text=True,
+            env=current_env, # Pass the modified environment
+            timeout=300 # Add a timeout (e.g., 5 minutes)
         )
-        
-        # Extract the downloaded zip archive
-        model_zip_path = os.path.join(NLTK_DATA_DIR, "models", f"{model_name}.zip")
-        models_dir = os.path.join(NLTK_DATA_DIR, "models")
-        if not _extract_zip_archive(model_zip_path, models_dir, model_name):
-             # If extraction fails or zip wasn't found but dir doesn't exist, fail.
-             if not os.path.exists(os.path.join(models_dir, model_name)):
-                  logger.error(f"Benepar model extraction failed and directory not found.")
-                  return False
-             else:
-                  logger.warning(f"Benepar extraction reported an issue, but target directory exists. Continuing verification.")
 
-        # Verify installation using the standard check function
+        logger.debug(f"Benepar download subprocess stdout:\n{result.stdout}")
+        if result.returncode != 0:
+            logger.warning(f"Benepar download subprocess failed with return code {result.returncode}.")
+            logger.warning(f"Subprocess stderr:\n{result.stderr}")
+            # Continue to check if files exist, maybe it downloaded but errored later
+
+        # Check if the model directory was created
+        if os.path.isdir(model_dir_path):
+            logger.info(f"Benepar model directory found at: {model_dir_path}")
+        else:
+            logger.warning(f"Benepar model directory not found at {model_dir_path}. Checking for zip file...")
+            # Check if the zip file exists and try manual extraction
+            if os.path.isfile(model_zip_path):
+                logger.info(f"Found zip file: {model_zip_path}. Attempting manual extraction.")
+                if not _extract_zip_archive(model_zip_path, models_dir, model_name):
+                    logger.error(f"Manual extraction of {model_zip_path} failed.")
+                    return False
+                else:
+                    logger.info(f"Manual extraction of {model_name} successful.")
+            else:
+                logger.error(f"Neither Benepar model directory nor zip file found after download attempt.")
+                return False
+
+        # Final verification using the check function
         if check_benepar_model(model_name):
-            logger.info(f"Benepar model '{model_name}' installed and verified successfully.")
+            logger.info(f"Benepar model '{model_name}' is present and verified.")
             return True
         else:
-            logger.error(f"Benepar model '{model_name}' download seemed successful, but check_benepar_model failed. Check NLTK paths and permissions.")
+            logger.error(f"Benepar model '{model_name}' verification failed after installation attempt.")
             return False
-            
-    except subprocess.CalledProcessError as e:
-        logger.error(f"Failed to install Benepar model: {e.stderr}")
-        # Also log stdout for completeness in case of error
-        if e.stdout:
-            logger.error(f"Subprocess stdout during Benepar install error: {e.stdout}")
+
+    except subprocess.TimeoutExpired:
+        logger.error(f"Benepar download subprocess timed out.")
+        return False
+    except Exception as e:
+        logger.error(f"An unexpected error occurred during Benepar model installation: {e}")
+        # Log stderr if it was a CalledProcessError originally wrapped
+        if hasattr(e, 'stderr'):
+             logger.error(f"Subprocess stderr: {e.stderr}")
         return False
 
 def install_nltk_models() -> bool:
-    """Install required NLTK models."""
-    try:
-        logger.info("Downloading NLTK Punkt tokenizer")
-        tokenizers_dir = os.path.join(NLTK_DATA_DIR, "tokenizers")
-        
-        # Download punkt (rely on NLTK finding the correct path)
-        nltk.download('punkt', quiet=True)
-        
-        # Extract the downloaded punkt archive
-        punkt_zip_path = os.path.join(NLTK_DATA_DIR, "tokenizers", "punkt.zip")
-        if not _extract_zip_archive(punkt_zip_path, tokenizers_dir, "punkt"):
-             # If extraction fails or zip wasn't found but dir doesn't exist, fail.
-             if not os.path.exists(os.path.join(tokenizers_dir, "punkt")):
-                  logger.error(f"Punkt extraction failed and directory not found. Cannot create punkt_tab.")
-                  return False
-             else:
-                  logger.warning(f"Punkt extraction reported an issue, but target directory exists. Attempting punkt_tab setup.")
+    """Install required NLTK models (punkt and punkt_tab) using nltk.download, with manual extraction fallback."""
+    tokenizers_dir = os.path.join(NLTK_DATA_DIR, "tokenizers") # Re-introduce for path construction
+    punkt_model_name = 'punkt'
+    punkt_tab_model_name = 'punkt_tab'
+    models_to_download = [punkt_model_name, punkt_tab_model_name]
+    # Removed all_downloads_attempted flag
 
-        # Setup punkt_tab (for Benepar compatibility)
-        logger.info("Setting up punkt_tab for Benepar compatibility")
-        punkt_dir = os.path.join(NLTK_DATA_DIR, "tokenizers", "punkt")
-        punkt_tab_dir = os.path.join(NLTK_DATA_DIR, "tokenizers", "punkt_tab")
-        os.makedirs(punkt_tab_dir, exist_ok=True)
-        logger.debug(f"Ensured punkt_tab directory exists at: {punkt_tab_dir}")
+    for model_name in models_to_download:
+        model_dir_path = os.path.join(tokenizers_dir, model_name)
+        model_zip_path = os.path.join(tokenizers_dir, f"{model_name}.zip")
         
-        # Copy files from punkt to punkt_tab if punkt exists
-        if os.path.exists(punkt_dir):
-            for lang in ['english']:
-                lang_src_dir = os.path.join(punkt_dir, lang)
-                lang_dst_dir = os.path.join(punkt_tab_dir, lang)
-                # Ensure the specific language source directory exists before copying
-                if os.path.exists(lang_src_dir):
-                    if os.path.exists(lang_dst_dir):
-                        shutil.rmtree(lang_dst_dir) # Remove existing dest to avoid merge issues
-                    shutil.copytree(lang_src_dir, lang_dst_dir)
-                    logger.debug(f"Copied {lang} files from {lang_src_dir} to: {lang_dst_dir}")
+        # Attempt download first
+        try:
+            logger.info(f"Attempting NLTK download/extraction for '{model_name}' to {NLTK_DATA_DIR}...")
+            nltk.download(model_name, download_dir=NLTK_DATA_DIR, quiet=False)
+            logger.info(f"NLTK download command completed for '{model_name}'.")
+        except Exception as e:
+            logger.error(f"NLTK download command failed for '{model_name}': {e}")
+            # Continue regardless, as we'll check/extract below
+
+        # Verify directory exists, attempt manual extraction if needed
+        if not os.path.isdir(model_dir_path):
+            logger.warning(f"Directory {model_dir_path} not found after download attempt for '{model_name}'.")
+            if os.path.isfile(model_zip_path):
+                logger.info(f"Found zip file: {model_zip_path}. Attempting manual extraction.")
+                if not _extract_zip_archive(model_zip_path, tokenizers_dir, model_name):
+                    logger.error(f"Manual extraction of {model_zip_path} failed.")
+                    # No need to return early, final check will fail
                 else:
-                    logger.warning(f"Source directory for language '{lang}' not found in punkt: {lang_src_dir}")
+                    logger.info(f"Manual extraction of {model_name} successful.")
+            else:
+                logger.warning(f"Zip file {model_zip_path} also not found for '{model_name}'. Cannot extract.")
         else:
-            logger.error(f"Punkt source directory not found after download: {punkt_dir}. Cannot create punkt_tab.")
-            return False # Cannot proceed without punkt source
-        
-        # Verify that nltk can find the downloaded/created resources
-        punkt_found = False
-        punkt_tab_found = False
-        
-        try:
-            nltk.data.find('tokenizers/punkt')
-            logger.debug("NLTK verification successful for: tokenizers/punkt")
-            punkt_found = True
-        except LookupError:
-            logger.error("NLTK verification failed for: tokenizers/punkt")
-        except Exception as e:
-            logger.error(f"Error during NLTK verification for tokenizers/punkt: {e}")
-            
-        try:
-            nltk.data.find('tokenizers/punkt_tab')
-            logger.debug("NLTK verification successful for: tokenizers/punkt_tab")
-            punkt_tab_found = True
-        except LookupError:
-            logger.error("NLTK verification failed for: tokenizers/punkt_tab")
-        except Exception as e:
-            logger.error(f"Error during NLTK verification for tokenizers/punkt_tab: {e}")
+            logger.info(f"Directory {model_dir_path} verified for '{model_name}'.")
 
-        if punkt_found and punkt_tab_found:
-            logger.info("NLTK models installed and verified successfully")
-            return True
-        else:
-            logger.error("NLTK models installation failed verification.")
-            return False
-        
-    except Exception as e:
-        logger.error(f"Failed to install NLTK models: {str(e)}")
+    # --- Final Verification --- 
+    logger.info("Verifying final NLTK model presence after download attempts...")
+    if check_nltk_models(models=models_to_download):
+        logger.info(f"NLTK models {models_to_download} verified successfully.")
+        return True
+    else:
+        logger.error(f"NLTK model verification failed for one or more of {models_to_download} after installation attempt.")
+        # Add detailed logging for failure analysis
+        logger.debug(f"Checking NLTK paths: {nltk.data.path}")
+        tokenizers_dir_verify = os.path.join(NLTK_DATA_DIR, "tokenizers")
+        logger.debug(f"Contents of {tokenizers_dir_verify}: {os.listdir(tokenizers_dir_verify) if os.path.exists(tokenizers_dir_verify) else 'Not found'}")
+        for model_name in models_to_download:
+            model_dir_path_verify = os.path.join(tokenizers_dir_verify, model_name)
+            if os.path.exists(model_dir_path_verify):
+                logger.debug(f"Contents of {model_dir_path_verify}: {os.listdir(model_dir_path_verify)}")
+            else:
+                 logger.debug(f"Directory {model_dir_path_verify} not found during verification.")
         return False
 
 def setup_models() -> bool:

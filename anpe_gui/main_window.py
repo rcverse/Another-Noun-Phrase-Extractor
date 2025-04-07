@@ -382,48 +382,42 @@ class MainWindow(QMainWindow):
         filtering_layout.setHorizontalSpacing(25) 
         filtering_layout.setVerticalSpacing(5)
 
-        # Min Length HBox
-        min_length_hbox = QHBoxLayout()
-        min_length_hbox.setSpacing(5) # Tight spacing within HBox
+        # Min Length Widgets (placed directly in grid)
         self.min_length_checkbox = QCheckBox("Min length")
         self.min_length_checkbox.setToolTip("Filter out noun phrases shorter than this length (in tokens). Check to enable.")
         self.min_length_spinbox = QSpinBox()
         self.min_length_spinbox.setRange(1, 100)
         self.min_length_spinbox.setValue(2)
         self.min_length_spinbox.setEnabled(False)
-        self.min_length_spinbox.setMaximumWidth(70) 
+        # self.min_length_spinbox.setMaximumWidth(70) # Let layout handle width
         self.min_length_checkbox.toggled.connect(self.min_length_spinbox.setEnabled)
-        min_length_hbox.addWidget(self.min_length_checkbox)
-        min_length_hbox.addWidget(self.min_length_spinbox)
-        min_length_hbox.addStretch(1) # Push label/spinbox together
-        filtering_layout.addLayout(min_length_hbox, 0, 0)
+        filtering_layout.addWidget(self.min_length_checkbox, 0, 0)
+        filtering_layout.addWidget(self.min_length_spinbox, 0, 1)
 
-        # Max Length HBox
-        max_length_hbox = QHBoxLayout()
-        max_length_hbox.setSpacing(5) # Tight spacing within HBox
+        # Max Length Widgets (placed directly in grid)
         self.max_length_checkbox = QCheckBox("Max length")
         self.max_length_checkbox.setToolTip("Filter out noun phrases longer than this length (in tokens). Check to enable.")
         self.max_length_spinbox = QSpinBox()
         self.max_length_spinbox.setRange(1, 100)
-        self.max_length_spinbox.setValue(10) 
+        self.max_length_spinbox.setValue(10)
         self.max_length_spinbox.setEnabled(False)
-        self.max_length_spinbox.setMaximumWidth(70) 
+        # self.max_length_spinbox.setMaximumWidth(70) # Let layout handle width
         self.max_length_checkbox.toggled.connect(self.max_length_spinbox.setEnabled)
-        max_length_hbox.addWidget(self.max_length_checkbox)
-        max_length_hbox.addWidget(self.max_length_spinbox)
-        max_length_hbox.addStretch(1) # Push label/spinbox together
-        filtering_layout.addLayout(max_length_hbox, 0, 1)
+        filtering_layout.addWidget(self.max_length_checkbox, 0, 2)
+        filtering_layout.addWidget(self.max_length_spinbox, 0, 3)
 
-        # Accept Pronouns Checkbox
+        # Accept Pronouns Checkbox (moved to the next column)
         self.accept_pronouns = QCheckBox("Accept Pronouns")
         self.accept_pronouns.setChecked(True)
         self.accept_pronouns.setToolTip("Whether to include single-word pronouns (e.g., 'it', 'they') as valid noun phrases.")
-        filtering_layout.addWidget(self.accept_pronouns, 0, 2)
+        filtering_layout.addWidget(self.accept_pronouns, 0, 4)
 
-        # IDENTICAL Column stretches for alignment
-        filtering_layout.setColumnStretch(0, 0)
-        filtering_layout.setColumnStretch(1, 0)
-        filtering_layout.setColumnStretch(2, 1)
+        # Adjust Column stretches for the new layout
+        filtering_layout.setColumnStretch(0, 0) # Min Checkbox
+        filtering_layout.setColumnStretch(1, 0) # Min Spinbox
+        filtering_layout.setColumnStretch(2, 0) # Max Checkbox
+        filtering_layout.setColumnStretch(3, 0) # Max Spinbox
+        filtering_layout.setColumnStretch(4, 1) # Accept Pronouns (takes remaining space)
         config_layout.addWidget(filtering_group)
         
         # Structure Filtering GroupBox (containing the custom widget)
