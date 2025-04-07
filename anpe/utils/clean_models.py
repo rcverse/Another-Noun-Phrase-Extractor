@@ -98,27 +98,43 @@ def remove_benepar_model(model_name: str = "benepar_en3", logger: logging.Logger
     try:
         logger.info("Removing Benepar model...")
         locations = find_model_locations()
-        found = False
+        removed_something = False
+        potential_failures = False
         
         for base_path in locations["benepar"]:
+            # Remove directory
             model_path = os.path.join(base_path, model_name)
             if os.path.exists(model_path):
-                found = True
+                removed_something = True
                 try:
                     if os.path.isdir(model_path):
                         shutil.rmtree(model_path)
                     else:
                         os.remove(model_path)
-                    logger.info(f"✓ Removed Benepar model from: {model_path}")
+                    logger.info(f"✓ Removed Benepar directory/file: {model_path}")
                 except Exception as e:
-                    logger.warning(f"! Could not remove from {model_path}: {e}")
-                    found = False
+                    logger.warning(f"! Could not remove {model_path}: {e}")
+                    potential_failures = True
+            
+            # Remove corresponding zip file
+            zip_path = model_path + ".zip"
+            if os.path.exists(zip_path):
+                removed_something = True
+                try:
+                    os.remove(zip_path)
+                    logger.info(f"✓ Removed Benepar zip file: {zip_path}")
+                except Exception as e:
+                    logger.warning(f"! Could not remove zip file {zip_path}: {e}")
+                    potential_failures = True
         
-        if found:
-            logger.info("✓ Successfully removed Benepar model")
+        if removed_something and not potential_failures:
+            logger.info("✓ Successfully removed Benepar model (dir and zip).")
             return True
+        elif removed_something and potential_failures:
+             logger.warning("! Partially removed Benepar model (some components failed).")
+             return False
         else:
-            logger.info("! Benepar model not found in any known location")
+            logger.info("! Benepar model not found in any known location (dir or zip).")
             return True  # Return True as the model is effectively "removed"
             
     except Exception as e:
@@ -126,75 +142,110 @@ def remove_benepar_model(model_name: str = "benepar_en3", logger: logging.Logger
         return False
 
 def remove_nltk_data(resources: List[str] = None, logger: logging.Logger = None) -> bool:
-    """Remove NLTK resources from all possible locations."""
+    """Remove NLTK resources (directories and zips) from all possible locations."""
     if resources is None:
         resources = ['punkt', 'punkt_tab']
     
-    success = True
+    overall_success = True
+    removed_something = False
     try:
-        logger.info("Removing NLTK resources...")
+        logger.info(f"Removing NLTK resources: {resources}...")
         locations = find_model_locations()
         
         for nltk_path in locations["nltk"]:
+            tokenizers_base = os.path.join(nltk_path, "tokenizers")
+            if not os.path.isdir(tokenizers_base):
+                continue # Skip if tokenizers subdir doesn't exist in this nltk path
+                
             for resource in resources:
-                resource_path = os.path.join(nltk_path, "tokenizers", resource)
+                # Remove directory
+                resource_path = os.path.join(tokenizers_base, resource)
                 if os.path.exists(resource_path):
+                    removed_something = True
                     try:
                         if os.path.isdir(resource_path):
                             shutil.rmtree(resource_path)
                         else:
                             os.remove(resource_path)
-                        logger.info(f"✓ Removed NLTK resource from {resource_path}")
+                        logger.info(f"✓ Removed NLTK resource dir/file: {resource_path}")
                     except Exception as e:
                         logger.warning(f"! Could not remove {resource} from {resource_path}: {e}")
-                        success = False
+                        overall_success = False
+                
+                # Remove corresponding zip file
+                zip_path = resource_path + ".zip"
+                if os.path.exists(zip_path):
+                    removed_something = True
+                    try:
+                        os.remove(zip_path)
+                        logger.info(f"✓ Removed NLTK resource zip: {zip_path}")
+                    except Exception as e:
+                        logger.warning(f"! Could not remove zip file {zip_path}: {e}")
+                        overall_success = False
         
-        if success:
-            logger.info("✓ Successfully removed all NLTK resources")
-        else:
-            logger.warning("! Some NLTK resources could not be removed")
+        if removed_something and overall_success:
+            logger.info("✓ Successfully removed specified NLTK resources (dirs and zips).")
+        elif removed_something and not overall_success:
+            logger.warning("! Partially removed NLTK resources (some components failed).")
+        elif not removed_something:
+             logger.info("! Specified NLTK resources not found in any known location (dirs or zips).")
             
     except Exception as e:
         logger.error(f"! Error removing NLTK resources: {e}")
-        success = False
+        overall_success = False
     
-    return success
+    return overall_success
 
 def find_resources() -> Dict[str, List[str]]:
-    """Find all existing resources in known locations."""
+    """Find all existing resources (dirs and zips) in known locations."""
     locations = find_model_locations()
-    resources = {
+    found_resources = {
         "spacy": [],
         "benepar": [],
         "nltk": []
     }
     
-    # Find spaCy models
+    # Find spaCy models (assuming pip uninstall is primary, checking data dir is secondary)
     try:
         data_path = spacy.util.get_data_path()
-        if os.path.exists(data_path):
+        if data_path and os.path.exists(data_path):
             for item in os.listdir(data_path):
-                if item.startswith("en_core_web"):
-                    resources["spacy"].append(os.path.join(data_path, item))
-    except Exception as e:
+                item_path = os.path.join(data_path, item)
+                # Check for standard model naming convention
+                if item.startswith("en_core_web") and os.path.isdir(item_path):
+                    found_resources["spacy"].append(item_path)
+    except Exception: # Ignore errors if spacy or data path is missing
         pass
     
-    # Find Benepar models
+    # Find Benepar models (dir and zip)
+    benepar_model_name = "benepar_en3" # Assuming standard name
     for base_path in locations["benepar"]:
         if os.path.exists(base_path):
-            for item in os.listdir(base_path):
-                if item.startswith("benepar"):
-                    resources["benepar"].append(os.path.join(base_path, item))
+            # Check for directory
+            dir_path = os.path.join(base_path, benepar_model_name)
+            if os.path.exists(dir_path):
+                 found_resources["benepar"].append(dir_path)
+            # Check for zip file
+            zip_path = dir_path + ".zip"
+            if os.path.exists(zip_path) and zip_path not in found_resources["benepar"]:
+                 found_resources["benepar"].append(zip_path)
     
-    # Find NLTK resources
+    # Find NLTK resources (dirs and zips)
+    nltk_resources_to_find = ['punkt', 'punkt_tab']
     for nltk_path in locations["nltk"]:
         tokenizers_path = os.path.join(nltk_path, "tokenizers")
         if os.path.exists(tokenizers_path):
-            for item in os.listdir(tokenizers_path):
-                if item in ['punkt', 'punkt_tab']:
-                    resources["nltk"].append(os.path.join(tokenizers_path, item))
+            for resource_name in nltk_resources_to_find:
+                # Check for directory
+                dir_path = os.path.join(tokenizers_path, resource_name)
+                if os.path.exists(dir_path):
+                     found_resources["nltk"].append(dir_path)
+                # Check for zip file
+                zip_path = dir_path + ".zip"
+                if os.path.exists(zip_path) and zip_path not in found_resources["nltk"]:
+                     found_resources["nltk"].append(zip_path)
     
-    return resources
+    return found_resources
 
 def clean_all(verbose: bool = False, logger: logging.Logger = None) -> Dict[str, bool]:
     """Remove all ANPE-related models and return status of each operation."""

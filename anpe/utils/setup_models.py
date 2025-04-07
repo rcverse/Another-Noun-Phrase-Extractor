@@ -239,10 +239,8 @@ def install_benepar_model(model_name: str = "benepar_en3") -> bool:
 
 def install_nltk_models() -> bool:
     """Install required NLTK models (punkt and punkt_tab) using nltk.download, with manual extraction fallback."""
-    tokenizers_dir = os.path.join(NLTK_DATA_DIR, "tokenizers") # Re-introduce for path construction
-    punkt_model_name = 'punkt'
-    punkt_tab_model_name = 'punkt_tab'
-    models_to_download = [punkt_model_name, punkt_tab_model_name]
+    tokenizers_dir = os.path.join(NLTK_DATA_DIR, "tokenizers")
+    models_to_download = ['punkt', 'punkt_tab']
     # Removed all_downloads_attempted flag
 
     for model_name in models_to_download:
