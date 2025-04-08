@@ -17,7 +17,7 @@ def main():
     app.setApplicationName("ANPE GUI")
     app.setOrganizationName("ANPE")
     
-    # apply_theme(app) # Keep styles disabled for now during debugging
+    apply_theme(app)
 
     main_window = None
     setup_wizard = None # Keep track of the wizard instance
