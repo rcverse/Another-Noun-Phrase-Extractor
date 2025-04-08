@@ -8,7 +8,6 @@ from PyQt6.QtWidgets import QApplication
 from anpe_gui.main_window import MainWindow
 from anpe_gui.splash_screen import SplashScreen
 from anpe_gui.theme import apply_theme
-# --- Placeholder Imports (Actual paths might differ) ---
 from anpe.utils.setup_models import check_all_models_present # Assuming this function exists
 from anpe_gui.setup_wizard import SetupWizard # Assuming this class will be created
 

@@ -8,6 +8,7 @@ from PyQt6.QtWidgets import (
 )
 from PyQt6.QtCore import pyqtSignal, Qt
 from typing import List
+from anpe_gui.theme import get_scroll_bar_style
 
 
 class StructureFilterWidget(QWidget):
@@ -79,6 +80,7 @@ class StructureFilterWidget(QWidget):
         scroll_area = QScrollArea()
         scroll_area.setWidgetResizable(True)
         scroll_area.setFrameShape(QFrame.Shape.NoFrame) # Remove internal frame
+        scroll_area.setStyleSheet(get_scroll_bar_style())
         
         # Content widget for the scroll area
         content_widget = QWidget()

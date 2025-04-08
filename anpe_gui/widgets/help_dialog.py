@@ -11,7 +11,7 @@ from PyQt6.QtWidgets import (
 from PyQt6.QtCore import Qt, QUrl
 from PyQt6.QtGui import QDesktopServices # For opening URLs
 from PyQt6.QtWidgets import QMessageBox # For About box
-from anpe_gui.theme import PRIMARY_COLOR  # Import theme colors
+from anpe_gui.theme import PRIMARY_COLOR, get_scroll_bar_style  # Import theme colors and scroll bar style
 
 class HelpDialog(QDialog):
     def __init__(self, help_file_path: Path, app_version: str, parent=None):
@@ -53,50 +53,52 @@ class HelpDialog(QDialog):
         self.text_browser = QTextBrowser()
         self.text_browser.setReadOnly(True)
         self.text_browser.setOpenExternalLinks(True)
-        self.text_browser.setStyleSheet("""
-            QTextBrowser {
+        
+        # Combine existing style with scroll bar style
+        combined_style = f"""
+            QTextBrowser {{
                 border: 1px solid #dee2e6;
                 border-radius: 4px;
                 padding: 25px;
                 font-size: 13px;
-            }
-            
-            /* Increase line spacing in the markdown content */
-            QTextBrowser { qproperty-lineWrapMode: 'WidgetWidth'; }
-            QTextBrowser { line-height: 200%; }
+                line-height: 200%;
+            }}
             
             /* Style the actual content */
-            QTextBrowser p {
+            QTextBrowser p {{
                 margin: 16px 0;
                 line-height: 1.8;
-            }
-            QTextBrowser h1 {
+            }}
+            QTextBrowser h1 {{
                 font-size: 24px;
                 margin: 28px 0 20px 0;
                 line-height: 1.4;
-            }
-            QTextBrowser h2 {
+            }}
+            QTextBrowser h2 {{
                 font-size: 20px;
                 margin: 24px 0 16px 0;
                 line-height: 1.4;
-            }
-            QTextBrowser h3 {
+            }}
+            QTextBrowser h3 {{
                 font-size: 16px;
                 margin: 20px 0 12px 0;
                 line-height: 1.4;
-            }
-            QTextBrowser ul, QTextBrowser ol {
+            }}
+            QTextBrowser ul, QTextBrowser ol {{
                 margin: 16px 0;
                 padding-left: 20px;
-            }
-            QTextBrowser li {
+            }}
+            QTextBrowser li {{
                 margin: 10px 0;
                 line-height: 1.6;
-            }
-            QTextBrowser li > ul, QTextBrowser li > ol {
+            }}
+            QTextBrowser li > ul, QTextBrowser li > ol {{
                 margin: 8px 0;
-            }
-        """)
+            }}
+            {get_scroll_bar_style(vertical_width=12, horizontal_height=12, handle_min_size=30, border_radius=6)}
+        """
+        self.text_browser.setStyleSheet(combined_style)
+        
         layout.addWidget(self.text_browser)
 
         # Button container with right-aligned buttons

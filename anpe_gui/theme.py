@@ -19,15 +19,102 @@ SUCCESS_COLOR = "#28A745"     # Green for success
 WARNING_COLOR = "#FFC107"     # Yellow for warnings
 INFO_COLOR = "#17A2B8"        # Teal for info
 
+def get_scroll_bar_style(vertical_width=8, horizontal_height=8, handle_min_size=20, border_radius=4):
+    """
+    Return a modern scroll bar style that can be reused across widgets.
+    
+    Args:
+        vertical_width: Width of vertical scrollbar in pixels
+        horizontal_height: Height of horizontal scrollbar in pixels
+        handle_min_size: Minimum size of scrollbar handle in pixels
+        border_radius: Radius of scrollbar corners in pixels
+        
+    Returns:
+        str: The stylesheet for scrollbars
+    """
+    return f"""
+        QScrollBar:vertical {{
+            border: none;
+            background: #F0F0F0;
+            width: {vertical_width}px;
+            margin: 0;
+            border-radius: {border_radius}px;
+        }}
+        QScrollBar::handle:vertical {{
+            background: #C0C0C0;
+            min-height: {handle_min_size}px;
+            border-radius: {border_radius}px;
+        }}
+        QScrollBar::handle:vertical:hover {{
+            background: #A0A0A0;
+        }}
+        QScrollBar::handle:vertical:pressed {{
+            background: #808080;
+        }}
+        QScrollBar::add-line:vertical,
+        QScrollBar::sub-line:vertical {{
+            height: 0px;
+            border: none;
+            background: none;
+        }}
+        QScrollBar::add-page:vertical,
+        QScrollBar::sub-page:vertical {{
+            background: none;
+            border: none;
+        }}
+        QScrollBar:horizontal {{
+            border: none;
+            background: #F0F0F0;
+            height: {horizontal_height}px;
+            margin: 0;
+            border-radius: {border_radius}px;
+        }}
+        QScrollBar::handle:horizontal {{
+            background: #C0C0C0;
+            min-width: {handle_min_size}px;
+            border-radius: {border_radius}px;
+        }}
+        QScrollBar::handle:horizontal:hover {{
+            background: #A0A0A0;
+        }}
+        QScrollBar::handle:horizontal:pressed {{
+            background: #808080;
+        }}
+        QScrollBar::add-line:horizontal,
+        QScrollBar::sub-line:horizontal {{
+            width: 0px;
+            border: none;
+            background: none;
+        }}
+        QScrollBar::add-page:horizontal,
+        QScrollBar::sub-page:horizontal {{
+            background: none;
+            border: none;
+        }}
+    """
+
+# For backward compatibility
+def get_thin_scroll_bar_style():
+    """Return the modern thin scroll bar style for backward compatibility."""
+    return get_scroll_bar_style()
 
 # --- Base Stylesheet --- 
 def get_stylesheet():
+    # Include scroll bar styles in the main stylesheet
+    standard_scrollbar_style = get_scroll_bar_style()
+    textbrowser_scrollbar_style = get_scroll_bar_style(
+        vertical_width=12, 
+        horizontal_height=12, 
+        handle_min_size=30, 
+        border_radius=6
+    )
+    
     return f"""
     /* General Styling */
     QWidget {{
         background-color: {BACKGROUND_COLOR};
         color: {TEXT_COLOR};
-        font-family: Segoe UI, Arial, sans-serif; 
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
         font-size: 9pt; /* Slightly smaller base font */
     }}
 
@@ -171,20 +258,8 @@ def get_stylesheet():
     QCheckBox:disabled {{
         color: #999999;
     }}
-    /* Remove custom indicator sizing and styling to rely on native look */
-    /* QCheckBox::indicator, QRadioButton::indicator {{ width: 14px; height: 14px; }} */
-    /* QCheckBox::indicator:unchecked {{
-        border: 1px solid {BORDER_COLOR};
-        background-color: white;
-        border-radius: 2px;
-    }} */
-    /* Remove custom checked style to allow native rendering with checkmark */
-    /* QCheckBox::indicator:checked {{
-        border: 2px solid {PRIMARY_COLOR}; 
-        background-color: transparent; 
-        border-radius: 2px; 
-    }} */
-    QRadioButton::indicator:unchecked {{\
+    
+    QRadioButton::indicator:unchecked {{
         border: 1px solid {SECONDARY_COLOR};
         background-color: white;
         border-radius: 8px; /* Circle */
@@ -216,19 +291,6 @@ def get_stylesheet():
         background-color: {BACKGROUND_COLOR}; 
         color: {PRIMARY_COLOR};
         font-weight: bold;
-    }}
-    /* Remove custom checked style for groupbox indicator */
-    /* QGroupBox[checkable="true"]::indicator:checked {{
-        border: 2px solid {PRIMARY_COLOR}; 
-        background-color: transparent; 
-        border-radius: 2px; 
-    }} */
-    # Keep unchecked style consistent if needed
-    /* QGroupBox[checkable="true"]::indicator:unchecked {{
-         border: 1px solid {BORDER_COLOR};
-         background-color: white;
-         border-radius: 2px;
-         margin-right: 3px; /* Align with checkbox */
     }}
 
     /* Combo Boxes */
@@ -322,171 +384,45 @@ def get_stylesheet():
         margin-top: 2px; /* Push non-selected tabs down slightly */
     }}
 
-    /* Scroll Bars - Modern Style */
-    QScrollBar:vertical {{
-        border: none;
-        background: #F0F0F0;
-        width: 12px;
-        margin: 0;
-        border-radius: 6px;
-    }}
-    QScrollBar::handle:vertical {{
-        background: #C0C0C0;
-        min-height: 30px;
-        border-radius: 6px;
-    }}
-    QScrollBar::handle:vertical:hover {{
-        background: #A0A0A0;
-    }}
-    QScrollBar::handle:vertical:pressed {{
-        background: #808080;
-    }}
-    QScrollBar::add-line:vertical,
-    QScrollBar::sub-line:vertical {{
-        height: 0px;
-    }}
-    QScrollBar::add-page:vertical,
-    QScrollBar::sub-page:vertical {{
-        background: none;
-        height: 0px;
+    /* Global Scrollbar Styling */
+    {standard_scrollbar_style}
+
+    /* Apply to specific widgets */
+    QTextEdit, QListView, QTreeView, QTableView, QScrollArea {{
+        background-color: #FEFEFE;
     }}
 
-    QScrollBar:horizontal {{
-        border: none;
-        background: #F0F0F0;
-        height: 12px;
-        margin: 0;
-        border-radius: 6px;
-    }}
-    QScrollBar::handle:horizontal {{
-        background: #C0C0C0;
-        min-width: 30px;
-        border-radius: 6px;
-    }}
-    QScrollBar::handle:horizontal:hover {{
-        background: #A0A0A0;
-    }}
-    QScrollBar::handle:horizontal:pressed {{
-        background: #808080;
-    }}
-    QScrollBar::add-line:horizontal,
-    QScrollBar::sub-line:horizontal {{
-        width: 0px;
-    }}
-    QScrollBar::add-page:horizontal,
-    QScrollBar::sub-page:horizontal {{
-        background: none;
-        width: 0px;
-    }}
-
-    /* Splitter */
-    QSplitter::handle {{
-        background-color: {BORDER_COLOR};
-        height: 4px; 
-    }}
-    QSplitter::handle:horizontal {{
-        width: 4px;
-        height: 1px; 
-    }}
-     QSplitter::handle:vertical {{
-        height: 4px;
-        width: 1px; 
-    }}
-    QSplitter::handle:hover {{
-        background-color: {SECONDARY_COLOR};
-    }}
-
-    /* Progress Bar */
-    QProgressBar {{
-        border: 1px solid {BORDER_COLOR};
-        border-radius: 5px;
-        text-align: center;
-        background-color: white;
-        height: 18px;
-    }}
-    QProgressBar::chunk {{
-        background-color: {PRIMARY_COLOR};
-        border-radius: 5px;
-        width: 10px; /* Width of the moving chunk for indeterminate */
-        margin: 1px;
-    }}
-
-    /* Enhanced Log Panel */
+    /* Enhanced Log Panel specific */
     EnhancedLogPanel QTextEdit {{
-        background-color: #FEFEFE; /* Slightly off-white */
+        background-color: #FEFEFE;
         font-family: Consolas, monospace;
         font-size: 9pt;
     }}
-    
-    /* Enhanced Log Panel Scroll Bars - Modern Style */
-    EnhancedLogPanel QTextEdit QScrollBar:vertical {{
-        border: none;
-        background: #F0F0F0;
-        width: 12px;
-        margin: 0;
-        border-radius: 6px;
-    }}
-    EnhancedLogPanel QTextEdit QScrollBar::handle:vertical {{
-        background: #C0C0C0;
-        min-height: 30px;
-        border-radius: 6px;
-    }}
-    EnhancedLogPanel QTextEdit QScrollBar::handle:vertical:hover {{
-        background: #A0A0A0;
-    }}
-    EnhancedLogPanel QTextEdit QScrollBar::handle:vertical:pressed {{
-        background: #808080;
-    }}
-    EnhancedLogPanel QTextEdit QScrollBar::add-line:vertical,
-    EnhancedLogPanel QTextEdit QScrollBar::sub-line:vertical {{
-        height: 0px;
-        border: none;
-        background: none;
-    }}
-    EnhancedLogPanel QTextEdit QScrollBar::add-page:vertical,
-    EnhancedLogPanel QTextEdit QScrollBar::sub-page:vertical {{
-        background: none;
-        border: none;
-    }}
-    EnhancedLogPanel QTextEdit QScrollBar:horizontal {{
-        border: none;
-        background: #F0F0F0;
-        height: 12px;
-        margin: 0;
-        border-radius: 6px;
-    }}
-    EnhancedLogPanel QTextEdit QScrollBar::handle:horizontal {{
-        background: #C0C0C0;
-        min-width: 30px;
-        border-radius: 6px;
-    }}
-    EnhancedLogPanel QTextEdit QScrollBar::handle:horizontal:hover {{
-        background: #A0A0A0;
-    }}
-    EnhancedLogPanel QTextEdit QScrollBar::handle:horizontal:pressed {{
-        background: #808080;
-    }}
-    EnhancedLogPanel QTextEdit QScrollBar::add-line:horizontal,
-    EnhancedLogPanel QTextEdit QScrollBar::sub-line:horizontal {{
-        width: 0px;
-        border: none;
-        background: none;
-    }}
-    EnhancedLogPanel QTextEdit QScrollBar::add-page:horizontal,
-    EnhancedLogPanel QTextEdit QScrollBar::sub-page:horizontal {{
-        background: none;
+
+    /* Structure Filter Widget */
+    StructureFilterWidget QScrollArea {{
+        background-color: #FEFEFE;
         border: none;
     }}
 
-    EnhancedLogPanel QPushButton {{
-        min-width: 40px; /* Smaller buttons for log panel */
-        padding: 3px 8px;
+    /* Extraction Result Widget */
+    ExtractionResultWidget QTextEdit {{
+        background-color: #FEFEFE;
+        font-family: Consolas, monospace;
+        font-size: 9pt;
+        border: 1px solid #dee2e6;
+        border-radius: 4px;
     }}
 
-    /* Tooltip Styling (Optional but nice) */
-    # ... (Tooltip styles if any) ...
+    /* Help Window */
+    HelpWindow QTextBrowser {{
+        background-color: #FEFEFE;
+        font-family: Segoe UI, Arial, sans-serif;
+        border: 1px solid #dee2e6;
+        border-radius: 4px;
+    }}
 
-    /* Add these styles to the stylesheet */
+    /* Progress Container Styling */
     QWidget#ProgressContainer {{
         background-color: {SECONDARY_COLOR};
         padding: 8px;
@@ -546,72 +482,8 @@ def get_stylesheet():
         padding: 4px;
     }}
     
-    QTextBrowser QScrollBar:vertical {{
-        border: none;
-        background: #F0F0F0;
-        width: 12px;
-        margin: 0;
-        border-radius: 6px;
-    }}
-    
-    QTextBrowser QScrollBar::handle:vertical {{
-        background: #C0C0C0;
-        min-height: 30px;
-        border-radius: 6px;
-    }}
-    
-    QTextBrowser QScrollBar::handle:vertical:hover {{
-        background: #A0A0A0;
-    }}
-    
-    QTextBrowser QScrollBar::handle:vertical:pressed {{
-        background: #808080;
-    }}
-    
-    QTextBrowser QScrollBar::add-line:vertical,
-    QTextBrowser QScrollBar::sub-line:vertical {{
-        height: 0px;
-    }}
-    
-    QTextBrowser QScrollBar::add-page:vertical,
-    QTextBrowser QScrollBar::sub-page:vertical {{
-        background: none;
-        height: 0px;
-    }}
-    
-    QTextBrowser QScrollBar:horizontal {{
-        border: none;
-        background: #F0F0F0;
-        height: 12px;
-        margin: 0;
-        border-radius: 6px;
-    }}
-    
-    QTextBrowser QScrollBar::handle:horizontal {{
-        background: #C0C0C0;
-        min-width: 30px;
-        border-radius: 6px;
-    }}
-    
-    QTextBrowser QScrollBar::handle:horizontal:hover {{
-        background: #A0A0A0;
-    }}
-    
-    QTextBrowser QScrollBar::handle:horizontal:pressed {{
-        background: #808080;
-    }}
-    
-    QTextBrowser QScrollBar::add-line:horizontal,
-    QTextBrowser QScrollBar::sub-line:horizontal {{
-        width: 0px;
-    }}
-    
-    QTextBrowser QScrollBar::add-page:horizontal,
-    QTextBrowser QScrollBar::sub-page:horizontal {{
-        background: none;
-        width: 0px;
-    }}
-
+    /* Larger scrollbars for QTextBrowser */
+    QTextBrowser {textbrowser_scrollbar_style}
     """
 
 def apply_theme(app):

@@ -19,7 +19,7 @@ from PyQt6.QtWidgets import (
 )
 from PyQt6.QtGui import QIcon, QTextCursor, QPixmap
 
-from .theme import PRIMARY_COLOR, SECONDARY_COLOR, SUCCESS_COLOR, ERROR_COLOR, WARNING_COLOR, INFO_COLOR, BORDER_COLOR # Import specific colors needed
+from .theme import PRIMARY_COLOR, SECONDARY_COLOR, SUCCESS_COLOR, ERROR_COLOR, WARNING_COLOR, INFO_COLOR, BORDER_COLOR, get_scroll_bar_style # Update the import
 from .widgets.help_dialog import HelpDialog # Import the new dialog
 
 try:
@@ -608,8 +608,8 @@ class MainWindow(QMainWindow):
 
     def setup_output_tab(self):
         """Set up the Output tab: Results display, Export options, Navigation."""
-        # Main layout for the output tab page
-        self.output_layout = QVBoxLayout(self.output_tab) 
+        self.output_tab = QWidget()
+        self.output_layout = QVBoxLayout(self.output_tab)
         self.output_layout.setContentsMargins(15, 15, 15, 15)
         self.output_layout.setSpacing(15)
 
@@ -620,20 +620,23 @@ class MainWindow(QMainWindow):
         self.file_selector_combo.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
         self.file_selector_combo.currentIndexChanged.connect(self.display_selected_file_result)
         self.file_selector_layout.addWidget(self.file_selector_label)
-        self.file_selector_layout.addWidget(self.file_selector_combo, 1) # Give combo stretch
+        self.file_selector_layout.addWidget(self.file_selector_combo, 1)  # Give combo stretch
         self.output_layout.addLayout(self.file_selector_layout)
-        self.file_selector_label.hide() # Hidden initially
-        self.file_selector_combo.hide() # Hidden initially
+        self.file_selector_label.hide()  # Hidden initially
+        self.file_selector_combo.hide()  # Hidden initially
 
         # --- Results Display Area ---
         results_group = QGroupBox("Extraction Results")
         results_group_layout = QVBoxLayout(results_group)
-        self.results_text = QTextEdit() # Standardized name
+        self.results_text = QTextEdit()
         self.results_text.setReadOnly(True)
-        self.results_text.setMinimumHeight(300) 
-        self.results_text.setLineWrapMode(QTextEdit.LineWrapMode.NoWrap) # Prevent wrapping
+        self.results_text.setMinimumHeight(300)
+        self.results_text.setLineWrapMode(QTextEdit.LineWrapMode.NoWrap)
+        self.results_text.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOn)
+        self.results_text.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
+        self.results_text.setStyleSheet(get_scroll_bar_style())
         results_group_layout.addWidget(self.results_text)
-        self.output_layout.addWidget(results_group, 1) # Allow results area to stretch
+        self.output_layout.addWidget(results_group, 1)  # Allow results area to stretch
 
         # --- Export Options ---
         export_group = QGroupBox("Export Options")

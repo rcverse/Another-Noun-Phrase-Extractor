@@ -7,6 +7,7 @@ from PyQt6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QTextEdit,
 from PyQt6.QtCore import Qt, pyqtSlot
 from PyQt6.QtGui import QTextCursor, QColor, QTextCharFormat, QBrush, QFont
 import logging # Import logging for level constants
+from anpe_gui.theme import get_scroll_bar_style
 
 class EnhancedLogPanel(QWidget):
     """Enhanced log panel with filtering and copy functionality."""
@@ -66,6 +67,11 @@ class EnhancedLogPanel(QWidget):
         self.log_text.setReadOnly(True)
         self.log_text.setFont(QFont("Courier New", 9))
         self.log_text.setLineWrapMode(QTextEdit.LineWrapMode.NoWrap)
+        
+        # Ensure scroll bars are always visible and styled
+        self.log_text.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOn)
+        self.log_text.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
+        self.log_text.setStyleSheet(get_scroll_bar_style())
         
         self.layout.addWidget(self.log_text, 1) # Give stretch factor
         
