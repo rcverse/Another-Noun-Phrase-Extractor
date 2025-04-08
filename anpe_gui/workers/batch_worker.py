@@ -5,8 +5,8 @@ Worker for handling batch file extraction in a background thread.
 import os
 from PyQt6.QtCore import QObject, pyqtSignal, pyqtSlot
 from anpe import ANPEExtractor
-from typing import Dict, Any, List # Import Dict, Any, List
-import logging # Import logging
+from typing import Dict, Any, List, Optional 
+import logging 
 
 class BatchSignals(QObject):
     """Defines signals available from the BatchWorker."""
@@ -43,7 +43,7 @@ class BatchWorker(QObject):
         try:
             # Create extractor instance ONCE with the specific config for this batch run
             logging.debug(f"WORKER (Batch): Creating ANPEExtractor with config: {self.config}")
-            extractor = ANPEExtractor(config=self.config) 
+            extractor = ANPEExtractor(config=self.config)
 
             for i, file_path in enumerate(self.file_paths):
                 if self._is_cancelled:

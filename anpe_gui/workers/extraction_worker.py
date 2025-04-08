@@ -32,11 +32,11 @@ class ExtractionWorker(QObject):
     def run(self):
         """Execute the extraction process."""
         self.signals.started.emit()
-        logging.info("WORKER (Text): Starting extraction...")
+        logging.debug("WORKER (Text): Starting extraction...")
         try:
             # Create extractor instance with the specific config for this run
             logging.debug(f"WORKER (Text): Creating ANPEExtractor with config: {self.config}")
-            extractor = ANPEExtractor(config=self.config) 
+            extractor = ANPEExtractor(config=self.config)
             
             # Perform extraction
             logging.debug(f"WORKER (Text): Extracting from text (len={len(self.text_content)}). Options: meta={self.include_metadata}, nested={self.include_nested}")

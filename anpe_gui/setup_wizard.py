@@ -178,7 +178,7 @@ class DownloadPage(QWizardPage):
         # status_layout.setColumnMinimumWidth(0, 180) # Give label column a fixed minimum width - commented out, let's try sizing policy first
 
         # Status labels
-        self.spacy_label = QLabel("spaCy (en_core_web_sm):")
+        self.spacy_label = QLabel("spaCy (en_core_web_md):")
         self.benepar_label = QLabel("Benepar (benepar_en3):")
         self.nltk_label = QLabel("NLTK (punkt, punkt_tab):")
 
@@ -362,7 +362,6 @@ class CompletionPage(QWizardPage):
                 "• Insufficient disk space\n"
                 "• Permission problems\n\n"
                 "Please check your internet connection, ensure sufficient disk space (~200MB), and try again.\n"
-                "If the problem persists, check the application logs (usually in ~/.anpe/logs) for more details."
             )
 
     def nextId(self) -> int:
@@ -518,7 +517,7 @@ class SetupWizard(QWizard):
 
         # Override button text
         if self.currentId() == self.Page_Download and result == QDialog.DialogCode.Accepted:
-            self.button(QWizard.WizardButton.CommitButton).setText("&Next >")
+            self.button(QWizard.WizardButton.CommitButton).setText("&Next")
         elif (self.currentId() == self.Page_Success or self.currentId() == self.Page_Failure) and result == QDialog.DialogCode.Accepted:
             self.button(QWizard.WizardButton.FinishButton).setText("&Finish")
 

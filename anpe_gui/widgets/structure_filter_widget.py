@@ -149,12 +149,20 @@ class StructureFilterWidget(QWidget):
         self.master_checkbox.toggled.connect(self.toggle_filtering_widgets)
     
     def toggle_filtering_widgets(self, enabled):
-        """Enable or disable child widgets based on the GroupBox state."""
-        self.grid_widget.setEnabled(enabled)
-        self.button_widget.setEnabled(enabled)
-        # Explicitly enable/disable individual checkboxes within the grid
+        """Enable or disable child widgets based on the master checkbox state."""
+        # Disable all individual checkboxes and make them appear grayed out
         for checkbox in self.structure_checkboxes.values():
             checkbox.setEnabled(enabled)
+            if not enabled:
+                checkbox.setChecked(False)  # Uncheck when disabling
+        
+        # Disable the action buttons
+        self.select_all_button.setEnabled(enabled)
+        self.clear_selection_button.setEnabled(enabled)
+        
+        # Update the filter if needed
+        if not enabled:
+            self.update_filter()  # This will emit an empty list since master is off
     
     def is_filtering_enabled(self):
         """Check if the master filtering toggle (GroupBox) is checked."""

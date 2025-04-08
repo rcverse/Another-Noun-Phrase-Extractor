@@ -19,7 +19,8 @@ from PyQt6.QtWidgets import (
 )
 from PyQt6.QtGui import QIcon, QTextCursor, QPixmap
 
-from .theme import PRIMARY_COLOR, SECONDARY_COLOR # Import specific colors needed
+from .theme import PRIMARY_COLOR, SECONDARY_COLOR, SUCCESS_COLOR, ERROR_COLOR, WARNING_COLOR, INFO_COLOR, BORDER_COLOR # Import specific colors needed
+from .widgets.help_dialog import HelpDialog # Import the new dialog
 
 try:
     from anpe import ANPEExtractor, __version__ as anpe_version
@@ -45,6 +46,8 @@ from anpe_gui.widgets import (FileListWidget, StructureFilterWidget,
 # Removed redundant theme color imports here, they are used in theme.py
 # from anpe_gui.theme import PRIMARY_COLOR, SECONDARY_COLOR, ACCENT_COLOR, TEXT_COLOR, BACKGROUND_COLOR 
 from anpe_gui.theme import get_stylesheet # Import the function to get the stylesheet
+from anpe_gui.model_management_dialog import ModelManagementDialog # Import the new dialog
+from anpe_gui.setup_wizard import SetupWizard # Keep wizard import for initial setup
 
 
 # --- Worker for Background Initialization ---
@@ -75,6 +78,80 @@ class ExtractorInitializer(QObject):
 
 class MainWindow(QMainWindow):
     """Main window for the ANPE GUI application."""
+    
+    # Status icons
+    STATUS_ICONS = {
+        'ready': '✓',
+        'error': '⚠',
+        'warning': '⚠',
+        'info': 'ℹ',
+        'busy': '⟳', # Using a different busy icon that might render better
+        'success': '✓',
+        'failed': '✗'
+    }
+    
+    # Status colors using constants from theme.py
+    STATUS_COLORS = {
+        'ready': SUCCESS_COLOR, # Green
+        'error': ERROR_COLOR,   # Red
+        'warning': WARNING_COLOR, # Amber
+        'info': INFO_COLOR,    # Blue/Teal
+        'busy': PRIMARY_COLOR, # Use Primary Blue for busy
+        'success': SUCCESS_COLOR, # Green
+        'failed': ERROR_COLOR   # Red
+    }
+    
+    # Status bar styles (remains here for now, could be moved to theme.py later)
+    STATUS_BAR_STYLE = f"""
+        StatusBar {{
+            background-color: #f5f5f5;
+            border-top: 1px solid #e0e0e0;
+            padding: 2px;
+            min-height: 22px; /* Ensure minimum height */
+        }}
+        StatusBar QLabel {{ /* Base style for labels in custom StatusBar widget */
+            padding: 1px 8px; /* Reduced vertical padding */
+            border-radius: 4px;
+            font-size: 9pt; /* Match base font size */
+            min-height: 18px; /* Ensure minimum height */
+            alignment: 'AlignVCenter'; /* Vertically center text */
+        }}
+        /* Specific styles based on 'status' property */
+        StatusBar QLabel[status="ready"] {{
+            background-color: {SUCCESS_COLOR}20; /* Lighter green background */
+            color: {SUCCESS_COLOR};
+            font-weight: bold;
+        }}
+        StatusBar QLabel[status="error"] {{
+            background-color: {ERROR_COLOR}20; /* Lighter red background */
+            color: {ERROR_COLOR};
+            font-weight: bold;
+        }}
+        StatusBar QLabel[status="warning"] {{
+            background-color: {WARNING_COLOR}20; /* Lighter amber background */
+            color: {WARNING_COLOR};
+            font-weight: bold;
+        }}
+        StatusBar QLabel[status="info"] {{
+            background-color: {INFO_COLOR}20; /* Lighter info background */
+            color: {INFO_COLOR};
+        }}
+        StatusBar QLabel[status="busy"] {{
+            background-color: {PRIMARY_COLOR}20; /* Lighter busy background */
+            color: {PRIMARY_COLOR};
+            font-style: italic;
+        }}
+        StatusBar QLabel[status="success"] {{
+            background-color: {SUCCESS_COLOR}20; /* Lighter green background */
+            color: {SUCCESS_COLOR};
+            font-weight: bold;
+        }}
+         StatusBar QLabel[status="failed"] {{
+            background-color: {ERROR_COLOR}20; /* Lighter red background */
+            color: {ERROR_COLOR};
+            font-weight: bold;
+        }}
+    """
     
     def __init__(self):
         super().__init__()
@@ -126,8 +203,8 @@ class MainWindow(QMainWindow):
         """Slot to receive the initialized extractor (though not directly used anymore)."""
         # We don't store the instance globally anymore, config is applied per run.
         # Just mark as ready.
-        logging.info("MAIN: Extractor initialized signal received.")
-        self.extractor_ready = True 
+        logging.debug("MAIN: Extractor initialized signal received.")
+        self.extractor_ready = True
         self.status_bar.showMessage("ANPE Ready", 3000)
         if hasattr(self, 'process_button'): # Check if button exists
              self.process_button.setEnabled(True) # Enable processing now
@@ -145,11 +222,10 @@ class MainWindow(QMainWindow):
     @pyqtSlot()
     def on_models_missing(self):
         """Handle case where models are missing during initialization."""
-        logging.info("MAIN: Models missing, launching setup wizard...")
+        logging.debug("MAIN: Models missing, launching setup wizard...")
         self.status_bar.showMessage("Required models not found. Opening setup wizard...")
         
         # Create and show setup wizard
-        from anpe_gui.setup_wizard import SetupWizard
         wizard = SetupWizard(self)
         wizard.setup_complete.connect(self.on_setup_wizard_complete)
         wizard.setup_cancelled.connect(self.on_setup_wizard_cancelled)
@@ -202,7 +278,9 @@ class MainWindow(QMainWindow):
         self.main_layout.addWidget(self.main_splitter, 1) # Add splitter to main layout (stretch)
         
         # 3. Status Bar
-        self.status_bar = StatusBar(self) 
+        self.status_bar = StatusBar(self)
+        # Apply the specific status bar styles directly
+        self.status_bar.setStyleSheet(self.STATUS_BAR_STYLE)
         self.main_layout.addWidget(self.status_bar) # Add status bar at the bottom
 
         # Set flag after all essential UI elements are created
@@ -210,9 +288,13 @@ class MainWindow(QMainWindow):
 
     def setup_header(self):
         """Set up the application header with text title and version."""
+        # Get the resources directory path
+        resources_dir = Path(__file__).parent / "resources"
+        
         header_container = QWidget()
         header_layout = QHBoxLayout(header_container)
         header_layout.setContentsMargins(0, 2, 0, 2) 
+        header_layout.setSpacing(5)  # Reduced spacing between header elements
         
         # Title Area (Horizontal Layout for title and version)
         title_area_widget = QWidget()
@@ -249,27 +331,66 @@ class MainWindow(QMainWindow):
         # Add stretch to push setup button to the right
         header_layout.addStretch()
         
-        # Setup Models Button (right-aligned)
-        settings_button = QPushButton("Setup Models")
-        settings_button.setToolTip("Check or reinstall language models")
-        settings_button.clicked.connect(self.open_setup_wizard)
-        settings_button.setStyleSheet(f"""
-            QPushButton {{
-                padding: 8px 15px;
+        # Create a container for the icons to keep them close together
+        icon_container = QWidget()
+        icon_layout = QHBoxLayout(icon_container)
+        icon_layout.setContentsMargins(0, 0, 0, 0)
+        icon_layout.setSpacing(2)  # Minimal spacing between icons
+        
+        # Help Button (using local SVG)
+        self.help_button = QPushButton()
+        help_icon = QIcon(str(resources_dir / "help.svg"))
+        self.help_button.setIcon(help_icon)
+        self.help_button.setIconSize(QSize(20, 20))
+        self.help_button.setText("")
+        self.help_button.setToolTip("Show application help")
+        self.help_button.setStyleSheet("""
+            QPushButton {
+                background-color: transparent;
                 border: none;
-                border-radius: 4px;
-                background-color: {PRIMARY_COLOR};
-                color: white;
-                font-size: 10pt;
-            }}
-            QPushButton:hover {{
-                background-color: #005fb8;
-            }}
-            QPushButton:pressed {{
-                background-color: #004a94;
-            }}
+                padding: 0px;
+            }
+            QPushButton:hover {
+                background-color: #e0e0e0;
+                border-radius: 3px;
+            }
+            QPushButton:pressed {
+                background-color: #cccccc;
+            }
         """)
-        header_layout.addWidget(settings_button)
+        self.help_button.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.help_button.setFixedSize(30, 30)
+        self.help_button.clicked.connect(self.show_help)
+        icon_layout.addWidget(self.help_button)
+
+        # Setup/Model Management Button (using local SVG)
+        self.model_manage_button = QPushButton()
+        settings_icon = QIcon(str(resources_dir / "setting.svg"))
+        self.model_manage_button.setIcon(settings_icon)
+        self.model_manage_button.setIconSize(QSize(20, 20))
+        self.model_manage_button.setText("")
+        self.model_manage_button.setToolTip("Open Model Management (Setup/Clean)")
+        self.model_manage_button.setStyleSheet("""
+            QPushButton {
+                background-color: transparent;
+                border: none;
+                padding: 0px;
+            }
+            QPushButton:hover {
+                background-color: #e0e0e0;
+                border-radius: 3px;
+            }
+            QPushButton:pressed {
+                background-color: #cccccc;
+            }
+        """)
+        self.model_manage_button.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.model_manage_button.setFixedSize(30, 30)
+        self.model_manage_button.clicked.connect(self.open_model_management)
+        icon_layout.addWidget(self.model_manage_button)
+        
+        # Add the icon container to the header layout
+        header_layout.addWidget(icon_container)
         
         # Add header to main layout
         self.main_layout.addWidget(header_container)
@@ -479,6 +600,8 @@ class MainWindow(QMainWindow):
         """)
         self.process_button.clicked.connect(self.start_processing)
         self.process_button.setEnabled(False)
+        # Add tooltip to explain disabled state
+        self.process_button.setToolTip("Process the input text or files. \n(Disabled if initializing, processing, or models are missing - check Status Bar)")
         process_reset_layout.addWidget(self.process_button)
         
         self.input_layout.addLayout(process_reset_layout)
@@ -523,8 +646,14 @@ class MainWindow(QMainWindow):
         self.export_format_combo.addItems(["txt", "csv", "json"]) # Add more formats if supported
         export_layout.addWidget(self.export_format_combo, 0, 1)
 
+        # Export Filename
+        export_layout.addWidget(QLabel("Filename:"), 1, 0)
+        self.export_filename_edit = QLineEdit()
+        self.export_filename_edit.setPlaceholderText("Leave empty to use default names")
+        export_layout.addWidget(self.export_filename_edit, 1, 1)
+
         # Export Directory
-        export_layout.addWidget(QLabel("Directory:"), 1, 0)
+        export_layout.addWidget(QLabel("Directory:"), 2, 0)
         export_dir_layout = QHBoxLayout()
         self.export_dir_edit = QLineEdit() # Standardized name
         self.export_dir_edit.setPlaceholderText("Select export directory...")
@@ -533,7 +662,7 @@ class MainWindow(QMainWindow):
         self.browse_export_dir_button.clicked.connect(self.browse_export_directory)
         export_dir_layout.addWidget(self.export_dir_edit, 1) # Give edit stretch
         export_dir_layout.addWidget(self.browse_export_dir_button)
-        export_layout.addLayout(export_dir_layout, 1, 1)
+        export_layout.addLayout(export_dir_layout, 2, 1)
 
         # Export Button (aligned right)
         export_button_layout = QHBoxLayout()
@@ -543,7 +672,7 @@ class MainWindow(QMainWindow):
         self.export_button.setEnabled(False) # Enable only when results are available
         export_button_layout.addWidget(self.export_button)
         # Add the button layout spanning columns in the grid
-        export_layout.addLayout(export_button_layout, 2, 0, 1, 2) 
+        export_layout.addLayout(export_button_layout, 3, 0, 1, 2) 
 
         self.output_layout.addWidget(export_group)
 
@@ -597,6 +726,7 @@ class MainWindow(QMainWindow):
             else:
                 logging.warning("Structure filter widget not found/ready during config gathering.")
 
+            # Config gathering is important, keep INFO level for success
             logging.info(f"Configuration gathered successfully: {config}")
             return config
 
@@ -689,6 +819,7 @@ class MainWindow(QMainWindow):
         self.single_thread.finished.connect(self.single_thread.deleteLater)
         
         # 4. Start the Thread
+        logging.debug("MAIN: Starting single processing thread.")
         self.single_thread.start() 
 
     def run_batch_processing(self, file_paths: List[str], config: Dict[str, Any]):
@@ -737,6 +868,7 @@ class MainWindow(QMainWindow):
         self.batch_thread.finished.connect(self.batch_thread.deleteLater)
 
         # 4. Start the Thread
+        logging.debug("MAIN: Starting batch processing thread.")
         self.batch_thread.start() 
 
     # --- Worker Signal Handlers ---
@@ -758,6 +890,7 @@ class MainWindow(QMainWindow):
         self.results = result_data # Store the complete result
         self.display_results(result_data) # Display it
         self.export_button.setEnabled(True) # Enable export
+        # Keep INFO for completion message
         self.log("Single text processing completed.")
         # processing_finished will handle status bar final message
 
@@ -778,6 +911,7 @@ class MainWindow(QMainWindow):
              self.file_selector_label.show()
              self.file_selector_combo.show()
              
+        # Keep INFO for individual file completion
         self.log(f"Processed file: {base_name}")
         # Status bar updated via update_batch_progress signal
 
@@ -794,6 +928,7 @@ class MainWindow(QMainWindow):
     @pyqtSlot(str)
     def processing_finished(self, worker_type: str):
         """Handle UI updates when a worker finishes, identified by worker_type."""
+        # Keep INFO for this important event
         logging.info(f"Worker finished signal received for worker type: {worker_type}")
         
         worker_cleared = False
@@ -952,7 +1087,9 @@ class MainWindow(QMainWindow):
                 return
             
         export_format = self.export_format_combo.currentText()
-        logging.info(f"Attempting export. Format: {export_format}, Dir: {export_dir}")
+        custom_filename = self.export_filename_edit.text().strip()
+        # Keep INFO for start of export
+        logging.info(f"Attempting export. Format: {export_format}, Dir: {export_dir}, Custom filename: {custom_filename}")
 
         try:
             from anpe.utils.export import ANPEExporter # Import here to avoid top-level dependency if export not used
@@ -964,16 +1101,24 @@ class MainWindow(QMainWindow):
             if isinstance(self.results, dict) and all(isinstance(k, str) and isinstance(v, dict) for k, v in self.results.items()):
                 # Likely Batch results: keys are file paths
                 num_files = len(self.results)
+                # Keep INFO for batch export start
                 logging.info(f"Exporting batch results for {num_files} files.")
-                for file_path, result_data in self.results.items():
-                    # Create a base filename from the original input file path
-                    base_name = Path(file_path).stem 
-                    # Handle potential collisions or default naming if needed
-                    output_filename = f"{base_name}_anpe_results.{export_format}" 
-                    full_export_path = os.path.join(export_dir, output_filename)
-                    
-                    logging.debug(f"Exporting '{file_path}' results to '{full_export_path}'")
-                    exporter.export(result_data, format=export_format, export_dir=export_dir)
+                
+                if custom_filename:
+                    # If custom filename provided, use it for all files with index
+                    for idx, (file_path, result_data) in enumerate(self.results.items()):
+                        output_filename = f"{custom_filename}_{idx+1}.{export_format}"
+                        full_export_path = os.path.join(export_dir, output_filename)
+                        logging.debug(f"Exporting '{file_path}' results to '{full_export_path}'")
+                        exporter.export(result_data, format=export_format, output_filepath=full_export_path)
+                else:
+                    # Use default naming based on input files
+                    for file_path, result_data in self.results.items():
+                        base_name = Path(file_path).stem 
+                        output_filename = f"{base_name}_anpe_results.{export_format}" 
+                        full_export_path = os.path.join(export_dir, output_filename)
+                        logging.debug(f"Exporting '{file_path}' results to '{full_export_path}'")
+                        exporter.export(result_data, format=export_format, output_filepath=full_export_path)
                 
                 export_successful = True
                 message = f"Results for {num_files} files exported successfully to {export_dir}"
@@ -981,12 +1126,12 @@ class MainWindow(QMainWindow):
             elif isinstance(self.results, dict) and 'results' in self.results:
                 # Likely Single text result (has 'results' key)
                 logging.info("Exporting single text results.")
-                 # Use a default filename for text input results
-                output_filename = f"anpe_text_results.{export_format}" 
+                # Use custom filename if provided, otherwise default
+                output_filename = f"{custom_filename}.{export_format}" if custom_filename else f"anpe_text_results.{export_format}"
                 full_export_path = os.path.join(export_dir, output_filename)
                 
                 logging.debug(f"Exporting single text result to '{full_export_path}'")
-                exporter.export(self.results, format=export_format, export_dir=export_dir)
+                exporter.export(self.results, format=export_format, output_filepath=full_export_path)
                 
                 export_successful = True
                 message = f"Results exported successfully to {full_export_path}"
@@ -1009,6 +1154,18 @@ class MainWindow(QMainWindow):
 
     def reset_workflow(self):
         """Reset the UI to start a new processing task."""
+        # Check if there are any results to warn about
+        if self.results is not None:
+            reply = QMessageBox.question(
+                self,
+                "Reset Workflow",
+                "Proceeding will clear all current results. Are you sure you want to continue?",
+                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+                QMessageBox.StandardButton.No
+            )
+            if reply == QMessageBox.StandardButton.No:
+                return
+
         logging.info("Resetting workflow...")
         # Clear input areas
         self.file_list_widget.clear_files()
@@ -1030,7 +1187,7 @@ class MainWindow(QMainWindow):
         self.input_stack.setCurrentIndex(0)
         
         # Reset status bar
-        self.status_bar.showMessage("Ready")
+        self.status_bar.showMessage("ANPE Ready")
         self.status_bar.clear_progress()
         
         # Re-enable process button if extractor is ready, disable reset again?
@@ -1049,15 +1206,23 @@ class MainWindow(QMainWindow):
         log_widget = EnhancedLogPanel()
         
         # Store handler instance for removal on close
-        self.qt_log_handler_instance = QtLogHandler() 
+        self.qt_log_handler_instance = QtLogHandler()
         self.qt_log_handler_instance.log_signal.connect(log_widget.add_log_entry)
-        
+
+        # Define a simpler log format without duplicate level names
+        log_format = '%(levelname)s: %(message)s'
+        formatter = logging.Formatter(log_format)
+        self.qt_log_handler_instance.setFormatter(formatter)
+
         # Configure Python's root logger
-        logger = logging.getLogger() 
-        # Remove existing handlers if any (optional, prevents duplicate logs on reload)
-        # for handler in logger.handlers[:]: logger.removeHandler(handler) 
-        logger.addHandler(self.qt_log_handler_instance) 
+        logger = logging.getLogger()
+        logger.addHandler(self.qt_log_handler_instance)
         logger.setLevel(logging.DEBUG) # Set desired logging level
+        
+        # Remove any existing handlers to prevent duplicate messages
+        for handler in logger.handlers[:]:
+            if not isinstance(handler, QtLogHandler):
+                logger.removeHandler(handler)
         
         logging.info("Logging initialized.")
         return log_widget
@@ -1079,17 +1244,47 @@ class MainWindow(QMainWindow):
          """Switch focus to the Output tab."""
          self.tab_widget.setCurrentIndex(1)
 
-    def open_setup_wizard(self):
-        """Open the setup wizard for model management."""
-        from anpe_gui.setup_wizard import SetupWizard
+    def open_model_management(self):
+        """Opens the Model Management dialog."""
+        dialog = ModelManagementDialog(self)
+        # Connect the signal from the dialog to potentially update the main window's state
+        dialog.models_changed.connect(self.on_models_changed)
+        dialog.exec() # Show modally
+
+    def on_models_changed(self):
+        """Slot called when models might have changed via the management dialog."""
+        logging.info("MAIN: Models may have changed via dialog. Re-checking status.")
+        self.status_bar.showMessage("Models possibly changed. Re-checking readiness...", 3000)
+        # Option 1: Just re-run the background check which includes model check
+        # self.start_background_initialization()
         
-        wizard = SetupWizard(self)
-        wizard.setup_complete.connect(self.on_setup_wizard_complete)
-        wizard.setup_cancelled.connect(self.on_setup_wizard_cancelled)
-        wizard.show()
+        # Option 2: Simpler check - see if models are present now, enable/disable button
+        # This avoids re-initializing the extractor if it was already ready, unless cleaning broke it.
+        try:
+            from anpe.utils.setup_models import check_all_models_present
+            if check_all_models_present():
+                # If models are now present, we might need to re-initialize
+                if not self.extractor_ready:
+                     logging.info("MAIN: Models now present, restarting initialization.")
+                     self.start_background_initialization()
+                else:
+                     logging.info("MAIN: Models checked, extractor was already ready.")
+                     self.process_button.setEnabled(True) # Ensure enabled
+                     self.status_bar.showMessage("Model status re-checked. ANPE Ready.", 3000)
+
+            else:
+                 # Models are missing (e.g., after cleaning)
+                 logging.warning("MAIN: Models missing after check. Disabling processing.")
+                 self.extractor_ready = False
+                 self.process_button.setEnabled(False)
+                 self.status_bar.showMessage("Models missing. Run setup via 'Manage Models'.", 0) # Persistent message
+        except Exception as e:
+             logging.error(f"MAIN: Error re-checking models after dialog: {e}", exc_info=True)
+             self.status_bar.showMessage("Error re-checking models.", 5000)
+             self.process_button.setEnabled(False) # Disable on error
 
     def closeEvent(self, event):
-        """Handle the window close event gracefully."""
+        """Handle the main window closing."""
         logging.info("Close event triggered")
         
         # 1. Stop background threads (Initialization, Workers, Worker Threads)
@@ -1160,18 +1355,51 @@ class MainWindow(QMainWindow):
         logging.info("Accepting close event.")
         event.accept()
 
-# Note: The main execution block should be in __main__.py or app.py
-# if __name__ == '__main__':
-#     app = QApplication(sys.argv)
-#     # Apply stylesheet etc here if needed globally
-#     main_window = MainWindow()
-#     main_window.show()
-#     sys.exit(app.exec())
+    def update_status(self, message, status_type='info'):
+        """Update the status bar message and style using the StatusBar widget's method."""
+        icon = self.STATUS_ICONS.get(status_type, 'ℹ') # Default to info icon
+        # Call the StatusBar's method to update its internal label and style
+        self.status_bar.showMessage(f"{icon} {message}", status_type=status_type)
 
-# Note: The main execution block should be in __main__.py or app.py
-# if __name__ == '__main__':
-#     app = QApplication(sys.argv)
-#     # Apply stylesheet etc here if needed globally
-#     main_window = MainWindow()
-#     main_window.show()
-#     sys.exit(app.exec()) 
+    def update_progress(self, value, message=None):
+        """Update the progress bar using the StatusBar widget's method."""
+        # Target the progress bar within the status_bar widget
+        if not hasattr(self.status_bar, 'progress_bar') or self.status_bar.progress_bar is None:
+            logging.warning("Attempted to update progress, but status_bar.progress_bar not found.")
+            return
+
+        # Call the StatusBar's method to handle value, message, and styling
+        # Include busy icon in the message passed to the status bar method if needed
+        full_message = f"{self.STATUS_ICONS['busy']} {message}" if message else None
+        self.status_bar.update_progress(value, full_message)
+
+    def _on_initialization_complete(self, success, message):
+        """Handle completion of background initialization."""
+        if success:
+            self.extractor_ready = True
+            self.process_button.setEnabled(True)
+            self.update_status("ANPE Ready", 'ready')
+        else:
+            self.extractor_ready = False
+            self.process_button.setEnabled(False)
+            self.update_status(message, 'error')
+
+    # --- Help Function --- 
+    def show_help(self):
+        """Creates and shows the custom HelpDialog."""
+        help_file_path = Path(__file__).parent / "docs" / "Help.md"
+        # Check if file exists before creating dialog
+        if not help_file_path.is_file():
+            error_msg = f"Help file not found at: {help_file_path}"
+            logging.error(error_msg)
+            QMessageBox.warning(self, "Help Not Found", f"Could not find the help file.\nExpected location: {help_file_path}")
+            return
+            
+        try:
+            # Create and execute the custom dialog
+            dialog = HelpDialog(help_file_path, self.anpe_version, self)
+            dialog.exec()
+        except Exception as e:
+            # Catch potential errors during dialog creation/execution
+            logging.error(f"Error showing help dialog: {e}", exc_info=True)
+            QMessageBox.critical(self, "Help Error", f"An unexpected error occurred while trying to show help: {e}")

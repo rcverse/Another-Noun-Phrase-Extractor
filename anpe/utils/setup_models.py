@@ -186,9 +186,12 @@ def install_benepar_model(model_name: str = "benepar_en3") -> bool:
         current_env['NLTK_DATA'] = NLTK_DATA_DIR
         logger.debug(f"Subprocess environment will use NLTK_DATA: {current_env.get('NLTK_DATA')}")
 
+        # Escape backslashes in the path for the command string
+        escaped_nltk_data_dir = NLTK_DATA_DIR.replace('\\', '\\\\') # Double escape needed for f-string then command
+
         result = subprocess.run(
             [sys.executable, '-c',
-             f"import nltk; import benepar; nltk.data.path.insert(0, '{NLTK_DATA_DIR}'); benepar.download('{model_name}')"],
+             f"import nltk; import benepar; nltk.data.path.insert(0, r'{escaped_nltk_data_dir}'); benepar.download('{model_name}')"],
             check=False, # Don't raise error immediately, check output/result
             capture_output=True,
             text=True,
