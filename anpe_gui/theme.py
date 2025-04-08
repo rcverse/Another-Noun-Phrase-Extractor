@@ -296,10 +296,18 @@ def get_stylesheet():
     /* Combo Boxes */
     QComboBox {{
         border: 1px solid {BORDER_COLOR};
-        padding: 5px;
+        padding: 5px 8px;
         background-color: white;
         min-width: 100px;
         border-radius: 3px;
+        min-height: 20px;
+    }}
+    QComboBox:hover {{
+        border-color: {PRIMARY_COLOR};
+    }}
+    QComboBox:focus {{
+        border: 1px solid {PRIMARY_COLOR};
+        background-color: #F8F9FA;
     }}
     QComboBox:disabled {{
         background-color: #EEEEEE;
@@ -307,26 +315,43 @@ def get_stylesheet():
     }}
     QComboBox::drop-down {{
         subcontrol-origin: padding;
-        subcontrol-position: top right;
+        subcontrol-position: center right;
         width: 20px;
-        border-left-width: 1px;
-        border-left-color: {BORDER_COLOR};
-        border-left-style: solid;
-        border-top-right-radius: 3px;
-        border-bottom-right-radius: 3px;
-        background-color: {PRIMARY_COLOR};
+        border-left: none;
+        margin-right: 4px;
     }}
     QComboBox::down-arrow {{
-        image: url(icons/arrow_down_white.svg); /* Needs an icon */
-        width: 12px;
-        height: 12px;
+        width: 0;
+        height: 0;
+        border-left: 2px solid transparent;
+        border-right: 2px solid transparent;
+        border-top: 2px solid {PRIMARY_COLOR};
+        margin-top: 1px;
+        margin-right: 1px;
+    }}
+    QComboBox::down-arrow:disabled {{
+        border-top-color: #AAAAAA;
     }}
     QComboBox QAbstractItemView {{ /* Style for the dropdown list */
         border: 1px solid {BORDER_COLOR};
         background-color: white;
-        selection-background-color: {PRIMARY_COLOR};
-        selection-color: white;
-        padding: 2px;
+        selection-background-color: {PRIMARY_COLOR}20;
+        selection-color: {PRIMARY_COLOR};
+        outline: none;
+        padding: 4px;
+    }}
+    QComboBox QAbstractItemView::item {{
+        min-height: 24px;
+        padding: 4px 8px;
+        border-radius: 2px;
+    }}
+    QComboBox QAbstractItemView::item:hover {{
+        background-color: {PRIMARY_COLOR}10;
+    }}
+    QComboBox QAbstractItemView::item:selected {{
+        background-color: {PRIMARY_COLOR}20;
+        color: {PRIMARY_COLOR};
+        font-weight: bold;
     }}
 
     /* List Widgets */
