@@ -88,7 +88,7 @@ class MainWindow(QMainWindow):
         StatusBar QLabel {{ /* Base style for labels in custom StatusBar widget */
             padding: 3px 10px; /* Increased padding */
             border-radius: 4px;
-            font-size: 10pt; /* Slightly larger font */
+            font-size: 11pt; /* Increased font size */
             min-height: 22px; /* Increased min height */
             alignment: 'AlignVCenter'; /* Vertically center text */
         }}
@@ -310,15 +310,21 @@ class MainWindow(QMainWindow):
         self.main_splitter = QSplitter(Qt.Orientation.Horizontal)
         
         # 2a. Tab Widget (Left Pane)
-        self.tab_widget = QTabWidget()
+        self.main_tabs = QTabWidget()
+        self.main_tabs.setDocumentMode(True) # Ensure tabs are not centered on macOS
+        self.main_tabs.setStyleSheet("""
+            QTabWidget::pane {
+                border-top: 1px solid #C2C7CB;
+            }
+        """)
         self.input_tab = QWidget() # Create tab page widget
         self.setup_input_tab()     # Populate it
-        self.tab_widget.addTab(self.input_tab, "Input")
+        self.main_tabs.addTab(self.input_tab, "Input")
         
         self.output_tab = QWidget() # Create tab page widget
         self.setup_output_tab()    # Populate it
-        self.tab_widget.addTab(self.output_tab, "Output")
-        self.main_splitter.addWidget(self.tab_widget) # Add tabs to splitter
+        self.main_tabs.addTab(self.output_tab, "Output")
+        self.main_splitter.addWidget(self.main_tabs) # Add tabs to splitter
         
         # 2b. Log Panel (Right Pane)
         self.log_panel = self.create_log_panel()
@@ -357,13 +363,13 @@ class MainWindow(QMainWindow):
         
         # Main Title: ANPE
         title_label = QLabel()
-        title_label.setText(f'<b style="color:{PRIMARY_COLOR}; font-size: 18pt;">ANPE</b>')
+        title_label.setText(f'<b style="color:{PRIMARY_COLOR}; font-size: 19pt;">ANPE</b>')
         title_layout.addWidget(title_label)
         
         # Subtitle (two lines with version and creator)
         subtitle_label = QLabel()
         subtitle_label.setText(f'''
-            <div style="color: #666666; font-size: 8pt; line-height: 0.9; margin-top: 3px;">
+            <div style="color: #666666; font-size: 9pt; line-height: 0.9; margin-top: 3px;">
                 v {anpe_version_str}<br>
                 Created by @rcverse
             </div>
@@ -614,7 +620,7 @@ class MainWindow(QMainWindow):
         self.default_button.setStyleSheet(f"""
             QPushButton {{
                 padding: 8px 15px;
-                font-size: 10pt;
+                font-size: 11pt; /* Increased font size */
                 border: none;
                 border-radius: 4px;
                 background-color: {PRIMARY_COLOR};
@@ -639,7 +645,7 @@ class MainWindow(QMainWindow):
         self.reset_button.setStyleSheet(f"""
             QPushButton {{
                 padding: 8px 15px;
-                font-size: 10pt;
+                font-size: 11pt; /* Increased font size */
                 border: none;
                 border-radius: 4px;
                 background-color: {PRIMARY_COLOR};
@@ -660,7 +666,7 @@ class MainWindow(QMainWindow):
         self.process_button.setStyleSheet(f"""
             QPushButton {{
                 padding: 8px 15px;
-                font-size: 10pt;
+                font-size: 11pt; /* Increased font size */
                 border: none;
                 border-radius: 4px;
                 background-color: {PRIMARY_COLOR};
@@ -1212,7 +1218,7 @@ class MainWindow(QMainWindow):
         self.export_button.setEnabled(False)
         
         # Reset tabs and input mode to default (File Input on Input tab)
-        self.tab_widget.setCurrentIndex(0) 
+        self.main_tabs.setCurrentIndex(0) 
         self.file_input_button.setChecked(True) # Also triggers switch_input_mode via button group
         self.input_stack.setCurrentIndex(0)
         
@@ -1301,7 +1307,7 @@ class MainWindow(QMainWindow):
 
     def switch_to_output_tab(self):
          """Switch focus to the Output tab."""
-         self.tab_widget.setCurrentIndex(1)
+         self.main_tabs.setCurrentIndex(1)
 
     def open_model_management(self):
         """Opens the Model Management dialog."""

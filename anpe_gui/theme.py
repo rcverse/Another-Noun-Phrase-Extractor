@@ -114,8 +114,8 @@ def get_stylesheet():
     QWidget {{
         background-color: {BACKGROUND_COLOR};
         color: {TEXT_COLOR};
-        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
-        font-size: 9pt; /* Slightly smaller base font */
+        font-family: "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+        font-size: 10pt;
     }}
 
     QMainWindow {{
@@ -293,60 +293,46 @@ def get_stylesheet():
         font-weight: bold;
     }}
 
-    /* Combo Boxes */
+    /* ComboBox (Simplified) */
     QComboBox {{
         border: 1px solid {BORDER_COLOR};
-        padding: 5px 8px;
-        background-color: white;
-        min-width: 100px;
         border-radius: 3px;
-        min-height: 20px;
-    }}
-    QComboBox:hover {{
-        border-color: {PRIMARY_COLOR};
+        padding: 5px; /* Unified padding */
+        min-height: 20px; /* Adjusted min-height */
+        background-color: white;
+        min-width: 80px; 
     }}
     QComboBox:focus {{
         border: 1px solid {PRIMARY_COLOR};
-        background-color: #F8F9FA;
     }}
     QComboBox:disabled {{
         background-color: #EEEEEE;
         color: #777777;
     }}
+    QComboBox:hover {{
+        border: 1px solid {SECONDARY_COLOR}; 
+    }}
+    /* Style the dropdown button area */
     QComboBox::drop-down {{
-        subcontrol-origin: padding;
-        subcontrol-position: top right;
-        width: 20px;
-        border-left-width: 0px;
+        background: transparent; /* Make arrow area background transparent */
+        border: none; /* Ensure no border is drawn around the arrow */
+        /* width: 18px; Optional: Adjust width if needed */
+        /* padding-right: 3px; Optional: Adjust padding */
     }}
     QComboBox::down-arrow {{
         image: url(anpe_gui/resources/down_arrow.svg);
-        height: 12px; 
-        margin-right: 4px;
+        /* Optional: Adjust size if needed, but often best left default */
+        /* width: 10px; */
+        /* height: 10px; */
     }}
-    QComboBox::down-arrow:disabled {{
-        border-top-color: #AAAAAA;
+    /* Minimal ComboBox Item Styling for Hover/Selection Feedback */
+    QComboBox::item:selected {{
+        background-color: {PRIMARY_COLOR};
+        color: white;
     }}
-    QComboBox QAbstractItemView {{ /* Style for the dropdown list */
-        border: 1px solid {BORDER_COLOR};
-        background-color: white;
-        selection-background-color: {PRIMARY_COLOR}20;
-        selection-color: {PRIMARY_COLOR};
-        outline: none;
-        padding: 4px;
-    }}
-    QComboBox QAbstractItemView::item {{
-        min-height: 24px;
-        padding: 4px 8px;
-        border-radius: 2px;
-    }}
-    QComboBox QAbstractItemView::item:hover {{
-        background-color: {PRIMARY_COLOR}15;
-    }}
-    QComboBox QAbstractItemView::item:selected {{
-        background-color: {PRIMARY_COLOR}20;
-        color: {PRIMARY_COLOR};
-        font-weight: bold;
+    QComboBox::item:hover {{
+        background-color: {HOVER_COLOR}; 
+        color: white;
     }}
 
     /* List Widgets */

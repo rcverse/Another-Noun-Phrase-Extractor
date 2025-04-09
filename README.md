@@ -42,12 +42,9 @@ Currently, ANPE is only tested on **English** and compatible with Python through
 ```python
 import anpe
 
-# Extract with all configurables
-result = anpe.extract(
-    "In the summer of 1956, Stevens, a long-serving butler at Darlington Hall, decides to take a motoring trip through the West Country.",
-    metadata=True,  # Function parameter
-    include_nested=True,  # Function parameter
-)
+text = "Sample texts"
+result = anpe.extract(text)
+
 print(result)
 ```
 

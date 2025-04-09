@@ -17,6 +17,7 @@ class StatusBar(QWidget):
     def __init__(self, parent=None):
         super().__init__(parent)
         self.setup_ui()
+        self._progress_animation = None # Initialize animation attribute
         
     def setup_ui(self):
         # Main layout
@@ -122,12 +123,19 @@ class StatusBar(QWidget):
         # Update progress bar - cap at 95% for visual consistency
         self.progress_bar.setRange(0, 100) # Ensure determinate mode
         
-        # For the final file in batch, cap at 95% unless explicitly complete
-        if value == 100 and "finished" not in message.lower() and "complete" not in message.lower():
-            value = 95  # Cap at 95% to indicate "almost done but not fully complete"
+        # Stop any existing animation
+        if self._progress_animation and self._progress_animation.state() == QPropertyAnimation.State.Running:
+            self._progress_animation.stop()
             
-        self.progress_bar.setValue(value)
-        
+        # Create and configure the animation
+        self._progress_animation = QPropertyAnimation(self.progress_bar, b"value", self)
+        self._progress_animation.setDuration(400)  # Animation duration in milliseconds
+        self._progress_animation.setStartValue(self.progress_bar.value()) # Start from current value
+        self._progress_animation.setEndValue(value) # Animate to the new value
+        self._progress_animation.setEasingCurve(QEasingCurve.Type.InOutQuad) # Smooth easing
+        self._progress_animation.finished.connect(self._clear_animation_reference) # Clear reference on finish
+        self._progress_animation.start(QPropertyAnimation.DeletionPolicy.DeleteWhenStopped) # Start animation
+
         # Change text visibility based on progress
         self.progress_bar.setTextVisible(True)
         
@@ -219,4 +227,9 @@ class StatusBar(QWidget):
         self.set_idle_state()
         
         # Reset status label to default 'ready' state
-        self.showMessage("ANPE Ready", status_type='ready') 
+        self.showMessage("ANPE Ready", status_type='ready')
+
+    @pyqtSlot()
+    def _clear_animation_reference(self):
+        """Slot to clear the animation reference when it finishes."""
+        self._progress_animation = None 

@@ -92,7 +92,8 @@ class AnpeResultModel(QAbstractItemModel):
         for np_item in np_items:
             # Extract data
             np_text = np_item.get('noun_phrase', 'N/A')
-            np_id = f"[{np_item.get('id', 'N/A')}]" # Add brackets here
+            # Get ID as string without brackets and strip whitespace
+            np_id = str(np_item.get('id', 'N/A')).strip()
             length_str = ""
             structures_str = ""
             
@@ -158,9 +159,10 @@ class AnpeResultModel(QAbstractItemModel):
         
         # --- Text Alignment Role --- 
         elif role == Qt.ItemDataRole.TextAlignmentRole:
-            # Center align the ID column
-            if column == self.COL_ID:
+            # Center align the Length column
+            if column == self.COL_LEN:
                 return QVariant(int(Qt.AlignmentFlag.AlignCenter))
+            # ID column will default to left alignment
         
         # --- Tooltip Role (Example) --- 
         elif role == Qt.ItemDataRole.ToolTipRole:
@@ -186,9 +188,10 @@ class AnpeResultModel(QAbstractItemModel):
                 if section < self.root_item.columnCount():
                      return QVariant(self.root_item.data(section))
             elif role == Qt.ItemDataRole.TextAlignmentRole:
-                 # Center align the ID column header
-                 if section == self.COL_ID:
+                 # Center align the Length column header
+                 if section == self.COL_LEN:
                      return QVariant(int(Qt.AlignmentFlag.AlignCenter))
+                 # ID header will default to left alignment
         return QVariant()
 
     def index(self, row, column, parent=QModelIndex()):
@@ -256,20 +259,35 @@ class ResultDisplayWidget(QWidget):
         self.tree_view.setAlternatingRowColors(True)
         self.tree_view.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
         self.tree_view.setSortingEnabled(False) # Disable sorting
+        self.tree_view.setIndentation(10) # Increase indentation further
         
-        # Apply Item Padding via Stylesheet for Height Increase
-        self.tree_view.setStyleSheet("""
-            QTreeView::item { 
+        # Apply Item Padding, Branch Indicator Styling, and Header Padding
+        # Note: Using forward slashes for paths in stylesheets, even on Windows
+        self.tree_view.setStyleSheet(f"""
+            /* TreeView Item Styles */
+            QTreeView::item {{ 
                 padding-top: 3px; 
                 padding-bottom: 3px; 
-            }
-            QTreeView::item:selected { 
+            }}
+            QTreeView::item:selected {{ 
                 /* Ensure selection style doesn't remove padding */ 
                 padding-top: 3px; 
                 padding-bottom: 3px; 
-            }
-            /* Include scrollbar style if desired */
-            """ + get_scroll_bar_style())
+            }}
+            /* TreeView Branch Indicator Styles */
+            QTreeView::branch:open:has-children {{
+                image: url(anpe_gui/resources/expand_open.svg);
+            }}
+            QTreeView::branch:closed:has-children {{
+                image: url(anpe_gui/resources/expand_close.svg);
+            }}
+            /* Header Section Padding */
+            QHeaderView::section:horizontal:first {{
+                padding-left: 10px; /* Add left padding to the first header section (ID) */
+            }}
+            /* Include scrollbar style */
+            {get_scroll_bar_style()}
+            """)
         
         layout.addWidget(self.tree_view)
 
@@ -316,27 +334,35 @@ class ResultDisplayWidget(QWidget):
             logging.debug("Setting model on tree view...")
             self.tree_view.setModel(self.proxy_model)
             
-            # --- Keeping Full Header Configuration --- 
+            # --- Configure Header ---
             header = self.tree_view.header()
-            header.setSectionResizeMode(AnpeResultModel.COL_NP, QHeaderView.ResizeMode.Interactive)
+            # Make Structures stretch to fill available space
+            header.setSectionResizeMode(AnpeResultModel.COL_STRUCT, QHeaderView.ResizeMode.Stretch)
+            # Make other columns interactive (resizable by user)
             header.setSectionResizeMode(AnpeResultModel.COL_ID, QHeaderView.ResizeMode.Interactive)
+            header.setSectionResizeMode(AnpeResultModel.COL_NP, QHeaderView.ResizeMode.Interactive)
             header.setSectionResizeMode(AnpeResultModel.COL_LEN, QHeaderView.ResizeMode.Interactive)
-            header.setSectionResizeMode(AnpeResultModel.COL_STRUCT, QHeaderView.ResizeMode.Interactive)
-            header.setStretchLastSection(False) 
+            # StretchLastSection is implicitly handled by the Stretch setting on Structures column
+            # header.setStretchLastSection(False) 
             # Remove sort indicator display
             # header.setSortIndicatorShown(True)
-            self.tree_view.resizeColumnToContents(AnpeResultModel.COL_ID)
-            self.tree_view.resizeColumnToContents(AnpeResultModel.COL_LEN)
-            header.setSectionResizeMode(AnpeResultModel.COL_NP, QHeaderView.ResizeMode.Stretch)
-            # --------------------------------------------- 
             
-            # No initial sort call
+            # Set fixed initial widths for ID, NP, and Length. 
+            # Structures stretches to fill the rest.
+            header.resizeSection(AnpeResultModel.COL_ID, 50)  # Set fixed initial width for ID
+            header.resizeSection(AnpeResultModel.COL_NP, 400) # Set larger fixed initial width for NP
+            header.resizeSection(AnpeResultModel.COL_LEN, 50) # Set fixed initial width for Length
+            # self.tree_view.resizeColumnToContents(AnpeResultModel.COL_STRUCT) # Don't set initial width for stretching column
+            # ---------------------------------------------
 
-            # Keeping expansion and filter update
-            self.tree_view.expandToDepth(0) 
+            # Collapse all items by default
+            self.tree_view.collapseAll()
+
+            # Update filter based on current text (if any)
+            # self.tree_view.expandToDepth(0) # Remove default expansion
             self.update_filter(self.filter_input.text())
 
-            logging.debug("Results display: Sorting disabled.")
+            logging.debug("Results display updated: ID stretches, others interactive, Length centered, no indent, collapsed default.")
 
         except Exception as e:
              logging.error(f"Error during minimal results display setup: {e}", exc_info=True)
