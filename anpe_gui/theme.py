@@ -360,11 +360,14 @@ def get_stylesheet():
         padding: 4px;
     }}
     QListWidget::item:selected {{
-        background-color: {PRIMARY_COLOR};
+        background-color: {SECONDARY_COLOR};
         color: white;
+        border-radius: 2px;
     }}
-    QListWidget::item:hover {{
-        background-color: {HOVER_COLOR}30; /* Light hover background */
+    QListWidget::item:hover:!selected {{
+        background-color: {HOVER_COLOR}40;
+        color: {TEXT_COLOR};
+        border-radius: 2px;
     }}
 
     /* Tab Bar Styling */

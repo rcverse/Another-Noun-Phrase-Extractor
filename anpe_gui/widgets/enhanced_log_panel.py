@@ -66,7 +66,7 @@ class EnhancedLogPanel(QWidget):
         self.log_text = QTextEdit()
         self.log_text.setReadOnly(True)
         self.log_text.setFont(QFont("Courier New", 9))
-        self.log_text.setLineWrapMode(QTextEdit.LineWrapMode.NoWrap)
+        self.log_text.setLineWrapMode(QTextEdit.LineWrapMode.WidgetWidth)
         
         # Ensure scroll bars are always visible and styled
         self.log_text.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOn)

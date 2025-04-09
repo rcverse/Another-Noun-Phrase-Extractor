@@ -42,9 +42,7 @@ else:
 
 from anpe_gui.workers import ExtractionWorker, BatchWorker, QtLogHandler
 from anpe_gui.widgets import (FileListWidget, StructureFilterWidget, 
-                              StatusBar, EnhancedLogPanel) # Ensure StatusBar is imported from widgets
-# Removed redundant theme color imports here, they are used in theme.py
-# from anpe_gui.theme import PRIMARY_COLOR, SECONDARY_COLOR, ACCENT_COLOR, TEXT_COLOR, BACKGROUND_COLOR 
+                              StatusBar, EnhancedLogPanel, ResultDisplayWidget) # Ensure StatusBar is imported from widgets
 from anpe_gui.theme import get_stylesheet # Import the function to get the stylesheet
 from anpe_gui.model_management_dialog import ModelManagementDialog # Import the new dialog
 from anpe_gui.setup_wizard import SetupWizard # Keep wizard import for initial setup
@@ -78,28 +76,6 @@ class ExtractorInitializer(QObject):
 
 class MainWindow(QMainWindow):
     """Main window for the ANPE GUI application."""
-    
-    # Status icons
-    STATUS_ICONS = {
-        'ready': '✓',
-        'error': '⚠',
-        'warning': '⚠',
-        'info': 'ℹ',
-        'busy': '⟳', # Using a different busy icon that might render better
-        'success': '✓',
-        'failed': '✗'
-    }
-    
-    # Status colors using constants from theme.py
-    STATUS_COLORS = {
-        'ready': SUCCESS_COLOR, # Green
-        'error': ERROR_COLOR,   # Red
-        'warning': WARNING_COLOR, # Amber
-        'info': INFO_COLOR,    # Blue/Teal
-        'busy': PRIMARY_COLOR, # Use Primary Blue for busy
-        'success': SUCCESS_COLOR, # Green
-        'failed': ERROR_COLOR   # Red
-    }
     
     # Status bar styles (remains here for now, could be moved to theme.py later)
     STATUS_BAR_STYLE = f"""
@@ -173,7 +149,7 @@ class MainWindow(QMainWindow):
         super().__init__()
         
         self.setWindowTitle(f"ANPE GUI v{anpe_version_str}")
-        self.setGeometry(100, 100, 1000, 900)  # Changed from 1200x800 to 1000x900
+        self.setGeometry(100, 100, 1200, 900)  
         
         # Set window icon
         resources_dir = Path(__file__).parent / "resources"
@@ -269,8 +245,8 @@ class MainWindow(QMainWindow):
             
             # Clear any existing results
             self.results = None
-            if hasattr(self, 'output_text'):
-                self.output_text.clear()
+            if hasattr(self, 'results_display_widget'):
+                self.results_display_widget.clear_display()
                 
             # Clear file list widget (custom implementation may not have clear method)
             if hasattr(self, 'file_list_widget'):
@@ -731,15 +707,8 @@ class MainWindow(QMainWindow):
         # --- Results Display Area ---
         results_group = QGroupBox("Extraction Results")
         results_group_layout = QVBoxLayout(results_group)
-        self.results_text = QTextEdit()
-        self.results_text.setReadOnly(True)
-        self.results_text.setMinimumHeight(300)
-        self.results_text.setLineWrapMode(QTextEdit.LineWrapMode.NoWrap)
-        self.results_text.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOn)
-        self.results_text.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
-        self.results_text.setStyleSheet(get_scroll_bar_style())
-        self.results_text.setText("Process files or texts to view the extraction results.")
-        results_group_layout.addWidget(self.results_text)
+        self.results_display_widget = ResultDisplayWidget() # Use the new custom widget
+        results_group_layout.addWidget(self.results_display_widget) # Add the new widget
         self.output_layout.addWidget(results_group, 1)  # Allow results area to stretch
 
         # --- Export Options ---
@@ -897,7 +866,7 @@ class MainWindow(QMainWindow):
              return
             
         self.results = None 
-        self.results_text.clear() 
+        self.results_display_widget.clear_display() 
         self.export_button.setEnabled(False) 
         self.process_button.setEnabled(False) 
         # Use the activity indicator for indeterminate processing
@@ -943,7 +912,7 @@ class MainWindow(QMainWindow):
              return
 
         self.results = {} 
-        self.results_text.clear() 
+        self.results_display_widget.clear_display() 
         self.file_selector_combo.clear() 
         self.file_selector_label.hide()
         self.file_selector_combo.hide()
@@ -1005,7 +974,7 @@ class MainWindow(QMainWindow):
     def handle_single_result(self, result_data: Dict[str, Any]):
         """Handle the result from the ExtractionWorker (single text)."""
         self.results = result_data # Store the complete result
-        self.display_results(result_data) # Display it
+        self.results_display_widget.display_results(result_data) # Use the new widget's method
         self.export_button.setEnabled(True) # Enable export
         # Keep INFO for completion message
         self.log("Single text processing completed.")
@@ -1024,7 +993,7 @@ class MainWindow(QMainWindow):
         
         # If this is the first result, display it and show the combo box
         if len(self.results) == 1:
-             self.display_results(result_data)
+             self.results_display_widget.display_results(result_data) # Use the new widget's method
              self.file_selector_label.show()
              self.file_selector_combo.show()
              
@@ -1124,78 +1093,13 @@ class MainWindow(QMainWindow):
         """Display the results for the file selected in the combo box (batch mode)."""
         selected_file_path = self.file_selector_combo.currentData() # Get stored full path
         if selected_file_path and isinstance(self.results, dict) and selected_file_path in self.results:
-            self.display_results(self.results[selected_file_path])
+            self.results_display_widget.display_results(self.results[selected_file_path]) # Use the new widget's method
             logging.debug(f"Displayed results for selected file: {selected_file_path}")
         else:
             # This might happen if combo index changes before results are fully populated
             logging.warning(f"Could not find results for selected file: {selected_file_path}")
-            # self.results_text.setText("Could not load results for selected file.") # Avoid clearing potentially valid results
-
-    def display_results(self, data: Dict[str, Any]):
-        """Populate the results text area with formatted data."""
-        self.results_text.clear()
-        if not data or not isinstance(data, dict) or 'metadata' not in data or 'results' not in data:
-            self.results_text.setText("No valid results data to display.")
-            logging.warning(f"Invalid or empty data passed to display_results: {data}")
-            return
-            
-        try:
-            metadata = data.get('metadata', {})
-            np_results = data.get('results', [])
-
-            self.results_text.append("<b>ANPE Noun Phrase Extraction Results</b>")
-            self.results_text.append("==================================")
-            self.results_text.append(f"Timestamp: {metadata.get('timestamp', 'N/A')}")
-            # These flags now come from the result metadata itself
-            self.results_text.append(f"Includes Nested NPs: {metadata.get('includes_nested', 'N/A')}")
-            self.results_text.append(f"Includes Metadata: {metadata.get('includes_metadata', 'N/A')}")
-            self.results_text.append("")
-            
-            if not np_results:
-                self.results_text.append("--- No noun phrases extracted matching the criteria. ---")
-            else:
-                self.format_np_for_display(np_results) # Start recursive formatting
-                
-            self.results_text.moveCursor(QTextCursor.MoveOperation.Start) # Scroll to top
-            logging.debug("Results displayed successfully.")
-        except Exception as e:
-             logging.error(f"Error formatting results for display: {e}", exc_info=True)
-             self.results_text.setText(f"Error displaying results: {e}")
-
-    def format_np_for_display(self, np_items: List[Dict[str, Any]], level: int = 0):
-        """Recursively format noun phrases for the QTextEdit, using simple text."""
-        # Simple text formatting, no HTML here for performance with large results
-        for np_item in np_items:
-            bullet = "*" if level == 0 else "-" # Use simple bullets
-            indent = "  " * level
-            
-            np_text = np_item.get('noun_phrase', 'N/A')
-            np_id = np_item.get('id', 'N/A')
-            self.results_text.append(f"{indent}{bullet} [{np_id}] {np_text}")
-            
-            metadata = np_item.get("metadata", {})
-            if metadata:
-                meta_parts = []
-                if "length" in metadata:
-                    meta_parts.append(f"Len: {metadata['length']}")
-                if "structures" in metadata:
-                    structures = metadata['structures']
-                    # Ensure structures is a list or tuple before joining
-                    if isinstance(structures, (list, tuple)):
-                        structures_str = ", ".join(structures)
-                    elif isinstance(structures, str): # Handle case where it might be a single string
-                        structures_str = structures
-                    else:
-                        structures_str = str(structures) # Fallback
-                    meta_parts.append(f"Struct: [{structures_str}]")
-                
-                if meta_parts:
-                     self.results_text.append(f"{indent}  ({', '.join(meta_parts)})") # Combine metadata on one line
-            
-            # Recursive call for children
-            children = np_item.get("children")
-            if children and isinstance(children, list): # Check if children exist and is a list
-                self.format_np_for_display(children, level + 1)
+            # self.results_display_widget.clear_display() # Avoid clearing potentially valid results; maybe show a message?
+            # self.results_display_widget.set_placeholder_text("Could not load results for selected file.")
 
     def export_results(self):
         """Export the currently stored results to a file."""
@@ -1297,9 +1201,8 @@ class MainWindow(QMainWindow):
         self.file_list_widget.clear_files()
         self.direct_text_input.clear()
         
-        # Clear results area and stored results
-        self.results_text.clear()
-        self.results_text.setText("Process files or texts to view the extraction results.")
+        # Clear results area and stored results using the new widget
+        self.results_display_widget.clear_display() 
         self.results = None
         
         # Hide file selector, disable export
@@ -1321,12 +1224,12 @@ class MainWindow(QMainWindow):
         
         # Re-enable process button if extractor is ready, disable reset again?
         if hasattr(self, 'process_button'):
-            self.process_button.setEnabled(self.extractor_ready)
+            self.process_button.setEnabled(self.extractor_ready) 
+        # Re-enable reset button logic might need review, ensure it's enabled when appropriate
         if hasattr(self, 'reset_button'):
-             self.reset_button.setEnabled(False) # Optional: Disable reset until next run finishes?
-             # Or keep it enabled: self.reset_button.setEnabled(True)
+            self.reset_button.setEnabled(True) # Should Reset always be enabled after a run? Or only Process?
         
-        logging.info("Workflow reset.")
+        logging.info("Workflow reset complete.")
 
     def restore_default_filters(self):
         """Restore all options to their default state."""

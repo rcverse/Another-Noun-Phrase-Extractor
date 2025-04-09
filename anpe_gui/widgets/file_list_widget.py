@@ -175,11 +175,11 @@ class FileListWidget(QWidget):
         count = len(self.file_paths)
         
         if count == 0:
-            self.status_label.setText("No files selected")
+            self.status_label.setText("No files imported")
         elif count == 1:
-            self.status_label.setText("1 file selected")
+            self.status_label.setText("1 file imported")
         else:
-            self.status_label.setText(f"{count} files selected")
+            self.status_label.setText(f"{count} files imported")
     
     def get_files(self):
         """

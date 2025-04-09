@@ -12,4 +12,5 @@ Widget components for the ANPE GUI application.
 from anpe_gui.widgets.file_list_widget import FileListWidget
 from anpe_gui.widgets.structure_filter_widget import StructureFilterWidget
 from anpe_gui.widgets.status_bar import StatusBar
-from anpe_gui.widgets.enhanced_log_panel import EnhancedLogPanel 
+from anpe_gui.widgets.enhanced_log_panel import EnhancedLogPanel
+from anpe_gui.widgets.result_display import ResultDisplayWidget 
