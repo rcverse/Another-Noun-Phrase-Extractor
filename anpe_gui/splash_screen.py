@@ -7,7 +7,7 @@ import time
 from PyQt6.QtWidgets import (QSplashScreen, QApplication, QProgressBar, 
                              QLabel, QVBoxLayout, QWidget)
 from PyQt6.QtGui import QPixmap, QPainter, QColor, QFont
-from PyQt6.QtCore import Qt, QTimer, pyqtSignal
+from PyQt6.QtCore import Qt, QTimer, pyqtSignal, QCoreApplication
 
 
 class SplashScreen(QSplashScreen):
@@ -141,10 +141,36 @@ class SplashScreen(QSplashScreen):
     def set_progress(self, value, status_message=None):
         """Update the progress bar and status message."""
         self.loading_progress = value
-        self.progress_bar.setValue(value)
+        
+        # Add a smooth transition effect for better visual experience
+        current = self.progress_bar.value()
+        
+        # Create smooth step animation if needed
+        if abs(current - value) > 10:
+            # Animate in 5 steps
+            steps = 5
+            step_size = (value - current) / steps
+            
+            def update_step(step=1):
+                if step <= steps:
+                    intermediate_value = int(current + (step_size * step))
+                    self.progress_bar.setValue(intermediate_value)
+                    # Continue animation with next step
+                    QTimer.singleShot(30, lambda: update_step(step + 1))
+                else:
+                    # Final step - set exact value
+                    self.progress_bar.setValue(value)
+            
+            # Start animation
+            update_step()
+        else:
+            # Small change, update directly
+            self.progress_bar.setValue(value)
+        
         if status_message:
             self.status_label.setText(status_message)
-        QApplication.processEvents() # Ensure UI updates immediately
+            
+        QCoreApplication.processEvents() # Ensure UI updates immediately
 
     def start_loading_animation(self, app):
         """

@@ -227,9 +227,9 @@ def get_stylesheet():
         background-color: #D0D0D0;
     }}
     QSpinBox::up-arrow {{
-        image: url(:/qt-project.org/styles/commonstyle/images/standardbutton-up-16.png); /* Use standard Qt arrow */
-        width: 9px;
-        height: 9px;
+        image: url(anpe_gui/resources/chevron-up.svg); /* Use chevron-up SVG */
+        width: 8px;
+        height: 8px;
     }}
     QSpinBox::down-button {{
         subcontrol-origin: border;
@@ -244,9 +244,9 @@ def get_stylesheet():
         background-color: #D0D0D0;
     }}
     QSpinBox::down-arrow {{
-        image: url(:/qt-project.org/styles/commonstyle/images/standardbutton-down-16.png); /* Use standard Qt arrow */
-        width: 9px;
-        height: 9px;
+        image: url(anpe_gui/resources/chevron-down.svg); /* Use chevron-down SVG */
+        width: 8px;
+        height: 8px;
     }}
 
     /* Checkboxes and Radio Buttons */
@@ -315,19 +315,14 @@ def get_stylesheet():
     }}
     QComboBox::drop-down {{
         subcontrol-origin: padding;
-        subcontrol-position: center right;
+        subcontrol-position: top right;
         width: 20px;
-        border-left: none;
-        margin-right: 4px;
+        border-left-width: 0px;
     }}
     QComboBox::down-arrow {{
-        width: 0;
-        height: 0;
-        border-left: 2px solid transparent;
-        border-right: 2px solid transparent;
-        border-top: 2px solid {PRIMARY_COLOR};
-        margin-top: 1px;
-        margin-right: 1px;
+        image: url(anpe_gui/resources/down_arrow.svg);
+        height: 12px; 
+        margin-right: 4px;
     }}
     QComboBox::down-arrow:disabled {{
         border-top-color: #AAAAAA;
@@ -346,7 +341,7 @@ def get_stylesheet():
         border-radius: 2px;
     }}
     QComboBox QAbstractItemView::item:hover {{
-        background-color: {PRIMARY_COLOR}10;
+        background-color: {PRIMARY_COLOR}15;
     }}
     QComboBox QAbstractItemView::item:selected {{
         background-color: {PRIMARY_COLOR}20;
@@ -389,8 +384,8 @@ def get_stylesheet():
         border-bottom: none; /* No border at the bottom */
         border-top-left-radius: 4px;
         border-top-right-radius: 4px;
-        padding: 8px 15px; /* Increased padding */
-        min-height: 25px; /* Ensure minimum height */
+        padding: 6px 20px; /* Reduced height (from 8px to 6px) and increased width (from 15px to 25px) */
+        min-height: 20px; /* Reduced from 25px to 20px */
         margin-right: 2px; /* Space between tabs */
     }}
     QTabBar::tab:hover {{
@@ -437,6 +432,12 @@ def get_stylesheet():
         font-size: 9pt;
         border: 1px solid #dee2e6;
         border-radius: 4px;
+    }}
+
+    /* Placeholder text styling for results area */
+    QTextEdit[placeholder="true"] {{
+        color: #6c757d;
+        font-style: italic;
     }}
 
     /* Help Window */
@@ -496,8 +497,36 @@ def get_stylesheet():
     QProgressBar#MainProgressBar::chunk:indeterminate {{
         background-color: qlineargradient(x1:0, y1:0, x2:1, y2:0,
             stop:0 {ACCENT_COLOR},
-            stop:0.5 {PRIMARY_COLOR},
+            stop:0.4 {ACCENT_COLOR},
+            stop:0.5 #5d9cec,
+            stop:0.6 {ACCENT_COLOR},
             stop:1 {ACCENT_COLOR});
+    }}
+
+    /* General progress bar styling */
+    QProgressBar {{
+        border: 1px solid {BORDER_COLOR};
+        border-radius: 4px;
+        text-align: center;
+        background-color: #f5f5f5;
+        color: {TEXT_COLOR};
+        font-weight: bold;
+        min-height: 20px;
+    }}
+    
+    QProgressBar::chunk {{
+        background-color: {PRIMARY_COLOR};
+        border-radius: 3px;
+        margin: 1px;
+    }}
+    
+    QProgressBar::chunk:indeterminate {{
+        background-color: qlineargradient(x1:0, y1:0, x2:1, y2:0,
+            stop:0 {PRIMARY_COLOR},
+            stop:0.4 {PRIMARY_COLOR},
+            stop:0.5 #5d9cec,
+            stop:0.6 {PRIMARY_COLOR},
+            stop:1 {PRIMARY_COLOR});
     }}
 
     /* QTextBrowser specific styling */

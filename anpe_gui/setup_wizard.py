@@ -1,11 +1,14 @@
 import sys
 from PyQt6.QtWidgets import (QApplication, QWizard, QWizardPage, QVBoxLayout, QLabel,
                              QProgressBar, QPushButton, QMessageBox, QGroupBox, QDialog,
-                             QSizePolicy, QGridLayout, QFrame)
-from PyQt6.QtCore import pyqtSignal, QThread, QObject, Qt
+                             QSizePolicy, QGridLayout, QFrame, QWidget, QHBoxLayout)
+from PyQt6.QtCore import pyqtSignal, QThread, QObject, Qt, QTimer, QCoreApplication
 from anpe.utils.setup_models import (setup_models, check_spacy_model,
                                    check_benepar_model, check_nltk_models,
                                    install_spacy_model, install_benepar_model, install_nltk_models)
+import logging
+# Import our custom activity indicator
+from .widgets.activity_indicator import PulsingActivityIndicator
 
 # --- Worker Thread for Downloads ---
 class SetupWorker(QObject):
@@ -171,52 +174,58 @@ class DownloadPage(QWizardPage):
 
         # Page-specific content (Status Group and Progress Bar)
 
-        status_group = QGroupBox("Individual Model Status")
+        status_group = QGroupBox("Model Status")
         status_layout = QGridLayout()
-        status_layout.setColumnStretch(1, 1) # Ensure status column expands
-        status_layout.setHorizontalSpacing(20) # Add horizontal spacing between columns
-        # status_layout.setColumnMinimumWidth(0, 180) # Give label column a fixed minimum width - commented out, let's try sizing policy first
+        status_layout.setVerticalSpacing(6)
+        status_layout.setHorizontalSpacing(10)
 
-        # Status labels
-        self.spacy_label = QLabel("spaCy (en_core_web_md):")
-        self.benepar_label = QLabel("Benepar (benepar_en3):")
-        self.nltk_label = QLabel("NLTK (punkt, punkt_tab):")
-
-        # Set size policy for labels to prevent them from shrinking too much but allow expansion if needed
-        # self.spacy_label.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Fixed)
-        # self.benepar_label.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Fixed)
-        # self.nltk_label.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Fixed)
-
-        self.spacy_status = QLabel("⏳ Pending...")
-        self.benepar_status = QLabel("⏳ Pending...")
-        self.nltk_status = QLabel("⏳ Pending...")
-
-        # Add widgets to grid layout
-        status_layout.addWidget(self.spacy_label, 0, 0, Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
-        status_layout.addWidget(self.spacy_status, 0, 1)
-        status_layout.addWidget(self.benepar_label, 1, 0, Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
-        status_layout.addWidget(self.benepar_status, 1, 1)
-        status_layout.addWidget(self.nltk_label, 2, 0, Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
-        status_layout.addWidget(self.nltk_status, 2, 1)
-
-        # Apply alignment and padding to status labels only
-        for i in range(status_layout.rowCount()):
-             status_layout.setRowMinimumHeight(i, 30) # Keep vertical spacing
-             # label_widget = status_layout.itemAtPosition(i, 0).widget()
-             status_widget = status_layout.itemAtPosition(i, 1).widget()
-             # if label_widget: label_widget.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter) # Alignment set during addWidget
-             if status_widget:
-                 status_widget.setAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
-                 # status_widget.setStyleSheet("padding-left: 10px;") # Padding handled by grid spacing now
+        # Add status labels for each model component
+        for row, (model_name, description) in enumerate([
+            ("spaCy", "Python NLP library"),
+            ("Benepar", "Berkeley Neural Parser"),
+            ("NLTK", "Natural Language Toolkit")
+        ]):
+            # Component name (static)
+            name_widget = QLabel(f"{model_name}:")
+            name_widget.setStyleSheet("font-weight: bold;")
+            status_layout.addWidget(name_widget, row, 0)
+            
+            # Description (static)
+            desc_widget = QLabel(description)
+            desc_widget.setStyleSheet("color: #555;")
+            status_layout.addWidget(desc_widget, row, 1)
+            
+            # Status (dynamic)
+            status_widget = QLabel("⏳ Pending...")
+            status_widget.setStyleSheet("color: #7f8c8d; padding-left: 10px;")
+            if model_name == "spaCy":
+                self.spacy_status = status_widget
+            elif model_name == "Benepar":
+                self.benepar_status = status_widget
+            else:
+                self.nltk_status = status_widget
+            
+            # Align status widget to left but allow expanding
+            status_layout.addWidget(status_widget, row, 2)
+            status_widget.setAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
 
         status_group.setLayout(status_layout)
         self.content_layout.addWidget(status_group)
 
-        # Progress bar
-        self.progress_bar = QProgressBar()
-        self.progress_bar.setRange(0, 0)
-        self.progress_bar.setTextVisible(False)
-        self.content_layout.addWidget(self.progress_bar)
+        # Replace progress bar with activity indicator
+        self.activity_container = QWidget()
+        self.activity_layout = QHBoxLayout(self.activity_container)
+        self.activity_layout.setContentsMargins(0, 5, 0, 5)
+        
+        self.activity_indicator = PulsingActivityIndicator()
+        self.activity_status = QLabel("Initializing...")
+        self.activity_status.setStyleSheet("color: #3498db; margin-left: 10px;")
+        
+        self.activity_layout.addWidget(self.activity_indicator)
+        self.activity_layout.addWidget(self.activity_status)
+        self.activity_layout.addStretch()
+        
+        self.content_layout.addWidget(self.activity_container)
 
         # --- Worker Thread setup (remains mostly the same) ---
         self.thread = None
@@ -231,7 +240,11 @@ class DownloadPage(QWizardPage):
         self.update_model_status("spaCy", "⏳ Pending...")
         self.update_model_status("Benepar", "⏳ Pending...")
         self.update_model_status("NLTK", "⏳ Pending...")
-        self.progress_bar.setRange(0, 0)
+        
+        # Start the activity indicator
+        self.activity_indicator.start()
+        self.activity_status.setText("Checking required models...")
+        
         self._setup_success = None
         self.wizard().button(QWizard.WizardButton.NextButton).setEnabled(False)
 
@@ -248,6 +261,7 @@ class DownloadPage(QWizardPage):
     def update_progress_label(self, message):
         """Update the main explainer text and status indicator."""
         self.explainer_label.setText(message)
+        self.activity_status.setText(message)
 
         # Update status indicator based on keywords
         status_text = "Status: In Progress"
@@ -269,7 +283,6 @@ class DownloadPage(QWizardPage):
 
         self.status_indicator_label.setText(status_text)
         self.status_indicator_label.setStyleSheet(f"color: {status_color}; font-weight: bold;")
-
 
     def update_model_status(self, model_name, status_text):
         """Update individual model status label + styles."""
@@ -296,8 +309,9 @@ class DownloadPage(QWizardPage):
             target_label.setStyleSheet(f"QLabel {{ {style}; font-weight: {font_weight}; }}")
 
     def on_setup_finished(self, success):
-        self.progress_bar.setRange(0, 1)
-        self.progress_bar.setValue(1)
+        # Stop activity indicator
+        self.activity_indicator.stop()
+        
         self._setup_success = success
         self.wizard()._setup_success = success
 
@@ -305,10 +319,14 @@ class DownloadPage(QWizardPage):
             final_message = "Setup completed successfully! Click Next to continue."
             final_status = "Status: Installation Complete"
             status_color = "#27ae60" # Green
+            self.activity_status.setText("Installation Complete")
+            self.activity_status.setStyleSheet("color: #27ae60; margin-left: 10px; font-weight: bold;")
         else:
             final_message = "Setup failed or was incomplete. Please check the status above. Click Next to see details."
             final_status = "Status: Installation Failed"
             status_color = "#c0392b" # Red
+            self.activity_status.setText("Installation Failed")
+            self.activity_status.setStyleSheet("color: #c0392b; margin-left: 10px; font-weight: bold;")
 
         self.explainer_label.setText(final_message)
         self.status_indicator_label.setText(final_status)
@@ -319,8 +337,9 @@ class DownloadPage(QWizardPage):
             self.thread.wait()
             self.thread = None
 
-        self.wizard().button(QWizard.WizardButton.NextButton).setEnabled(True)
-        self.completeChanged.emit()
+        # Enable Next button after the animation completes
+        QTimer.singleShot(1000, lambda: self.wizard().button(QWizard.WizardButton.NextButton).setEnabled(True))
+        QTimer.singleShot(1000, lambda: self.completeChanged.emit())
 
     def isComplete(self) -> bool:
         """Enable next button only when setup is done."""
@@ -456,19 +475,21 @@ class SetupWizard(QWizard):
 
             /* Buttons */
             QPushButton {
-                background-color: #3498db;
+                background-color: #005A9C;
                 color: white;
-                padding: 8px 18px; /* Slightly wider padding */
+                padding: 8px 15px;
+                font-size: 10pt;
                 border: none;
                 border-radius: 4px;
-                font-size: 10pt;
-                min-width: 80px; /* Minimum button width */
             }
             QPushButton:disabled {
-                background-color: #bdc3c7;
+                background-color: #E0E0E0;
             }
-            QPushButton:hover:!disabled { /* Hover only when enabled */
-                background-color: #2980b9;
+            QPushButton:hover:!disabled {
+                background-color: #004C8C;
+            }
+            QPushButton:pressed:!disabled {
+                background-color: #003366;
             }
         """)
 
@@ -491,7 +512,7 @@ class SetupWizard(QWizard):
         """Ensure Next button is disabled when entering Download page."""
         if page_id == self.Page_Download:
             # Ensure the button is disabled before initializePage runs fully
-            QApplication.processEvents() # Allow event queue to process potential earlier enables
+            QCoreApplication.processEvents() # Allow event queue to process potential earlier enables
             self.button(QWizard.WizardButton.NextButton).setEnabled(False)
             # Optionally hide Back button explicitly, though commit page should handle it
             self.button(QWizard.WizardButton.BackButton).setVisible(False)
@@ -501,19 +522,28 @@ class SetupWizard(QWizard):
 
 
     def _on_wizard_finished(self, result):
-        if result == QDialog.DialogCode.Accepted and hasattr(self, '_setup_success') and self._setup_success:
-            self.setup_complete.emit()
-        else:
-            # Check if cancellation was explicit or due to failure navigation
-            current_page_id = self.currentId()
-            if current_page_id == self.Page_Failure and result == QDialog.DialogCode.Accepted:
-                 # User clicked Finish/Commit on the Failure page
-                 self.setup_cancelled.emit() # Treat as cancelled/incomplete
-            elif result != QDialog.DialogCode.Accepted:
-                 # User clicked Cancel or closed the dialog
-                 self.setup_cancelled.emit()
-            # If setup failed but user finished on Success page (shouldn't happen with nextId logic)
-            # or other edge cases, default to cancelled.
+        """Handle wizard completion, ensuring signals are properly disconnected after emission."""
+        try:
+            if result == QDialog.DialogCode.Accepted and hasattr(self, '_setup_success') and self._setup_success:
+                logging.info("Setup wizard completed successfully, emitting setup_complete signal")
+                self.setup_complete.emit()
+            else:
+                # Check if cancellation was explicit or due to failure navigation
+                current_page_id = self.currentId()
+                if current_page_id == self.Page_Failure and result == QDialog.DialogCode.Accepted:
+                    # User clicked Finish/Commit on the Failure page
+                    logging.info("Setup wizard failed, emitting setup_cancelled signal")
+                    self.setup_cancelled.emit() # Treat as cancelled/incomplete
+                elif result != QDialog.DialogCode.Accepted:
+                    # User clicked Cancel or closed the dialog
+                    logging.info("Setup wizard cancelled, emitting setup_cancelled signal")
+                    self.setup_cancelled.emit()
+            
+            # Ensure wizard closes properly
+            QCoreApplication.processEvents()
+            
+        except Exception as e:
+            logging.error(f"Error in setup wizard finished handler: {e}", exc_info=True)
 
         # Override button text
         if self.currentId() == self.Page_Download and result == QDialog.DialogCode.Accepted:

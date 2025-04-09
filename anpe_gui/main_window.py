@@ -3,7 +3,7 @@ Main window implementation for the ANPE GUI application.
 """
 
 import os
-import sys
+# import sys # Removed
 import logging
 import functools # Import functools
 from typing import Optional, Dict, Any, List
@@ -17,7 +17,7 @@ from PyQt6.QtWidgets import (
     QProgressBar, QMessageBox, QSplitter, QFrame, QTabWidget, QGridLayout, QSizePolicy,
     QButtonGroup, QApplication
 )
-from PyQt6.QtGui import QIcon, QTextCursor, QPixmap
+from PyQt6.QtGui import QIcon, QTextCursor
 
 from .theme import PRIMARY_COLOR, SECONDARY_COLOR, SUCCESS_COLOR, ERROR_COLOR, WARNING_COLOR, INFO_COLOR, BORDER_COLOR, get_scroll_bar_style # Update the import
 from .widgets.help_dialog import HelpDialog # Import the new dialog
@@ -58,21 +58,21 @@ class ExtractorInitializer(QObject):
 
     def run(self):
         """Initialize the ANPEExtractor in the background."""
-        logging.info("WORKER: Initializing ANPEExtractor...")
+        logging.info("Initializing ANPEExtractor...")
         try:
             from anpe.utils import setup_models
             # First check if models are present
             if not setup_models.check_all_models_present():
-                logging.info("WORKER: Required models not found, setup needed.")
+                logging.info("Required models not found, setup needed.")
                 self.models_missing.emit()
                 return
                 
             # Models are present, initialize extractor
             extractor = ANPEExtractor()
-            logging.info("WORKER: ANPEExtractor initialized successfully.")
+            logging.info("ANPEExtractor initialized successfully.")
             self.initialized.emit(extractor)
         except Exception as e:
-            logging.error(f"WORKER: Error initializing ANPEExtractor: {e}", exc_info=True)
+            logging.error(f"Error initializing ANPEExtractor: {e}", exc_info=True)
             self.error.emit(str(e))
 # --- End Worker --- 
 
@@ -110,45 +110,61 @@ class MainWindow(QMainWindow):
             min-height: 22px; /* Ensure minimum height */
         }}
         StatusBar QLabel {{ /* Base style for labels in custom StatusBar widget */
-            padding: 1px 8px; /* Reduced vertical padding */
+            padding: 3px 10px; /* Increased padding */
             border-radius: 4px;
-            font-size: 9pt; /* Match base font size */
-            min-height: 18px; /* Ensure minimum height */
+            font-size: 10pt; /* Slightly larger font */
+            min-height: 22px; /* Increased min height */
             alignment: 'AlignVCenter'; /* Vertically center text */
         }}
         /* Specific styles based on 'status' property */
         StatusBar QLabel[status="ready"] {{
-            background-color: {SUCCESS_COLOR}20; /* Lighter green background */
-            color: {SUCCESS_COLOR};
+            /* background-color: {SUCCESS_COLOR}20; Lighter green background */
+            /* color: {SUCCESS_COLOR}; */
+            background-color: #E7F3FF; /* Morandi Light Blue background */
+            color: #005A9C; /* Primary Blue text */
             font-weight: bold;
         }}
         StatusBar QLabel[status="error"] {{
-            background-color: {ERROR_COLOR}20; /* Lighter red background */
-            color: {ERROR_COLOR};
+            /* background-color: {ERROR_COLOR}20; Lighter red background */
+            /* color: {ERROR_COLOR}; */
+            background-color: #FAE3E2; /* Morandi Light Red background */
+            color: #C04A44; /* Morandi Red text */
             font-weight: bold;
         }}
         StatusBar QLabel[status="warning"] {{
-            background-color: {WARNING_COLOR}20; /* Lighter amber background */
-            color: {WARNING_COLOR};
+            /* background-color: {WARNING_COLOR}20; Lighter amber background */
+            /* color: {WARNING_COLOR}; */
+            background-color: #FDF2E8; /* Morandi Light Ochre background */
+            color: #E5B17A; /* Morandi Ochre text */
             font-weight: bold;
         }}
         StatusBar QLabel[status="info"] {{
-            background-color: {INFO_COLOR}20; /* Lighter info background */
-            color: {INFO_COLOR};
+            /* background-color: {INFO_COLOR}20; Lighter info background */
+            /* color: {INFO_COLOR}; */
+            background-color: #E7F3FF; /* Morandi Light Blue background */
+            color: #005A9C; /* Primary Blue text */
         }}
         StatusBar QLabel[status="busy"] {{
-            background-color: {PRIMARY_COLOR}20; /* Lighter busy background */
-            color: {PRIMARY_COLOR};
-            font-style: italic;
+            /* background-color: {PRIMARY_COLOR}20; Lighter busy background */
+            /* color: {PRIMARY_COLOR}; */
+            font-style: bold; /* Keep bold as per user edit */
+            background-color: #f0f0f0; /* Light grey background */
+            color: #333333; /* Dark grey text */
         }}
         StatusBar QLabel[status="success"] {{
-            background-color: {SUCCESS_COLOR}20; /* Lighter green background */
-            color: {SUCCESS_COLOR};
+            /* background-color: {SUCCESS_COLOR}20; */
+            /* color: {SUCCESS_COLOR}; */
+            /* background-color: #e6f9e6; Light Green background */
+            /* color: #1e7e34; Deeper Green text */
+            background-color: #F1F8E8; /* Morandi Light Green background */
+            color: #73A942; /* Morandi Green text */
             font-weight: bold;
         }}
          StatusBar QLabel[status="failed"] {{
-            background-color: {ERROR_COLOR}20; /* Lighter red background */
-            color: {ERROR_COLOR};
+            /* background-color: {ERROR_COLOR}20; Lighter red background */
+            /* color: {ERROR_COLOR}; */
+            background-color: #FAE3E2; /* Morandi Light Red background */
+            color: #C04A44; /* Morandi Red text */
             font-weight: bold;
         }}
     """
@@ -156,13 +172,19 @@ class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
         
-        self.setWindowTitle("ANPE GUI - Another Noun Phrase Extractor")
-        self.setGeometry(100, 100, 1200, 800)
+        self.setWindowTitle(f"ANPE GUI v{anpe_version_str}")
+        self.setGeometry(100, 100, 1000, 900)  # Changed from 1200x800 to 1000x900
+        
+        # Set window icon
+        resources_dir = Path(__file__).parent / "resources"
+        icon_path = str(resources_dir / "app_icon.svg")
+        if os.path.exists(icon_path):
+            self.setWindowIcon(QIcon(icon_path))
         
         # Apply theme stylesheet
         self.setStyleSheet(get_stylesheet()) 
         
-        self.thread_pool = QThreadPool() # Keep thread pool if needed for future complex tasks
+        # self.thread_pool = QThreadPool() # Removed unused thread pool
         self.extractor_ready = False # Flag to indicate if core extractor is ready
         self.anpe_version = anpe_version_str # Store version string
         self.worker: Optional[ExtractionWorker] = None # For single processing
@@ -195,7 +217,9 @@ class MainWindow(QMainWindow):
         self.init_worker.error.connect(self.init_thread.quit)
         self.init_worker.models_missing.connect(self.init_thread.quit)  # Add quit for new signal
 
-        self.status_bar.showMessage("Checking ANPE models...")
+        status_type = 'busy'
+        message = "Checking ANPE models..."
+        self.status_bar.showMessage(message, status_type=status_type)
         self.init_thread.start()
     
     @pyqtSlot(object)
@@ -205,7 +229,9 @@ class MainWindow(QMainWindow):
         # Just mark as ready.
         logging.debug("MAIN: Extractor initialized signal received.")
         self.extractor_ready = True
-        self.status_bar.showMessage("ANPE Ready", 3000)
+        status_type = 'ready'
+        message = "ANPE Ready"
+        self.status_bar.showMessage(message, 3000, status_type=status_type)
         if hasattr(self, 'process_button'): # Check if button exists
              self.process_button.setEnabled(True) # Enable processing now
 
@@ -215,7 +241,9 @@ class MainWindow(QMainWindow):
         logging.error(f"MAIN: Extractor init error signal received: {error_message}")
         QMessageBox.critical(self, "Initialization Error", 
                              f"Failed to initialize ANPE Extractor: {error_message}")
-        self.status_bar.showMessage("ANPE Initialization Failed! Processing disabled.", 0) # Persistent
+        status_type = 'error'
+        message = "ANPE Initialization Failed! Processing disabled."
+        self.status_bar.showMessage(message, 0, status_type=status_type) # Persistent
         if hasattr(self, 'process_button'): # Check if button exists
             self.process_button.setEnabled(False) # Disable processing
 
@@ -223,7 +251,9 @@ class MainWindow(QMainWindow):
     def on_models_missing(self):
         """Handle case where models are missing during initialization."""
         logging.debug("MAIN: Models missing, launching setup wizard...")
-        self.status_bar.showMessage("Required models not found. Opening setup wizard...")
+        status_type = 'warning'
+        message = "Required models not found. Opening setup wizard..."
+        self.status_bar.showMessage(message, status_type=status_type)
         
         # Create and show setup wizard
         wizard = SetupWizard(self)
@@ -233,13 +263,60 @@ class MainWindow(QMainWindow):
 
     def on_setup_wizard_complete(self):
         """Handle successful completion of the setup wizard."""
-        self.status_bar.showMessage("Model setup completed successfully. Reinitializing...", 5000)
-        # Restart initialization to verify models and initialize extractor
-        self.start_background_initialization()
+        try:
+            # Log the completion
+            logging.info("Model setup completed successfully. Preparing to reinitialize ANPE...")
+            
+            # Clear any existing results
+            self.results = None
+            if hasattr(self, 'output_text'):
+                self.output_text.clear()
+                
+            # Clear file list widget (custom implementation may not have clear method)
+            if hasattr(self, 'file_list_widget'):
+                # Different ways to clear based on implementation
+                if hasattr(self.file_list_widget, 'clear'):
+                    self.file_list_widget.clear()
+                elif hasattr(self.file_list_widget, 'clear_files'):
+                    self.file_list_widget.clear_files()  
+                elif hasattr(self.file_list_widget, 'setFiles'):
+                    self.file_list_widget.setFiles([])
+                else:
+                    logging.debug("Could not clear file_list_widget - no suitable method found")
+            
+            # Reset GUI state
+            if hasattr(self, 'process_button'):
+                self.process_button.setEnabled(False)  # Disable until reinitialization
+            self.extractor_ready = False
+            
+            # Show informative status
+            status_type = 'info'
+            message = "Model setup completed successfully. Reinitializing ANPE..."
+            self.status_bar.showMessage(message, 5000, status_type=status_type)
+            
+            # Use a longer delay timer to ensure the wizard is fully closed before reinitializing
+            # This mitigates race conditions in signal processing
+            logging.debug("Scheduling reinitialization after delay...")
+            QTimer.singleShot(500, self._delayed_initialization)
+            
+        except Exception as e:
+            logging.error(f"Error handling setup completion: {e}", exc_info=True)
+            self.status_bar.showMessage(f"Error after setup: {e}", 5000, status_type='error')
+    
+    def _delayed_initialization(self):
+        """Separate method for delayed initialization to avoid signal race conditions."""
+        try:
+            logging.debug("Starting delayed reinitialization...")
+            self.start_background_initialization()
+        except Exception as e:
+            logging.error(f"Error in delayed initialization: {e}", exc_info=True)
+            self.status_bar.showMessage(f"Failed to reinitialize: {e}", 5000, status_type='error')
 
     def on_setup_wizard_cancelled(self):
         """Handle cancellation of the setup wizard."""
-        self.status_bar.showMessage("Model setup cancelled. ANPE functionality limited.", 5000)
+        status_type = 'warning'
+        message = "Model setup cancelled. ANPE functionality limited."
+        self.status_bar.showMessage(message, 5000, status_type=status_type)
         self.process_button.setEnabled(False)  # Disable processing since models aren't ready
 
     def setup_ui(self):
@@ -247,7 +324,7 @@ class MainWindow(QMainWindow):
         self.central_widget = QWidget()
         self.setCentralWidget(self.central_widget)
         self.main_layout = QVBoxLayout(self.central_widget)
-        self.main_layout.setContentsMargins(10, 10, 10, 0) # Margins for window edges
+        self.main_layout.setContentsMargins(10, 10, 10, 12) # Increased bottom margin
         self.main_layout.setSpacing(10)
         
         # 1. Header
@@ -296,34 +373,29 @@ class MainWindow(QMainWindow):
         header_layout.setContentsMargins(0, 2, 0, 2) 
         header_layout.setSpacing(5)  # Reduced spacing between header elements
         
-        # Title Area (Horizontal Layout for title and version)
+        # Title Area (Horizontal Layout for title and subtitle together)
         title_area_widget = QWidget()
-        title_layout = QVBoxLayout(title_area_widget)
+        title_layout = QHBoxLayout(title_area_widget)
         title_layout.setContentsMargins(0,0,0,0)
-        title_layout.setSpacing(0)
-        
-        # Title row (ANPE + Version)
-        title_row = QHBoxLayout()
-        title_row.setSpacing(5)  # Small gap between title and version
+        title_layout.setSpacing(5)
         
         # Main Title: ANPE
         title_label = QLabel()
         title_label.setText(f'<b style="color:{PRIMARY_COLOR}; font-size: 18pt;">ANPE</b>')
-        title_row.addWidget(title_label)
+        title_layout.addWidget(title_label)
         
-        # Version Label (next to ANPE)
-        version_label = QLabel(f"v{self.anpe_version}")
-        version_label.setStyleSheet("color: grey; font-size: 10pt;")
-        title_row.addWidget(version_label)
-        title_row.addStretch()
-        
-        # Add title row to layout
-        title_layout.addLayout(title_row)
-        
-        # Subtitle
+        # Subtitle (two lines with version and creator)
         subtitle_label = QLabel()
-        subtitle_label.setText('<i style="color: grey; font-size: 9pt;">Another Noun Phrase Extractor</i>')
+        subtitle_label.setText(f'''
+            <div style="color: #666666; font-size: 8pt; line-height: 0.9; margin-top: 3px;">
+                v {anpe_version_str}<br>
+                Created by @rcverse
+            </div>
+        ''')
         title_layout.addWidget(subtitle_label)
+        
+        # Add stretch to push everything to the left
+        title_layout.addStretch()
         
         # Add title area to header layout (left-aligned)
         header_layout.addWidget(title_area_widget)
@@ -394,6 +466,13 @@ class MainWindow(QMainWindow):
         
         # Add header to main layout
         self.main_layout.addWidget(header_container)
+        
+        # Add aesthetic separator line between header and content
+        separator = QFrame()
+        separator.setFrameShape(QFrame.Shape.HLine)
+        separator.setFrameShadow(QFrame.Shadow.Sunken)
+        separator.setStyleSheet(f"background-color: {BORDER_COLOR}; max-height: 1px;")
+        self.main_layout.addWidget(separator)
 
     def setup_input_tab(self):
         """Set up the Input tab: Mode buttons, Stacked Input Area, Config, Process Button."""
@@ -476,12 +555,12 @@ class MainWindow(QMainWindow):
         settings_layout.setVerticalSpacing(5)
 
         self.include_nested = QCheckBox("Include Nested Phrases")
-        self.include_nested.setChecked(True)
+        self.include_nested.setChecked(False)
         self.include_nested.setToolTip("Whether to include nested noun phrases (maintains parent-child relationships).")
         settings_layout.addWidget(self.include_nested, 0, 0)
 
         self.include_metadata = QCheckBox("Include Metadata")
-        self.include_metadata.setChecked(True)
+        self.include_metadata.setChecked(False)
         self.include_metadata.setToolTip("Whether to include metadata about each noun phrase (length and structural analysis).")
         settings_layout.addWidget(self.include_metadata, 0, 1)
 
@@ -504,33 +583,33 @@ class MainWindow(QMainWindow):
         filtering_layout.setVerticalSpacing(5)
 
         # Min Length Widgets (placed directly in grid)
-        self.min_length_checkbox = QCheckBox("Min length")
-        self.min_length_checkbox.setToolTip("Filter out noun phrases shorter than this length (in tokens). Check to enable.")
-        self.min_length_spinbox = QSpinBox()
-        self.min_length_spinbox.setRange(1, 100)
-        self.min_length_spinbox.setValue(2)
-        self.min_length_spinbox.setEnabled(False)
+        self.min_length_check = QCheckBox("Min length")
+        self.min_length_check.setToolTip("Filter out noun phrases shorter than this length (in tokens). Check to enable.")
+        self.min_length_spin = QSpinBox()
+        self.min_length_spin.setRange(1, 100)
+        self.min_length_spin.setValue(2)
+        self.min_length_spin.setEnabled(False)
         # self.min_length_spinbox.setMaximumWidth(70) # Let layout handle width
-        self.min_length_checkbox.toggled.connect(self.min_length_spinbox.setEnabled)
-        filtering_layout.addWidget(self.min_length_checkbox, 0, 0)
-        filtering_layout.addWidget(self.min_length_spinbox, 0, 1)
+        self.min_length_check.toggled.connect(self.min_length_spin.setEnabled)
+        filtering_layout.addWidget(self.min_length_check, 0, 0)
+        filtering_layout.addWidget(self.min_length_spin, 0, 1)
 
         # Max Length Widgets (placed directly in grid)
-        self.max_length_checkbox = QCheckBox("Max length")
-        self.max_length_checkbox.setToolTip("Filter out noun phrases longer than this length (in tokens). Check to enable.")
-        self.max_length_spinbox = QSpinBox()
-        self.max_length_spinbox.setRange(1, 100)
-        self.max_length_spinbox.setValue(10)
-        self.max_length_spinbox.setEnabled(False)
+        self.max_length_check = QCheckBox("Max length")
+        self.max_length_check.setToolTip("Filter out noun phrases longer than this length (in tokens). Check to enable.")
+        self.max_length_spin = QSpinBox()
+        self.max_length_spin.setRange(1, 100)
+        self.max_length_spin.setValue(10)
+        self.max_length_spin.setEnabled(False)
         # self.max_length_spinbox.setMaximumWidth(70) # Let layout handle width
-        self.max_length_checkbox.toggled.connect(self.max_length_spinbox.setEnabled)
-        filtering_layout.addWidget(self.max_length_checkbox, 0, 2)
-        filtering_layout.addWidget(self.max_length_spinbox, 0, 3)
+        self.max_length_check.toggled.connect(self.max_length_spin.setEnabled)
+        filtering_layout.addWidget(self.max_length_check, 0, 2)
+        filtering_layout.addWidget(self.max_length_spin, 0, 3)
 
         # Accept Pronouns Checkbox (moved to the next column)
-        self.accept_pronouns = QCheckBox("Accept Pronouns")
-        self.accept_pronouns.setChecked(True)
-        self.accept_pronouns.setToolTip("Whether to include single-word pronouns (e.g., 'it', 'they') as valid noun phrases.")
+        self.accept_pronouns = QCheckBox("Do not accept pronouns")
+        self.accept_pronouns.setChecked(False)
+        self.accept_pronouns.setToolTip("When checked, excludes single-word pronouns (e.g., 'it', 'they') from noun phrases.")
         filtering_layout.addWidget(self.accept_pronouns, 0, 4)
 
         # Adjust Column stretches for the new layout
@@ -553,8 +632,32 @@ class MainWindow(QMainWindow):
 
         # --- 4. Process Button ---
         process_reset_layout = QHBoxLayout()
-        process_reset_layout.addStretch(1)
         
+        # Default Button (left-aligned)
+        self.default_button = QPushButton("Default")
+        self.default_button.setStyleSheet(f"""
+            QPushButton {{
+                padding: 8px 15px;
+                font-size: 10pt;
+                border: none;
+                border-radius: 4px;
+                background-color: {PRIMARY_COLOR};
+                color: white;
+            }}
+            QPushButton:hover {{
+                background-color: #005fb8;
+            }}
+            QPushButton:pressed {{
+                background-color: #004a94;
+            }}
+        """)
+        self.default_button.setToolTip("Restore filtering options to default state")
+        self.default_button.clicked.connect(self.restore_default_filters)
+        process_reset_layout.addWidget(self.default_button)
+        
+        # Add stretch to push other buttons to the right
+        process_reset_layout.addStretch(1)
+
         # Reset Button
         self.reset_button = QPushButton("Reset")
         self.reset_button.setStyleSheet(f"""
@@ -635,6 +738,7 @@ class MainWindow(QMainWindow):
         self.results_text.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOn)
         self.results_text.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
         self.results_text.setStyleSheet(get_scroll_bar_style())
+        self.results_text.setText("Process files or texts to view the extraction results.")
         results_group_layout.addWidget(self.results_text)
         self.output_layout.addWidget(results_group, 1)  # Allow results area to stretch
 
@@ -711,11 +815,11 @@ class MainWindow(QMainWindow):
 
         try:
             # General Filtering Options -> ANPEExtractor config
-            if self.min_length_checkbox.isChecked():
-                config["min_length"] = self.min_length_spinbox.value()
-            if self.max_length_checkbox.isChecked():
-                config["max_length"] = self.max_length_spinbox.value()
-            config["accept_pronouns"] = self.accept_pronouns.isChecked()
+            if self.min_length_check.isChecked():
+                config["min_length"] = self.min_length_spin.value()
+            if self.max_length_check.isChecked():
+                config["max_length"] = self.max_length_spin.value()
+            config["accept_pronouns"] = not self.accept_pronouns.isChecked()
             config["newline_breaks"] = not self.newline_breaks.isChecked()
 
             # Structure Filtering Options -> ANPEExtractor config
@@ -765,9 +869,12 @@ class MainWindow(QMainWindow):
                 return
             # 3. Run Batch Processing
             self.log_panel.clear_log() # Clear log for new run
-            self.log(f"Starting batch processing for {len(files)} files...")
-            self.status_bar.showMessage(f"Processing {len(files)} files...")
-            self.run_batch_processing(files, config)
+            log_message = f"Starting batch processing for {len(files)} files..."
+            self.log(log_message)
+            status_type = 'busy'
+            status_message = f"Processing {len(files)} files..."
+            # Pass message directly to run_batch_processing which will call status_bar.update_progress
+            self.run_batch_processing(files, config, initial_status_message=status_message)
 
         elif input_mode_index == 1: # Text Input Mode
             text_content = self.direct_text_input.toPlainText().strip()
@@ -777,21 +884,24 @@ class MainWindow(QMainWindow):
             # 3. Run Single Processing
             self.log_panel.clear_log() # Clear log for new run
             self.log("Starting single text processing...")
-            self.status_bar.showMessage("Processing text...")
-            self.run_single_processing(text_content, config)
+            status_type = 'busy'
+            status_message = "Processing text..."
+            # Pass message directly to run_single_processing which will call status_bar.start_progress
+            self.run_single_processing(text_content, config, initial_status_message=status_message)
 
-    def run_single_processing(self, text_content: str, config: Dict[str, Any]):
-        """Starts the background worker for processing a single text block."""
+    def run_single_processing(self, text_content: str, config: Dict[str, Any], initial_status_message: str):
+        """Starts the background worker for processing a single text input."""
         if hasattr(self, 'single_thread') and self.single_thread is not None and self.single_thread.isRunning():
-            QMessageBox.warning(self, "Processing Busy", 
-                                "Another process is already running. Please wait.")
-            return
+             QMessageBox.warning(self, "Processing Busy", 
+                                 "Another process is already running. Please wait.")
+             return
             
         self.results = None 
         self.results_text.clear() 
         self.export_button.setEnabled(False) 
         self.process_button.setEnabled(False) 
-        self.status_bar.start_progress("Processing text...") 
+        # Use the activity indicator for indeterminate processing
+        self.status_bar.start_progress(initial_status_message) 
         self.processing_error_occurred = False # Initialize error flag
 
         # 1. Create Worker
@@ -823,9 +933,9 @@ class MainWindow(QMainWindow):
         
         # 4. Start the Thread
         logging.debug("MAIN: Starting single processing thread.")
-        self.single_thread.start() 
+        self.single_thread.start()
 
-    def run_batch_processing(self, file_paths: List[str], config: Dict[str, Any]):
+    def run_batch_processing(self, file_paths: List[str], config: Dict[str, Any], initial_status_message: str):
         """Starts the background worker for processing multiple files."""
         if hasattr(self, 'batch_thread') and self.batch_thread is not None and self.batch_thread.isRunning():
              QMessageBox.warning(self, "Processing Busy", 
@@ -839,7 +949,8 @@ class MainWindow(QMainWindow):
         self.file_selector_combo.hide()
         self.export_button.setEnabled(False) 
         self.process_button.setEnabled(False) 
-        self.status_bar.update_progress(0, f"Starting batch processing (0/{len(file_paths)} files)..." )
+        # Use the pre-formatted message from start_processing for the initial update
+        self.status_bar.update_progress(0, initial_status_message )
         self.processing_error_occurred = False # Initialize error flag
 
         # 1. Create Worker
@@ -879,13 +990,16 @@ class MainWindow(QMainWindow):
     @pyqtSlot(int, str) # Receives percentage and message
     def update_batch_progress(self, percentage: int, message: str):
         """Update status bar for batch processing progress."""
-        self.status_bar.update_progress(percentage, message)
+        # Prepend busy icon here as this is called repeatedly during processing
+        status_type = 'busy'
+        full_message = message # Just use the message passed
+        self.status_bar.update_progress(percentage, full_message)
 
     @pyqtSlot(str) # Receives message
     def update_progress(self, message: str):
          """Update status bar for indeterminate progress (single text)."""
          # For indeterminate, we just update the message
-         self.status_bar.showMessage(message)
+         self.status_bar.showMessage(message, status_type='busy')
 
     @pyqtSlot(dict) # Receives result dictionary for one run
     def handle_single_result(self, result_data: Dict[str, Any]):
@@ -922,7 +1036,10 @@ class MainWindow(QMainWindow):
     def handle_error(self, error_message: str):
         """Handle errors reported by workers."""
         logging.error(f"Processing Error: {error_message}") 
-        self.status_bar.stop_progress(f"Error: {error_message}") # Show error in status bar
+        status_type = 'error'
+        # Format message with icon before passing to stop_progress
+        formatted_message = f"Error: {error_message}" # Removed icon
+        self.status_bar.stop_progress(formatted_message, status_type=status_type)
         QMessageBox.warning(self, "Processing Error", f"An error occurred: {error_message}")
         self.processing_error_occurred = True # Set error flag
         # Re-enable process button even on error? (Keep current behavior)
@@ -954,15 +1071,21 @@ class MainWindow(QMainWindow):
         if worker_cleared:
             logging.debug("Updating UI after processing finished.")
             
-            # Determine final message using the flag
-            final_message = "Processing complete"
+            # Determine final message and status type
+            status_type = 'success' # Default to success
+            final_message_text = "Processing complete"
             if self.processing_error_occurred: 
-                 final_message = "Processing finished with errors"
+                 status_type = 'error'
+                 final_message_text = "Processing finished with errors"
             elif self.results is None or (isinstance(self.results, dict) and not self.results):
-                final_message = "Processing finished (No results)"
+                 status_type = 'info' # Or 'warning'? 'info' seems okay.
+                 final_message_text = "Processing finished (No results)"
                 
+            # Format message with icon
+            final_message = final_message_text # Removed icon
+            
             self.status_bar.clear_progress() 
-            self.status_bar.showMessage(final_message, 5000) 
+            self.status_bar.showMessage(final_message, 5000, status_type=status_type) 
             
             # Enable export only if results exist AND no error occurred
             can_export = self.results is not None and not self.processing_error_occurred
@@ -1176,6 +1299,7 @@ class MainWindow(QMainWindow):
         
         # Clear results area and stored results
         self.results_text.clear()
+        self.results_text.setText("Process files or texts to view the extraction results.")
         self.results = None
         
         # Hide file selector, disable export
@@ -1190,7 +1314,9 @@ class MainWindow(QMainWindow):
         self.input_stack.setCurrentIndex(0)
         
         # Reset status bar
-        self.status_bar.showMessage("ANPE Ready")
+        status_type = 'ready'
+        message = "ANPE Ready"
+        self.status_bar.showMessage(message, status_type=status_type)
         self.status_bar.clear_progress()
         
         # Re-enable process button if extractor is ready, disable reset again?
@@ -1201,6 +1327,33 @@ class MainWindow(QMainWindow):
              # Or keep it enabled: self.reset_button.setEnabled(True)
         
         logging.info("Workflow reset.")
+
+    def restore_default_filters(self):
+        """Restore all options to their default state."""
+        logging.info("Restoring all options to default state...")
+        
+        # Reset General Settings
+        self.include_nested.setChecked(False)
+        self.include_metadata.setChecked(False)
+        self.newline_breaks.setChecked(False)
+        
+        # Reset General Filtering Options
+        self.min_length_check.setChecked(False)
+        self.min_length_spin.setValue(1)
+        self.max_length_check.setChecked(False)
+        self.max_length_spin.setValue(10)
+        self.accept_pronouns.setChecked(False)
+        
+        # Reset structure filtering - just reset the widget if it exists
+        if hasattr(self, 'structure_filter_widget'):
+            # Reset the widget by recreating it
+            old_widget = self.structure_filter_widget
+            self.structure_filter_widget = StructureFilterWidget()
+            # Replace the old widget with the new one
+            old_widget.parent().layout().replaceWidget(old_widget, self.structure_filter_widget)
+            old_widget.deleteLater()
+        
+        logging.info("All options restored to default state.")
 
     # --- Utility and Helper Methods ---
 
@@ -1256,35 +1409,45 @@ class MainWindow(QMainWindow):
 
     def on_models_changed(self):
         """Slot called when models might have changed via the management dialog."""
-        logging.info("MAIN: Models may have changed via dialog. Re-checking status.")
+        logging.info("MAIN: Models may have changed via dialog. Re-checking status...")
         self.status_bar.showMessage("Models possibly changed. Re-checking readiness...", 3000)
-        # Option 1: Just re-run the background check which includes model check
-        # self.start_background_initialization()
         
-        # Option 2: Simpler check - see if models are present now, enable/disable button
-        # This avoids re-initializing the extractor if it was already ready, unless cleaning broke it.
+        # Use a timer to delay the check to avoid race conditions
+        QTimer.singleShot(200, self._delayed_model_check)
+    
+    def _delayed_model_check(self):
+        """Perform the actual model check after a short delay."""
         try:
             from anpe.utils.setup_models import check_all_models_present
             if check_all_models_present():
                 # If models are now present, we might need to re-initialize
                 if not self.extractor_ready:
                      logging.info("MAIN: Models now present, restarting initialization.")
-                     self.start_background_initialization()
+                     self.start_background_initialization() # This will set its own status message
                 else:
                      logging.info("MAIN: Models checked, extractor was already ready.")
-                     self.process_button.setEnabled(True) # Ensure enabled
-                     self.status_bar.showMessage("Model status re-checked. ANPE Ready.", 3000)
+                     if hasattr(self, 'process_button'):
+                         self.process_button.setEnabled(True) # Ensure enabled
+                     status_type = 'ready'
+                     message = "Model status re-checked. ANPE Ready."
+                     self.status_bar.showMessage(message, 3000, status_type=status_type)
 
             else:
                  # Models are missing (e.g., after cleaning)
                  logging.warning("MAIN: Models missing after check. Disabling processing.")
                  self.extractor_ready = False
-                 self.process_button.setEnabled(False)
-                 self.status_bar.showMessage("Models missing. Run setup via 'Manage Models'.", 0) # Persistent message
+                 if hasattr(self, 'process_button'):
+                     self.process_button.setEnabled(False)
+                 status_type = 'warning'
+                 message = "Models missing. Run setup via 'Manage Models'."
+                 self.status_bar.showMessage(message, 0, status_type=status_type) # Persistent message
         except Exception as e:
              logging.error(f"MAIN: Error re-checking models after dialog: {e}", exc_info=True)
-             self.status_bar.showMessage("Error re-checking models.", 5000)
-             self.process_button.setEnabled(False) # Disable on error
+             status_type = 'error'
+             message = "Error re-checking models."
+             self.status_bar.showMessage(message, 5000, status_type=status_type)
+             if hasattr(self, 'process_button'):
+                 self.process_button.setEnabled(False) # Disable on error
 
     def closeEvent(self, event):
         """Handle the main window closing."""
@@ -1357,35 +1520,6 @@ class MainWindow(QMainWindow):
         # 3. Accept the event to close the window
         logging.info("Accepting close event.")
         event.accept()
-
-    def update_status(self, message, status_type='info'):
-        """Update the status bar message and style using the StatusBar widget's method."""
-        icon = self.STATUS_ICONS.get(status_type, 'ℹ') # Default to info icon
-        # Call the StatusBar's method to update its internal label and style
-        self.status_bar.showMessage(f"{icon} {message}", status_type=status_type)
-
-    def update_progress(self, value, message=None):
-        """Update the progress bar using the StatusBar widget's method."""
-        # Target the progress bar within the status_bar widget
-        if not hasattr(self.status_bar, 'progress_bar') or self.status_bar.progress_bar is None:
-            logging.warning("Attempted to update progress, but status_bar.progress_bar not found.")
-            return
-
-        # Call the StatusBar's method to handle value, message, and styling
-        # Include busy icon in the message passed to the status bar method if needed
-        full_message = f"{self.STATUS_ICONS['busy']} {message}" if message else None
-        self.status_bar.update_progress(value, full_message)
-
-    def _on_initialization_complete(self, success, message):
-        """Handle completion of background initialization."""
-        if success:
-            self.extractor_ready = True
-            self.process_button.setEnabled(True)
-            self.update_status("ANPE Ready", 'ready')
-        else:
-            self.extractor_ready = False
-            self.process_button.setEnabled(False)
-            self.update_status(message, 'error')
 
     # --- Help Function --- 
     def show_help(self):

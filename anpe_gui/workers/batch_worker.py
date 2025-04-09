@@ -35,19 +35,19 @@ class BatchWorker(QObject):
     def run(self):
         """Execute the batch extraction process."""
         self.signals.started.emit()
-        logging.info(f"WORKER (Batch): Starting processing for {len(self.file_paths)} files...")
+        logging.info(f"Starting processing for {len(self.file_paths)} files...")
         results = {}
         total_files = len(self.file_paths)
         extractor: Optional[ANPEExtractor] = None # Define extractor variable
         
         try:
             # Create extractor instance ONCE with the specific config for this batch run
-            logging.debug(f"WORKER (Batch): Creating ANPEExtractor with config: {self.config}")
+            logging.debug(f"Creating ANPEExtractor with config: {self.config}")
             extractor = ANPEExtractor(config=self.config)
 
             for i, file_path in enumerate(self.file_paths):
                 if self._is_cancelled:
-                    logging.info("WORKER (Batch): Cancellation requested.")
+                    logging.info("Cancellation requested.")
                     break
                 
                 # Calculate progress and update status
@@ -55,14 +55,14 @@ class BatchWorker(QObject):
                 file_name = os.path.basename(file_path)
                 status_msg = f"Processing {file_name} ({i+1}/{total_files})"
                 self.signals.progress.emit(progress_percent, status_msg)
-                logging.info(f"WORKER (Batch): {status_msg}")
+                logging.info(f"{status_msg}")
 
                 try:
                     with open(file_path, 'r', encoding='utf-8') as f:
                         text = f.read()
                     
                     # Use the pre-configured extractor instance
-                    logging.debug(f"WORKER (Batch): Extracting from file '{file_name}'. Options: meta={self.include_metadata}, nested={self.include_nested}")
+                    logging.debug(f"Extracting from file '{file_name}'. Options: meta={self.include_metadata}, nested={self.include_nested}")
                     file_result = extractor.extract(
                         text=text,
                         metadata=self.include_metadata,
@@ -73,7 +73,7 @@ class BatchWorker(QObject):
                     self.signals.file_result.emit(file_path, file_result)
                     
                 except Exception as file_e:
-                    logging.error(f"WORKER (Batch): Error processing file {file_path}: {file_e}", exc_info=True)
+                    logging.error(f"Error processing file {file_path}: {file_e}", exc_info=True)
                     error_info = {"error": str(file_e)}
                     results[file_path] = error_info
                     # Emit error info for this file
@@ -81,20 +81,20 @@ class BatchWorker(QObject):
                     # Continue processing other files
 
             if not self._is_cancelled:
-                logging.info("WORKER (Batch): Batch processing successful.")
+                logging.info("Batch processing successful.")
                 # No longer need to emit the full results dict here, handled per file
                 # self.signals.result.emit(results) 
             else:
-                logging.info("WORKER (Batch): Batch processing cancelled.")
+                logging.info("Batch processing cancelled.")
 
         except Exception as e:
-            logging.error(f"WORKER (Batch): Unhandled error during batch processing: {e}", exc_info=True)
+            logging.error(f"Unhandled error during batch processing: {e}", exc_info=True)
             self.signals.error.emit(str(e))
         finally:
-            logging.info("WORKER (Batch): Finishing.")
+            logging.info("Finishing.")
             self.signals.finished.emit()
 
     def cancel(self):
         """Request cancellation of the batch process."""
-        logging.info("WORKER (Batch): Received cancellation request.")
+        logging.info("Received cancellation request.")
         self._is_cancelled = True 

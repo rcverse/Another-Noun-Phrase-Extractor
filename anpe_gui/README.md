@@ -29,21 +29,19 @@ The ANPE GUI application can be used in two main ways:
 
 ### 1. Run from source (Recommended for Development)
 
-Requires Python 3.9+ and the necessary dependencies. Navigate to the main project root directory (`ANPE_public`) and run:
+Requires Python 3.9+ and the necessary dependencies. Navigate to the `anpe_gui` directory and run:
 
 ```bash
-# Ensure dependencies are installed (from main requirements.txt)
-# pip install -r requirements.txt 
+# Install dependencies
+pip install -r requirements.txt
 
-# Run the GUI entry point
-python run_anpe_gui.py 
+# Run the application
+python run.py
 ```
-
-(This assumes `anpe` library and `PyQt6` are installed, typically via the main `requirements.txt`)
 
 ### 2. Use Standalone Executable (Recommended for End Users)
 
-Download the standalone executable for your platform (e.g., `ANPE_GUI.exe` for Windows, `ANPE_GUI.app` for macOS) from the project's GitHub Releases page (if available).
+Download the standalone executable for your platform (e.g., `ANPE.exe` for Windows, `ANPE` for macOS) from the project's GitHub Releases page (if available).
 
 No installation is required - just download and run!
 
@@ -51,28 +49,43 @@ No installation is required - just download and run!
 
 To create a standalone executable for distribution:
 
-1.  **Install PyInstaller:**
-    ```bash
-    pip install pyinstaller
-    ```
+1. **Install Dependencies:**
+   ```bash
+   pip install -r requirements.txt
+   ```
 
-2.  **Navigate to Project Root:** Open your terminal in the main project directory (e.g., `ANPE_public`).
+2. **Navigate to Project Directory:**
+   ```bash
+   cd anpe_gui
+   ```
 
-3.  **Run PyInstaller:**
-    Use the `run_anpe_gui.py` script as the entry point.
-    ```bash
-    # Basic command
-    pyinstaller --windowed --name ANPE_GUI run_anpe_gui.py
-    
-    # Recommended for single file (can be slower startup)
-    pyinstaller --onefile --windowed --name ANPE_GUI run_anpe_gui.py 
-    ```
-    *   `--windowed`: Prevents console window (essential for GUI).
-    *   `--name ANPE_GUI`: Sets the output executable/app name.
-    *   `--onefile`: Bundles everything into a single file (optional).
-    *   Consider adding `--hidden-import` flags if you encounter missing module errors during packaging or runtime (see main `README.md` for details).
+3. **Run Build Script:**
+   ```bash
+   python build.py
+   ```
 
-4.  **Find Executable:** The executable will be located in the `dist` directory (`dist/ANPE_GUI.exe` or `dist/ANPE_GUI.app`).
+The build script (`build.py`) will:
+- Create a single executable file
+- Include all necessary resources and documentation
+- Optimize the build for performance
+- Handle platform-specific configurations
+
+The executable will be created in the `dist` directory.
+
+### Build Options
+
+The build script includes several optimizations:
+- Bytecode optimization (`--optimize=2`)
+- Exclusion of unnecessary modules (tkinter, matplotlib, etc.)
+- Automatic inclusion of required dependencies
+- Resource file bundling
+- Icon support (if available)
+
+### Platform-Specific Notes
+
+- **Windows**: The executable will be named `ANPE.exe`
+- **macOS**: The executable will be named `ANPE`
+- You must build the executable on each target platform separately
 
 ## License
 

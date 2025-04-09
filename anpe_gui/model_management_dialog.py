@@ -120,9 +120,9 @@ class ModelManagementDialog(QDialog):
         actions_layout = QHBoxLayout(actions_group)
 
         # Use standard theme icons where available
-        self.setup_button = QPushButton(QIcon.fromTheme("system-software-install"), " Run Setup/Install")
-        self.clean_button = QPushButton(QIcon.fromTheme("edit-clear"), " Clean Models")
-        self.refresh_button = QPushButton(QIcon.fromTheme("view-refresh"), " Refresh Status")
+        self.setup_button = QPushButton("Run Setup/Install")
+        self.clean_button = QPushButton("Clean Models")
+        self.refresh_button = QPushButton("Refresh Status")
 
         self.setup_button.clicked.connect(self.run_setup)
         self.clean_button.clicked.connect(self.run_clean)
@@ -218,20 +218,22 @@ class ModelManagementDialog(QDialog):
             logging.error("Cannot launch Setup Wizard: Parent window or required slots not found.")
             QMessageBox.critical(self, "Error", "Could not launch Setup Wizard (internal error).")
             return
-
-        # Close this dialog *before* showing the wizard
-        self.accept() 
             
         logging.info("Launching Setup Wizard from Model Management Dialog...")
+        
+        # DON'T store the wizard as an instance variable of this dialog
+        # since the dialog will be closed before the wizard finishes
         wizard = SetupWizard(parent_window) # Parent to main window
         
-        # The main window already has connections for the wizard's signals
-        # from its own initialization logic (`on_models_missing`).
-        # We don't need to reconnect them here. Just showing the wizard is enough.
-        # The wizard's `setup_complete` or `setup_cancelled` signals will trigger 
-        # the appropriate slots in MainWindow (`on_setup_wizard_complete` or 
-        # `on_setup_wizard_cancelled`), which already handle re-checking/re-init.
+        # Connect directly to main window's slots
+        # Don't connect through this dialog since it will be closed
+        wizard.setup_complete.connect(parent_window.on_setup_wizard_complete)
+        wizard.setup_cancelled.connect(parent_window.on_setup_wizard_cancelled)
         
+        # Close this dialog before showing the wizard
+        self.close()  # Use close() instead of accept() for a cleaner shutdown
+        
+        # Now that this dialog is closed, show the wizard
         wizard.show()
 
     @pyqtSlot()
