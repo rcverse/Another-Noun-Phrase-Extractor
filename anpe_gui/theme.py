@@ -18,6 +18,7 @@ ERROR_COLOR = "#DC3545"       # Red for errors
 SUCCESS_COLOR = "#28A745"     # Green for success
 WARNING_COLOR = "#FFC107"     # Yellow for warnings
 INFO_COLOR = "#17A2B8"        # Teal for info
+LIGHT_HOVER_BLUE = "#EFF5FB" # Very light blue for hover effects (updated)
 
 def get_scroll_bar_style(vertical_width=8, horizontal_height=8, handle_min_size=20, border_radius=4):
     """
@@ -219,7 +220,6 @@ def get_stylesheet():
         subcontrol-position: top right; 
         width: 16px; 
         border-left: 1px solid {BORDER_COLOR};
-        border-bottom: 1px solid {BORDER_COLOR};
         border-top-right-radius: 3px; 
         background-color: #E0E0E0; /* Light gray background */
     }}
@@ -236,7 +236,6 @@ def get_stylesheet():
         subcontrol-position: bottom right;
         width: 16px;
         border-left: 1px solid {BORDER_COLOR};
-        border-top: 1px solid {BORDER_COLOR};
         border-bottom-right-radius: 3px;
         background-color: #E0E0E0;
     }}
@@ -316,23 +315,36 @@ def get_stylesheet():
     QComboBox::drop-down {{
         background: transparent; /* Make arrow area background transparent */
         border: none; /* Ensure no border is drawn around the arrow */
-        /* width: 18px; Optional: Adjust width if needed */
-        /* padding-right: 3px; Optional: Adjust padding */
+        width: 20px; /* Adjust width to control clickable area */
+        padding-right: 5px; /* Push arrow slightly left */
     }}
     QComboBox::down-arrow {{
         image: url(anpe_gui/resources/down_arrow.svg);
-        /* Optional: Adjust size if needed, but often best left default */
-        /* width: 10px; */
-        /* height: 10px; */
+        /* Adjust size */
+        width: 8px;
+        height: 8px;
     }}
-    /* Minimal ComboBox Item Styling for Hover/Selection Feedback */
+    /* Style the dropdown view */
+    QComboBox QAbstractItemView {{
+        background-color: {BACKGROUND_COLOR};
+        border: 1px solid {BORDER_COLOR};
+        border-radius: 4px;
+        padding: 0px; /* Remove internal padding */
+        outline: 0px; /* Remove focus outline */
+    }}
+    /* Style individual items */
+    QComboBox::item {{
+        padding: 7px 8px; /* Adjusted padding */
+        min-height: 24px; /* Adjusted min height */
+        /* border-radius: 2px; Removed */
+    }}
     QComboBox::item:selected {{
         background-color: {PRIMARY_COLOR};
         color: white;
     }}
     QComboBox::item:hover {{
-        background-color: {HOVER_COLOR}; 
-        color: white;
+        background-color: {LIGHT_HOVER_BLUE};
+        color: {TEXT_COLOR}; /* Ensure dark text on light hover */
     }}
 
     /* List Widgets */

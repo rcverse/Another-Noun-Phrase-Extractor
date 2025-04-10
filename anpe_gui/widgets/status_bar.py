@@ -117,8 +117,11 @@ class StatusBar(QWidget):
         if not self.activity_indicator.active:
             self.activity_indicator.start()
             
-        # Set progress bar to show percentage
-        self.progress_bar.setFormat("%p%")
+        # Set progress bar format based on value
+        if value == 100:
+            self.progress_bar.setFormat("Completing...")
+        else:
+            self.progress_bar.setFormat("%p%")
         
         # Update progress bar - cap at 95% for visual consistency
         self.progress_bar.setRange(0, 100) # Ensure determinate mode
@@ -192,34 +195,22 @@ class StatusBar(QWidget):
         self.showMessage(message, status_type='busy')
 
     def stop_progress(self, message="Complete", status_type='success'):
-        """Stop the progress/activity indicator and update status."""
-        # If progress bar was in indeterminate mode, show 100%
-        self.progress_bar.setRange(0, 100)
-        self.progress_bar.setValue(100) # Ensure it shows 100%
+        """Stop the progress/activity indicator and update status, showing Completing->Complete."""
+        # Trigger animation to 100% and show "Completing..."
+        self.update_progress(100) 
+
+        # Use a short delay to allow "Completing..." to render before changing to "Complete"
+        QTimer.singleShot(100, lambda: self._finalize_stop_progress(message, status_type))
+
+    def _finalize_stop_progress(self, message, status_type):
+        """Internal method called after a short delay to set final state."""
+        # Set final format
         self.progress_bar.setFormat("Complete")
         
-        # Apply completion style - using PRIMARY_COLOR instead of SUCCESS_COLOR
-        self.progress_bar.setStyleSheet(f"""
-             QProgressBar {{
-                 border: 1px solid {BORDER_COLOR};
-                 border-radius: 4px;
-                 text-align: center;
-                 color: #333333;
-                 font-weight: bold;
-                 background-color: #f5f5f5;
-                 height: 22px;
-             }}
-             QProgressBar::chunk {{
-                 background-color: #8EACC0; /* Light Morandi blue */
-                 border-radius: 2px;
-                 margin: 0px;
-             }}
-         """)
-        
-        # Update status message
+        # Update status message with the final status type
         self.showMessage(message, status_type=status_type)
 
-        # Reset to idle state after a delay
+        # Reset to idle state after a longer delay (unchanged)
         QTimer.singleShot(3000, self.set_idle_state)
 
     def clear_progress(self):

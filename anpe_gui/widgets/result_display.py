@@ -10,7 +10,10 @@ from PyQt6.QtWidgets import (
     QTreeView,
     QAbstractItemView,
     QHeaderView,
-    QLineEdit
+    QLineEdit,
+    QPushButton,
+    QHBoxLayout,
+    QSizePolicy
 )
 from PyQt6.QtGui import QColor, QFont, QStandardItemModel, QStandardItem
 from PyQt6.QtCore import Qt, QAbstractItemModel, QModelIndex, QVariant, QSortFilterProxyModel, QRegularExpression
@@ -33,6 +36,7 @@ class NpTreeItem:
         self.parent_item = parent
         self.item_data = data # List of strings for columns
         self.child_items = []
+        self.length_value = 0 # Initialize length_value
 
     def appendChild(self, item):
         self.child_items.append(item)
@@ -96,19 +100,25 @@ class AnpeResultModel(QAbstractItemModel):
             np_id = str(np_item.get('id', 'N/A')).strip()
             length_str = ""
             structures_str = ""
+            length_val = 0 # Default length value
             
             metadata = np_item.get("metadata", {})
             if metadata:
                 if "length" in metadata:
                     length_str = str(metadata['length'])
+                    length_val = metadata['length']
                 if "structures" in metadata:
                     structs = metadata.get('structures', [])
                     # Just the comma-separated list for the column
                     structures_str = ", ".join(map(str, structs)) if structs else ""
             
             # Create item data list for the four columns
-            item_data = [np_id, np_text, length_str, structures_str]
+            # Store raw length value alongside string representation if needed,
+            # but the current model data() method handles conversion.
+            item_data = [np_id, np_text, length_str, structures_str] 
             new_item = NpTreeItem(item_data, parent_item)
+            # Store the raw integer length directly on the item for easier access in data()
+            new_item.length_value = length_val # Assign potentially updated value
             parent_item.appendChild(new_item)
             
             children = np_item.get("children")
@@ -245,11 +255,37 @@ class ResultDisplayWidget(QWidget):
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(5) # Add some spacing between filter and tree
         
-        # --- Filter Input --- 
+        # --- Top Layout (Filter + Sort Buttons) ---
+        top_layout = QHBoxLayout()
+        top_layout.setSpacing(5)
+        
+        # --- Filter Input ---
         self.filter_input = QLineEdit()
-        self.filter_input.setPlaceholderText("Filter results (e.g., by Noun Phrase or Structure)...")
+        self.filter_input.setPlaceholderText("Search results...")
+        self.filter_input.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed) # Allow horizontal expansion
         self.filter_input.textChanged.connect(self.update_filter)
-        layout.addWidget(self.filter_input)
+        top_layout.addWidget(self.filter_input) # Add to top layout
+
+        # --- Sorting Buttons ---
+        self.sort_order_button = QPushButton("Sort by Order")
+        self.sort_order_button.setToolTip("Reset sorting to the original order of appearance.")
+        self.sort_order_button.clicked.connect(self._sort_by_order)
+        self.sort_order_button.setVisible(False) # Initially hidden
+        top_layout.addWidget(self.sort_order_button) # Add to top layout
+
+        self.sort_length_button = QPushButton("Sort by Length")
+        self.sort_length_button.setToolTip("Sort results by noun phrase length (click again to reverse order).")
+        self.sort_length_button.clicked.connect(self._sort_by_length)
+        self.sort_length_button.setVisible(False) # Initially hidden
+        top_layout.addWidget(self.sort_length_button) # Add to top layout
+
+        self.sort_structure_button = QPushButton("Sort by Structure")
+        self.sort_structure_button.setToolTip("Sort results alphabetically by structure type (click again to reverse order).")
+        self.sort_structure_button.clicked.connect(self._sort_by_structure)
+        self.sort_structure_button.setVisible(False) # Initially hidden
+        top_layout.addWidget(self.sort_structure_button) # Add to top layout
+        
+        layout.addLayout(top_layout) # Add combined layout to main layout
 
         # --- Tree View --- 
         self.tree_view = QTreeView()
@@ -258,7 +294,7 @@ class ResultDisplayWidget(QWidget):
         self.tree_view.setHeaderHidden(False) 
         self.tree_view.setAlternatingRowColors(True)
         self.tree_view.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
-        self.tree_view.setSortingEnabled(False) # Disable sorting
+        self.tree_view.setSortingEnabled(True) # Enable sorting
         self.tree_view.setIndentation(10) # Increase indentation further
         
         # Apply Item Padding, Branch Indicator Styling, and Header Padding
@@ -296,6 +332,10 @@ class ResultDisplayWidget(QWidget):
         self.tree_view.setModel(None) # Remove the model
         self.source_model = None # Clear reference
         self.proxy_model = None # Clear reference
+        # Hide buttons when display is cleared
+        self.sort_order_button.setVisible(False)
+        self.sort_length_button.setVisible(False)
+        self.sort_structure_button.setVisible(False)
         logging.debug("Results display cleared.")
 
     def set_placeholder_text(self, text: str):
@@ -312,8 +352,8 @@ class ResultDisplayWidget(QWidget):
         else:
             logging.warning("Attempted to filter but proxy model is not set.")
 
-    def display_results(self, data: Dict[str, Any]):
-        """Create models and display results, with sorting disabled."""
+    def display_results(self, data: Dict[str, Any], metadata_enabled: bool = True):
+        """Create models and display results, optionally hiding metadata columns/buttons."""
         if not data or not isinstance(data, dict) or 'metadata' not in data or 'results' not in data:
             self.clear_display() 
             logging.warning(f"Invalid or empty data passed to display_results: {data}")
@@ -333,26 +373,34 @@ class ResultDisplayWidget(QWidget):
             
             logging.debug("Setting model on tree view...")
             self.tree_view.setModel(self.proxy_model)
+            # Reset sorting when new data is loaded to default (order)
+            self.proxy_model.sort(-1, Qt.SortOrder.AscendingOrder) 
+            
+            # --- Show/Hide Columns based on metadata flag ---
+            self.tree_view.setColumnHidden(AnpeResultModel.COL_LEN, not metadata_enabled)
+            self.tree_view.setColumnHidden(AnpeResultModel.COL_STRUCT, not metadata_enabled)
             
             # --- Configure Header ---
             header = self.tree_view.header()
             # Make Structures stretch to fill available space
-            header.setSectionResizeMode(AnpeResultModel.COL_STRUCT, QHeaderView.ResizeMode.Stretch)
+            if metadata_enabled:
+                header.setSectionResizeMode(AnpeResultModel.COL_STRUCT, QHeaderView.ResizeMode.Stretch)
             # Make other columns interactive (resizable by user)
             header.setSectionResizeMode(AnpeResultModel.COL_ID, QHeaderView.ResizeMode.Interactive)
             header.setSectionResizeMode(AnpeResultModel.COL_NP, QHeaderView.ResizeMode.Interactive)
-            header.setSectionResizeMode(AnpeResultModel.COL_LEN, QHeaderView.ResizeMode.Interactive)
-            # StretchLastSection is implicitly handled by the Stretch setting on Structures column
-            # header.setStretchLastSection(False) 
-            # Remove sort indicator display
-            # header.setSortIndicatorShown(True)
+            if metadata_enabled:
+                header.setSectionResizeMode(AnpeResultModel.COL_LEN, QHeaderView.ResizeMode.Interactive)
             
+            # Allow sorting indicators on headers (always enabled, but only relevant columns are shown)
+            header.setSortIndicatorShown(True) 
+
             # Set fixed initial widths for ID, NP, and Length. 
             # Structures stretches to fill the rest.
             header.resizeSection(AnpeResultModel.COL_ID, 50)  # Set fixed initial width for ID
-            header.resizeSection(AnpeResultModel.COL_NP, 400) # Set larger fixed initial width for NP
-            header.resizeSection(AnpeResultModel.COL_LEN, 50) # Set fixed initial width for Length
-            # self.tree_view.resizeColumnToContents(AnpeResultModel.COL_STRUCT) # Don't set initial width for stretching column
+            if metadata_enabled: # Only set NP width if Structures is also present
+                header.resizeSection(AnpeResultModel.COL_NP, 400) # Set larger fixed initial width for NP
+            if metadata_enabled:
+                header.resizeSection(AnpeResultModel.COL_LEN, 60) # Slightly wider for Length + indicator
             # ---------------------------------------------
 
             # Collapse all items by default
@@ -362,13 +410,96 @@ class ResultDisplayWidget(QWidget):
             # self.tree_view.expandToDepth(0) # Remove default expansion
             self.update_filter(self.filter_input.text())
 
-            logging.debug("Results display updated: ID stretches, others interactive, Length centered, no indent, collapsed default.")
+            # Enable sorting buttons now that data is present
+            # Show relevant buttons based on metadata flag
+            self.sort_order_button.setVisible(metadata_enabled)
+            self.sort_length_button.setVisible(metadata_enabled)
+            self.sort_structure_button.setVisible(metadata_enabled)
+            self._update_button_styles() # Set initial button style
+
+            logging.debug("Results display updated with sorting enabled.")
 
         except Exception as e:
              logging.error(f"Error during minimal results display setup: {e}", exc_info=True)
              self.clear_display() 
 
-    # def format_np_for_display(...): # Removed - logic moved to model
+    def _update_button_styles(self):
+        """Updates button appearance based on the current sort column and order."""
+        if not self.proxy_model or not self.sort_order_button.isVisible():
+            return
+             
+        sort_col = self.proxy_model.sortColumn()
+        arrow = " ↑" if self.proxy_model.sortOrder() == Qt.SortOrder.AscendingOrder else " ↓"
+        
+        if sort_col == -1: # Sorted by Order (default)
+            self.sort_order_button.setProperty("activeSort", True)
+            self.sort_order_button.setText("Sort by Order" + arrow) # Indicate default is usually asc
+            if self.sort_length_button.isVisible():
+               self.sort_length_button.setText("Sort by Length")
+            if self.sort_structure_button.isVisible():
+               self.sort_structure_button.setText("Sort by Structure")
+        elif sort_col == AnpeResultModel.COL_LEN:
+            self.sort_order_button.setText("Sort by Order")
+            if self.sort_length_button.isVisible():
+               self.sort_length_button.setProperty("activeSort", True)
+               self.sort_length_button.setText("Sort by Length" + arrow)
+            if self.sort_structure_button.isVisible():
+               self.sort_structure_button.setText("Sort by Structure")
+        elif sort_col == AnpeResultModel.COL_STRUCT:
+            self.sort_order_button.setText("Sort by Order")
+            if self.sort_length_button.isVisible():
+               self.sort_length_button.setText("Sort by Length")
+            if self.sort_structure_button.isVisible():
+               self.sort_structure_button.setProperty("activeSort", True)
+               self.sort_structure_button.setText("Sort by Structure" + arrow)
+        else: # Should not happen with current setup, but reset just in case
+            self.sort_order_button.setText("Sort by Order")
+            if self.sort_length_button.isVisible():
+               self.sort_length_button.setText("Sort by Length")
+            if self.sort_structure_button.isVisible():
+               self.sort_structure_button.setText("Sort by Structure")
+
+        # Re-apply stylesheet to update appearance based on property
+        # This might require a theme.py or centralized styling approach
+
+    # --- Sorting Slots ---
+    def _sort_by_order(self):
+        """Sorts the results by the original order (resets sorting)."""
+        if self.proxy_model:
+            self.proxy_model.sort(-1) # -1 resets sorting to source model order
+            logging.debug("Sorted by original order.")
+        else:
+            logging.warning("Attempted to sort by order but proxy model is not set.")
+
+    def _sort_by_length(self):
+        """Sorts the results by the Length column."""
+        if self.proxy_model:
+            # Check current sort column and toggle order
+            current_col = self.proxy_model.sortColumn()
+            current_order = self.proxy_model.sortOrder()
+            new_order = Qt.SortOrder.AscendingOrder
+            if current_col == AnpeResultModel.COL_LEN and current_order == Qt.SortOrder.AscendingOrder:
+                new_order = Qt.SortOrder.DescendingOrder
+                
+            self.proxy_model.sort(AnpeResultModel.COL_LEN, new_order)
+            logging.debug(f"Sorted by Length ({new_order}).")
+        else:
+            logging.warning("Attempted to sort by length but proxy model is not set.")
+
+    def _sort_by_structure(self):
+        """Sorts the results by the Structures column."""
+        if self.proxy_model:
+            # Check current sort column and toggle order
+            current_col = self.proxy_model.sortColumn()
+            current_order = self.proxy_model.sortOrder()
+            new_order = Qt.SortOrder.AscendingOrder
+            if current_col == AnpeResultModel.COL_STRUCT and current_order == Qt.SortOrder.AscendingOrder:
+                new_order = Qt.SortOrder.DescendingOrder
+
+            self.proxy_model.sort(AnpeResultModel.COL_STRUCT, new_order)
+            logging.debug(f"Sorted by Structure ({new_order}).")
+        else:
+            logging.warning("Attempted to sort by structure but proxy model is not set.")
 
     # --- Potential Future Enhancements ---
     # ...

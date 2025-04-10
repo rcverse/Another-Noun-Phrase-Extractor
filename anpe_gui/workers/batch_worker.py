@@ -11,7 +11,8 @@ import logging
 class BatchSignals(QObject):
     """Defines signals available from the BatchWorker."""
     started = pyqtSignal()
-    progress = pyqtSignal(int, str) # Percentage, Status message
+    status_update = pyqtSignal(str)    # NEW: For real-time status messages
+    progress = pyqtSignal(int, str) # Percentage, Status message (context for % update)
     error = pyqtSignal(str)        # Emits error message string
     finished = pyqtSignal()      # Emitted when processing finishes (success or error)
     file_result = pyqtSignal(str, dict) # Emits file path and result dictionary
@@ -50,14 +51,15 @@ class BatchWorker(QObject):
                     logging.info("Cancellation requested.")
                     break
                 
-                # Calculate progress and update status
-                progress_percent = int(((i + 1) / total_files) * 100)
                 file_name = os.path.basename(file_path)
-                status_msg = f"Processing {file_name} ({i+1}/{total_files})"
-                self.signals.progress.emit(progress_percent, status_msg)
-                logging.info(f"{status_msg}")
+                # Emit status update BEFORE processing the file
+                status_msg_processing = f"Processing ({i+1}/{total_files}): {file_name}"
+                self.signals.status_update.emit(status_msg_processing)
 
                 try:
+                    # Log start of processing this specific file
+                    logging.info(f"Processing ({i+1}/{total_files}): {file_name}")
+                    
                     with open(file_path, 'r', encoding='utf-8') as f:
                         text = f.read()
                     
@@ -79,6 +81,11 @@ class BatchWorker(QObject):
                     # Emit error info for this file
                     self.signals.file_result.emit(file_path, error_info)
                     # Continue processing other files
+                
+                # MOVED progress calculation and emit to *after* processing the file
+                progress_percent = int(((i + 1) / total_files) * 100)
+                self.signals.progress.emit(progress_percent, "") # Send empty string
+
 
             if not self._is_cancelled:
                 logging.info("Batch processing successful.")

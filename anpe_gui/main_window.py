@@ -876,7 +876,7 @@ class MainWindow(QMainWindow):
         self.export_button.setEnabled(False) 
         self.process_button.setEnabled(False) 
         # Use the activity indicator for indeterminate processing
-        self.status_bar.start_progress(initial_status_message) 
+        self.status_bar.update_progress(0, initial_status_message)
         self.processing_error_occurred = False # Initialize error flag
 
         # 1. Create Worker
@@ -944,6 +944,7 @@ class MainWindow(QMainWindow):
         # 3. Connect Signals
         self.batch_thread.started.connect(self.batch_worker.run)
         # --- Worker Signals ---
+        self.batch_worker.signals.status_update.connect(self.update_status_message)
         self.batch_worker.signals.progress.connect(self.update_batch_progress)
         self.batch_worker.signals.file_result.connect(self.handle_batch_file_result)
         self.batch_worker.signals.error.connect(self.handle_error)
@@ -962,13 +963,19 @@ class MainWindow(QMainWindow):
 
     # --- Worker Signal Handlers ---
 
+    @pyqtSlot(str) # NEW Slot for status updates
+    def update_status_message(self, message: str):
+        """Update the status bar's text message."""
+        # Only update the text, keep existing progress bar state
+        self.status_bar.showMessage(message, status_type='busy')
+
     @pyqtSlot(int, str) # Receives percentage and message
     def update_batch_progress(self, percentage: int, message: str):
-        """Update status bar for batch processing progress."""
-        # Prepend busy icon here as this is called repeatedly during processing
-        status_type = 'busy'
-        full_message = message # Just use the message passed
-        self.status_bar.update_progress(percentage, full_message)
+        """Update status bar progress bar percentage."""
+        # This message provides context for the percentage update but might be brief
+        # The main status text is handled by update_status_message
+        # We pass None for message to update_progress to avoid overwriting
+        self.status_bar.update_progress(percentage, None) 
 
     @pyqtSlot(str) # Receives message
     def update_progress(self, message: str):
@@ -980,7 +987,9 @@ class MainWindow(QMainWindow):
     def handle_single_result(self, result_data: Dict[str, Any]):
         """Handle the result from the ExtractionWorker (single text)."""
         self.results = result_data # Store the complete result
-        self.results_display_widget.display_results(result_data) # Use the new widget's method
+        # Pass the current state of the metadata checkbox
+        metadata_is_on = self.include_metadata.isChecked()
+        self.results_display_widget.display_results(result_data, metadata_enabled=metadata_is_on)
         self.export_button.setEnabled(True) # Enable export
         # Keep INFO for completion message
         self.log("Single text processing completed.")
@@ -999,9 +1008,11 @@ class MainWindow(QMainWindow):
         
         # If this is the first result, display it and show the combo box
         if len(self.results) == 1:
-             self.results_display_widget.display_results(result_data) # Use the new widget's method
-             self.file_selector_label.show()
-             self.file_selector_combo.show()
+            # Pass the current state of the metadata checkbox
+            metadata_is_on = self.include_metadata.isChecked()
+            self.results_display_widget.display_results(result_data, metadata_enabled=metadata_is_on)
+            self.file_selector_label.show()
+            self.file_selector_combo.show()
              
         # Keep INFO for individual file completion
         self.log(f"Processed file: {base_name}")
@@ -1059,8 +1070,7 @@ class MainWindow(QMainWindow):
             # Format message with icon
             final_message = final_message_text # Removed icon
             
-            self.status_bar.clear_progress() 
-            self.status_bar.showMessage(final_message, 5000, status_type=status_type) 
+            self.status_bar.stop_progress(final_message, status_type=status_type)
             
             # Enable export only if results exist AND no error occurred
             can_export = self.results is not None and not self.processing_error_occurred
@@ -1098,14 +1108,14 @@ class MainWindow(QMainWindow):
     def display_selected_file_result(self):
         """Display the results for the file selected in the combo box (batch mode)."""
         selected_file_path = self.file_selector_combo.currentData() # Get stored full path
-        if selected_file_path and isinstance(self.results, dict) and selected_file_path in self.results:
-            self.results_display_widget.display_results(self.results[selected_file_path]) # Use the new widget's method
+        if selected_file_path and isinstance(self.results, dict) and selected_file_path in self.results:           
+            # Pass the current state of the metadata checkbox
+            metadata_is_on = self.include_metadata.isChecked()
+            self.results_display_widget.display_results(self.results[selected_file_path], metadata_enabled=metadata_is_on)
             logging.debug(f"Displayed results for selected file: {selected_file_path}")
         else:
             # This might happen if combo index changes before results are fully populated
             logging.warning(f"Could not find results for selected file: {selected_file_path}")
-            # self.results_display_widget.clear_display() # Avoid clearing potentially valid results; maybe show a message?
-            # self.results_display_widget.set_placeholder_text("Could not load results for selected file.")
 
     def export_results(self):
         """Export the currently stored results to a file."""
@@ -1248,7 +1258,7 @@ class MainWindow(QMainWindow):
         
         # Reset General Filtering Options
         self.min_length_check.setChecked(False)
-        self.min_length_spin.setValue(1)
+        self.min_length_spin.setValue(2)
         self.max_length_check.setChecked(False)
         self.max_length_spin.setValue(10)
         self.accept_pronouns.setChecked(False)
