@@ -6,8 +6,14 @@ import os
 import time
 from PyQt6.QtWidgets import (QSplashScreen, QApplication, QProgressBar, 
                              QLabel, QVBoxLayout, QWidget)
-from PyQt6.QtGui import QPixmap, QPainter, QColor, QFont, QLinearGradient, QBrush, QRegion, QPainterPath
+from PyQt6.QtGui import QPixmap, QPainter, QColor, QFont, QLinearGradient, QBrush, QRegion, QPainterPath, QPen
 from PyQt6.QtCore import Qt, QTimer, pyqtSignal, QCoreApplication, QPropertyAnimation, QEasingCurve, QPointF, pyqtProperty, QRect, QRectF
+from anpe_gui.theme import PRIMARY_COLOR  # Import the primary color
+from anpe_gui.version import __version__ as gui_version  # Import GUI version directly from version.py
+try:
+    from anpe import __version__ as core_version  # Import core version
+except ImportError:
+    core_version = "N/A"  # Fallback if core version can't be imported
 
 
 class SplashScreen(QSplashScreen):
@@ -23,21 +29,8 @@ class SplashScreen(QSplashScreen):
         """
         Initialize the splash screen using the provided banner or fallback.
         """
-        # --- Restore banner loading --- 
-        actual_banner_path = self._find_banner(banner_path)
-        
-        # Load banner or create fallback
-        if actual_banner_path:
-            pixmap = QPixmap(actual_banner_path)
-            # Resize if too large, maintaining aspect ratio
-            max_width, max_height = 400, 200 # Define max dimensions
-            if pixmap.width() > max_width or pixmap.height() > max_height:
-                pixmap = pixmap.scaled(max_width, max_height, Qt.AspectRatioMode.KeepAspectRatio, 
-                                       Qt.TransformationMode.SmoothTransformation)
-        else:
-            print("DEBUG: banner.png not found, using fallback banner.")
-            pixmap = self._create_fallback_banner() # Use fallback if needed
-        # --- End Restore banner loading --- 
+        # Create a custom banner instead of loading from file
+        pixmap = self._create_custom_banner()
         
         super().__init__(pixmap)
         self.pixmap_height = pixmap.height()
@@ -78,59 +71,158 @@ class SplashScreen(QSplashScreen):
         # Center the splash screen
         self._center_on_screen()
 
-    def _find_banner(self, provided_path):
-        """Locate the banner image file, primarily in the resources directory."""
-        # Option 1: Use provided path if valid
-        if provided_path and os.path.exists(provided_path):
-            print(f"DEBUG: Using provided banner path: {provided_path}")
-            return provided_path
-            
-        # Option 2: Check the standard resources directory relative to the script
-        script_dir = os.path.dirname(__file__)
-        resource_path = os.path.join(script_dir, "resources", "banner.png")
-        abs_resource_path = os.path.abspath(resource_path)
-
-        if os.path.exists(abs_resource_path):
-            print(f"DEBUG: Found banner at standard resource path: {abs_resource_path}")
-            return abs_resource_path
-            
-        # Fallback if not found
-        print(f"DEBUG: Banner image not found at {abs_resource_path}. Check packaging.")
-        return None
-
-    def _create_fallback_banner(self):
-        """Create a flat, Morandi-colored fallback banner."""
-        width, height = 400, 100 # Adjusted height for a potentially simpler look
+    def _create_custom_banner(self):
+        """Create a custom banner with logo on left and text on right."""
+        width, height = 560, 200  # Wider banner for better spacing
         pixmap = QPixmap(width, height)
+        pixmap.fill(Qt.GlobalColor.transparent)  # Start with transparent background
         
-        # Flat background color (Light Grey/Off-white)
-        background_color = QColor("#f5f5f5") 
-        pixmap.fill(background_color)
-        
+        # Create high-quality painter with anti-aliasing
         painter = QPainter(pixmap)
-        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+        painter.setRenderHint(QPainter.RenderHint.Antialiasing, True)
+        painter.setRenderHint(QPainter.RenderHint.TextAntialiasing, True)
+        painter.setRenderHint(QPainter.RenderHint.SmoothPixmapTransform, True)
         
-        # ANPE Title - Use Primary Color
-        title_color = QColor("#005A9C") # PRIMARY_COLOR from theme.py
-        painter.setPen(title_color)
-        font = QFont("Segoe UI Variable", 20, QFont.Weight.Bold) # Slightly larger title
-        if not font.exactMatch():
-            font = QFont("Arial", 20, QFont.Weight.Bold)
-        painter.setFont(font)
-        painter.drawText(0, 0, width, int(height * 0.65), # Adjust vertical position
-                         Qt.AlignmentFlag.AlignCenter | Qt.AlignmentFlag.AlignBottom, 
-                         "ANPE")
+        # Elegant background with subtle gradient
+        gradient = QLinearGradient(0, 0, width, height)
+        gradient.setColorAt(0, QColor("#f9f9f9"))  # Light color start
+        gradient.setColorAt(1, QColor("#f0f0f0"))  # Slightly darker end
+        painter.fillRect(0, 0, width, height, QBrush(gradient))
         
-        # Subtitle - Use Standard Text Color
-        subtitle_color = QColor("#212529") # TEXT_COLOR from theme.py
-        painter.setPen(subtitle_color)
-        subtitle_font = QFont("Segoe UI Variable", 9) # Slightly smaller subtitle
-        if not subtitle_font.exactMatch():
-            subtitle_font = QFont("Arial", 9)
+        # Clear separation - left side for logo, right side for text
+        logo_section_width = 220  # Dedicated width for logo
+        text_section_width = width - logo_section_width
+        
+        # Left side: Logo only
+        icon_path = os.path.join(os.path.dirname(__file__), "resources", "app_icon.png")
+        
+        if os.path.exists(icon_path):
+            # Load the PNG with higher resolution for better quality
+            logo = QPixmap(icon_path)
+            
+            # Get device pixel ratio for high DPI displays
+            device_pixel_ratio = QApplication.primaryScreen().devicePixelRatio()
+            
+            # Scale logo to appropriate size while maintaining aspect ratio
+            # Multiply by device pixel ratio to ensure crisp display on high DPI screens
+            logo_size = 160
+            target_size = int(logo_size * device_pixel_ratio)
+            
+            # Only scale down, not up to avoid pixelation
+            if logo.width() > target_size or logo.height() > target_size:
+                logo = logo.scaled(target_size, target_size, 
+                                Qt.AspectRatioMode.KeepAspectRatio, 
+                                Qt.TransformationMode.SmoothTransformation)
+            
+            # Set the device pixel ratio to ensure proper rendering
+            # This is a crucial step for high DPI displays
+            if device_pixel_ratio > 1.0:
+                logo.setDevicePixelRatio(device_pixel_ratio)
+                
+            # Calculate display size (adjusted for device pixel ratio)
+            display_size = logo_size
+            
+            # Center the logo in the left section
+            logo_x = (logo_section_width - display_size) // 2
+            logo_y = (height - display_size) // 2
+            
+            # Draw the pixmap at the calculated position
+            painter.drawPixmap(logo_x, logo_y, display_size, display_size, logo)
+        else:
+            # If logo not found, draw a placeholder
+            painter.setPen(Qt.PenStyle.NoPen)
+            # Use PRIMARY_COLOR from theme
+            primary_color = QColor(PRIMARY_COLOR)
+            painter.setBrush(primary_color)
+            logo_size = 160
+            logo_x = (logo_section_width - logo_size) // 2
+            logo_y = (height - logo_size) // 2
+            painter.drawRoundedRect(logo_x, logo_y, logo_size, logo_size, 10, 10)
+        
+        # Add a subtle separator line between logo and text
+        separator_x = logo_section_width
+        painter.setPen(QPen(QColor(220, 220, 220), 1))  # Lighter color for separator
+        painter.drawLine(separator_x, 40, separator_x, height - 40)
+        
+        # Right side: Text content - nothing else
+        text_start_x = logo_section_width + 30  # Start text with padding after separator
+        
+        # Draw main title "ANPE" using PRIMARY_COLOR
+        primary_color = QColor(PRIMARY_COLOR)
+        title_gradient = QLinearGradient(text_start_x, 0, text_start_x + 200, 0)
+        title_gradient.setColorAt(0, primary_color.lighter(110))  # Slightly lighter version
+        title_gradient.setColorAt(1, primary_color)  # Primary color
+        
+        # Use system fonts with better fallbacks for sharper text
+        title_font = QFont()
+        title_font.setFamily("Segoe UI")
+        title_font.setPointSize(48)
+        title_font.setWeight(QFont.Weight.Bold)
+        if not QFont(title_font).exactMatch():
+            title_font.setFamily("Arial")
+            if not QFont(title_font).exactMatch():
+                title_font.setFamily(title_font.defaultFamily())
+            
+        painter.setFont(title_font)
+        # Use QPen with width 1.5 for slightly bolder, crisper text
+        painter.setPen(QPen(QBrush(title_gradient), 1.5))
+        
+        # Draw title in its own region with proper vertical centering
+        title_rect = QRect(text_start_x, 40, text_section_width - 40, 80)
+        painter.drawText(title_rect, Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignBottom, "ANPE")
+        
+        # Draw subtitle with proper spacing below the title - LIGHTER COLOR
+        subtitle_font = QFont()
+        subtitle_font.setFamily("Segoe UI")
+        subtitle_font.setPointSize(14)
+        subtitle_font.setWeight(QFont.Weight.Normal)
+        if not QFont(subtitle_font).exactMatch():
+            subtitle_font.setFamily("Arial")
+            if not QFont(subtitle_font).exactMatch():
+                subtitle_font.setFamily(subtitle_font.defaultFamily())
+                
         painter.setFont(subtitle_font)
-        painter.drawText(0, int(height * 0.65), width, int(height * 0.3), # Adjust vertical position
-                         Qt.AlignmentFlag.AlignCenter | Qt.AlignmentFlag.AlignTop,
-                         "Another Noun Phrase Extractor")
+        painter.setPen(QColor("#555555"))  # Darker gray for better contrast and readability
+        
+        # Subtitle in its own region below the title
+        subtitle_rect = QRect(text_start_x, 120, text_section_width - 40, 30)
+        painter.drawText(subtitle_rect, Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignTop, 
+                        "Another Noun Phrase Extractor")
+        
+        # Add version info with improved rendering
+        version_font = QFont()
+        version_font.setFamily("Segoe UI")
+        version_font.setPointSize(11)  # Slightly larger for better readability
+        version_font.setWeight(QFont.Weight.Medium)  # Medium weight instead of regular
+        
+        if not QFont(version_font).exactMatch():
+            version_font.setFamily("Arial")
+            if not QFont(version_font).exactMatch():
+                version_font.setFamily(version_font.defaultFamily())
+                
+        painter.setFont(version_font)
+        painter.setPen(QColor("#444444"))  # Darker for better contrast
+        
+        version_rect = QRect(text_start_x, 155, text_section_width - 40, 20)
+        version_text = f"GUI v{gui_version} | Core v{core_version}"
+        painter.drawText(version_rect, Qt.AlignmentFlag.AlignLeft, version_text)
+        
+        # Add author credit with improved rendering
+        credit_font = QFont()
+        credit_font.setFamily("Segoe UI")
+        credit_font.setPointSize(10)
+        credit_font.setWeight(QFont.Weight.Normal)
+        
+        if not QFont(credit_font).exactMatch():
+            credit_font.setFamily("Arial")
+            if not QFont(credit_font).exactMatch():
+                credit_font.setFamily(credit_font.defaultFamily())
+                
+        painter.setFont(credit_font)
+        painter.setPen(QColor("#666666"))
+        
+        credit_rect = QRect(text_start_x, 175, text_section_width - 40, 20)
+        painter.drawText(credit_rect, Qt.AlignmentFlag.AlignLeft, "@rcverse")
         
         painter.end()
         return pixmap

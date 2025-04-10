@@ -12,6 +12,9 @@ from datetime import datetime # Added datetime
 import platform # Added platform
 import subprocess # Added subprocess
 
+# Import version from dedicated module
+from anpe_gui.version import __version__ as GUI_VERSION
+
 from PyQt6.QtCore import Qt, QThreadPool, pyqtSignal, QSize, QTimer, QObject, QThread, pyqtSlot, QPropertyAnimation, QEasingCurve, pyqtProperty
 from PyQt6.QtWidgets import (
     QMainWindow, QStackedWidget, QWidget, QVBoxLayout, QHBoxLayout,
@@ -20,7 +23,7 @@ from PyQt6.QtWidgets import (
     QProgressBar, QMessageBox, QSplitter, QFrame, QTabWidget, QGridLayout, QSizePolicy,
     QButtonGroup, QApplication
 )
-from PyQt6.QtGui import QIcon, QTextCursor, QScreen # Added QScreen
+from PyQt6.QtGui import QIcon, QTextCursor, QScreen, QPixmap # Added QScreen and QPixmap
 
 from .theme import PRIMARY_COLOR, SECONDARY_COLOR, SUCCESS_COLOR, ERROR_COLOR, WARNING_COLOR, INFO_COLOR, BORDER_COLOR, get_scroll_bar_style, LIGHT_HOVER_BLUE, TEXT_COLOR # Update the import
 from .widgets.help_dialog import HelpDialog # Import the new dialog
@@ -48,7 +51,7 @@ from anpe_gui.workers import ExtractionWorker, BatchWorker, QtLogHandler
 from anpe_gui.widgets import (FileListWidget, StructureFilterWidget, 
                               StatusBar, EnhancedLogPanel, ResultDisplayWidget) # Ensure StatusBar is imported from widgets
 from anpe_gui.theme import get_stylesheet # Import the function to get the stylesheet
-from anpe_gui.model_management_dialog import ModelManagementDialog # Import the new dialog
+from anpe_gui.widgets.model_management_dialog import ModelManagementDialog # Import the new dialog
 from anpe_gui.setup_wizard import SetupWizard # Keep wizard import for initial setup
 
 
@@ -152,7 +155,7 @@ class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
         
-        self.setWindowTitle(f"ANPE GUI v{anpe_version_str}")
+        self.setWindowTitle(f"ANPE GUI v{GUI_VERSION}")
         # Set default size first
         self.initial_width = 1200
         self.initial_height = 900
@@ -163,7 +166,7 @@ class MainWindow(QMainWindow):
         
         # Set window icon
         resources_dir = Path(__file__).parent / "resources"
-        icon_path = str(resources_dir / "app_icon.svg")
+        icon_path = str(resources_dir / "app_icon.png")  # Changed from SVG to PNG
         if os.path.exists(icon_path):
             self.setWindowIcon(QIcon(icon_path))
         
@@ -430,8 +433,20 @@ class MainWindow(QMainWindow):
         title_area_widget = QWidget()
         title_layout = QHBoxLayout(title_area_widget)
         title_layout.setContentsMargins(0,0,0,0)
-        title_layout.setSpacing(5)
-        
+        title_layout.setSpacing(8) # Adjusted spacing
+
+        # Icon Label (Added)
+        icon_label = QLabel()
+        icon_path = str(resources_dir / "app_icon.png")
+        if os.path.exists(icon_path):
+            pixmap = QPixmap(icon_path)
+            pixmap = pixmap.scaled(40, 40, Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation) # Scaled icon
+            icon_label.setPixmap(pixmap)
+            icon_label.setFixedSize(40, 40) # Set fixed size for alignment
+            title_layout.addWidget(icon_label)
+        else:
+            logging.warning(f"Header icon not found: {icon_path}")
+
         # Main Title: ANPE
         title_label = QLabel()
         title_label.setText(f'<b style="color:{PRIMARY_COLOR}; font-size: 19pt;">ANPE</b>')
@@ -441,7 +456,7 @@ class MainWindow(QMainWindow):
         subtitle_label = QLabel()
         subtitle_label.setText(f'''
             <div style="color: #666666; font-size: 9pt; line-height: 0.9; margin-top: 3px;">
-                v {anpe_version_str}<br>
+                GUI v{GUI_VERSION} | Core v{anpe_version_str}<br>
                 Created by @rcverse
             </div>
         ''')
@@ -793,22 +808,14 @@ class MainWindow(QMainWindow):
         # export_layout = QGridLayout(export_group) # Old layout
         export_layout = QFormLayout(export_group) # New layout (QFormLayout)
         export_layout.setSpacing(10)
-        # export_layout.setFieldGrowthPolicy(QFormLayout.FieldGrowthPolicy.ExpandingFieldsGrow) # Ensure fields expand
+        export_layout.setFieldGrowthPolicy(QFormLayout.FieldGrowthPolicy.ExpandingFieldsGrow) # Ensure fields expand
+        export_layout.setLabelAlignment(Qt.AlignmentFlag.AlignLeft) # Left-align the labels
 
         # Row 0: Format (ComboBox + Help Button)
         self.export_format_combo = QComboBox()
         self.export_format_combo.addItems(["txt", "csv", "json"])
-        # Help button removed from here
-        # self.export_format_help_button = QPushButton("Help") ...
-        
-        # Format widget container now only holds the combo box
-        # format_widget_layout = QHBoxLayout()
-        # format_widget_layout.setContentsMargins(0,0,0,0)
-        # format_widget_layout.setSpacing(5)
-        # format_widget_layout.addWidget(self.export_format_combo, 1) # ComboBox takes stretch=1
-        # format_widget_layout.addWidget(self.export_format_help_button, 0) # Help button takes stretch=0
-        # format_widget_container = QWidget()
-        # format_widget_container.setLayout(format_widget_layout)
+        self.export_format_combo.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
+
         # Use the combo box directly
         export_layout.addRow("Format:", self.export_format_combo)
 
@@ -883,6 +890,9 @@ class MainWindow(QMainWindow):
         bottom_button_layout.addWidget(self.export_button) # Add export button (right aligned due to stretch)
         
         export_layout.addRow(bottom_button_layout) # Add the combined layout spanning columns
+
+        # Ensure the export group expands horizontally
+        export_group.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Preferred)
 
         self.output_layout.addWidget(export_group)
 
@@ -1613,8 +1623,8 @@ class MainWindow(QMainWindow):
             return
             
         try:
-            # Create and execute the custom dialog
-            dialog = HelpDialog(help_file_path, self.anpe_version, self)
+            # Create and execute the custom dialog, passing both versions
+            dialog = HelpDialog(help_file_path, GUI_VERSION, self.anpe_version, self)
             dialog.exec()
         except Exception as e:
             # Catch potential errors during dialog creation/execution

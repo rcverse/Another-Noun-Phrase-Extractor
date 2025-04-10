@@ -7,7 +7,7 @@ A graphical user interface for [ANPE (Another Noun Phrase Extractor)](https://gi
 
 ## Features
 
-- **User-friendly interface** with distinct Input and Output tabs.
+- **Modern User Interface**: Clean, intuitive interface with distinct Input and Output tabs.
 - **Input Modes**: Process text via Direct Text Input (with Paste/Clear) or File Input.
 - **File Handling**: Add single files or entire directories; view and manage the list.
 - **Batch Processing**: Automatically handles multiple files from selected directories.
@@ -22,6 +22,7 @@ A graphical user interface for [ANPE (Another Noun Phrase Extractor)](https://gi
 - **Export Options**: Export results to TXT, CSV, or JSON formats to a selected directory.
 - **Status Bar**: Provides feedback on application readiness, processing progress, and completion status.
 - **Workflow Control**: Process button initiates extraction, Reset button clears inputs/outputs for a new task.
+- **High-DPI Support**: Optimized for high-resolution displays with sharp, crisp UI elements.
 
 ## Installation & Usage
 
@@ -86,6 +87,13 @@ The build script includes several optimizations:
 - **Windows**: The executable will be named `ANPE.exe`
 - **macOS**: The executable will be named `ANPE`
 - You must build the executable on each target platform separately
+
+## Dependencies
+
+Key dependencies include:
+- PyQt6 ≥ 6.4.0: Main GUI framework
+- anpe ≥ 0.1.0: Core extraction engine
+- pyinstaller ≥ 5.6.0: For creating standalone executables
 
 ## License
 

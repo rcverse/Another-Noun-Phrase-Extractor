@@ -382,6 +382,7 @@ class ResultDisplayWidget(QWidget):
             
             # --- Configure Header ---
             header = self.tree_view.header()
+            header.setSectionsClickable(False) # Disable header clicking for sorting
             # Make Structures stretch to fill available space
             if metadata_enabled:
                 header.setSectionResizeMode(AnpeResultModel.COL_STRUCT, QHeaderView.ResizeMode.Stretch)
@@ -392,7 +393,7 @@ class ResultDisplayWidget(QWidget):
                 header.setSectionResizeMode(AnpeResultModel.COL_LEN, QHeaderView.ResizeMode.Interactive)
             
             # Allow sorting indicators on headers (always enabled, but only relevant columns are shown)
-            header.setSortIndicatorShown(True) 
+            header.setSortIndicatorShown(False) # Disable visual indicator
 
             # Set fixed initial widths for ID, NP, and Length. 
             # Structures stretches to fill the rest.

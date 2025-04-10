@@ -58,5 +58,11 @@ exe = EXE(
     target_arch=None,
     codesign_identity=None,
     entitlements_file=None,
-    icon=os.path.join(parent_dir, 'pics', 'icon.ico') if os.path.exists(os.path.join(parent_dir, 'pics', 'icon.ico')) else None,
+    icon=(
+        os.path.join(parent_dir, 'anpe_gui', 'resources', 'app_icon.icns') 
+        if sys.platform == 'darwin' and os.path.exists(os.path.join(parent_dir, 'anpe_gui', 'resources', 'app_icon.icns'))
+        else os.path.join(parent_dir, 'anpe_gui', 'resources', 'app_icon.ico') 
+        if sys.platform == 'win32' and os.path.exists(os.path.join(parent_dir, 'anpe_gui', 'resources', 'app_icon.ico'))
+        else os.path.join(parent_dir, 'anpe_gui', 'resources', 'app_icon.png')
+    ),
 ) 

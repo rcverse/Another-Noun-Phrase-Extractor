@@ -8,7 +8,7 @@ version = "0.2.0"
 authors = [
     {name = "Richard", email = "rcverse6@gmail.com"},
 ]
-description = "Another Noun Phrase Extractor using the Berkeley Neural Parser"
+description = "Accurately extract complete noun phrase with customisation."
 readme = "README.md"
 requires-python = ">=3.9,<3.13"
 license = {text = "MIT"}

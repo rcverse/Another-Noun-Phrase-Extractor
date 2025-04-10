@@ -1,83 +1,86 @@
 # ANPE GUI Help
 
-Welcome to ANPE (Another Noun Phrase Extractor)! This guide will help you get started with the application.
+Welcome to the ANPE (Another Noun Phrase Extractor) GUI! This application provides a user-friendly interface to the core ANPE library, allowing you to easily extract noun phrases from text without needing to write code.
 
-## Quick Start
+## Usage
+The application is organized into two main tabs: **Input** and **Output**.
 
-1. **Launch the Application**
-   - When you first start ANPE, it will check for required language models
-   - If models are missing, a setup wizard will guide you through the installation
+### Input Tab
+This is where you prepare your text and configure the extraction process.
 
-2. **Choose Your Input**
-   - **File Input**: Process one or more text files
-   - **Text Input**: Paste or type text directly into the application
+#### Input Options
+You can choose between two ways to provide text:
 
-3. **Configure Settings** (Optional)
-   - Adjust filters and output options to customize your results
-   - Click "Default" to revert the options to default status
+1. **Working with Files**
+   * The "Add Files" button: Select individual .txt files
+   * The "Add Directory" button: Add all .txt files within a selected folder
+   * The "Remove/Clear All" options: Manage the list of files to process
 
-4. **Process Text**
-   - Click the "Process" button to extract noun phrases
-   - View results in the Output tab
+2. **Direct Text Entry**
+   * The "Paste" button: Insert text from your clipboard
+   * The "Clear" button: Empty the text input area
+   * You can also type text directly into the editor for quick analysis
 
-## Main Features
+#### Configuration
+Fine-tune the extraction process:
 
-### Input Options
-- **File Input**: Process multiple text files at once
-- **Text Input**: Direct text input for quick analysis
+* **General Settings**:
+  * The "Include nested phrases" option: Captures noun phrases embedded within larger ones
+  * The "Add metadata to output" option: Includes length and structures information for each phrase
+  * The "Treat newlines as sentence boundaries" option: Controls how line breaks are interpreted
 
-### Configuration Options
-- **General Settings**
-  - Include nested phrases
-  - Add metadata to output
-- **Filtering Options**
-  - Set minimum/maximum phrase length
-  - Filter by noun phrase structure
+* **Filtering Options**:
+  * The "Min Length" and "Max Length" settings: Specify the word count limits for phrases
+  * The "Accept Pronouns" option: Controls whether single-word pronouns are included
 
-### Output Features
-- View extracted noun phrases
-- Export results to TXT, CSV, or JSON
-- Hierarchical display of nested phrases
+* **Structure Filtering**:
+  * Enable the main toggle to activate structure filtering
+  * Select specific structures from the list (like Determiner, Compound, Appositive)
+
+#### Control Buttons
+* The "Process" button: Starts the noun phrase extraction based on your input and configuration
+* The "Reset" button: Clears all input fields, file lists, and configuration settings
+* The "Default" button: Reverts settings and filtering options to defaults
+
+### Output Tab
+This tab displays the results of the extraction process.
+
+#### Viewing Results
+* The main area shows the extracted noun phrases formatted according to your settings
+* If processing multiple files, a dropdown menu appears above the results
+* If nested phrases were included, the display will show the hierarchy
+
+#### Exporting Results
+* Click the "Export" button to save the results
+* Choose an output format:
+  * TXT: Human-readable, plain text list
+  * CSV: Comma-Separated Values for spreadsheets
+  * JSON: Best for programmatic use, preserving hierarchy
+* Select a destination directory to save the file(s)
 
 ## Tips
+* **Choosing Export Format**:
+  * Use TXT for simple lists and easy reading
+  * Use CSV if you plan to analyze the phrases in a spreadsheet
+  * Use JSON if you need to feed the results into another program
 
-1. **Model Management**
-   - Use the "Manage Models" button to check model status
-   - Download missing models if needed
-   - Keep models updated for best performance
+* **Large Files**: Extracting from large files can take time. Monitor the status bar for progress
 
-2. **Processing Tips**
-   - For large files, be patient during processing
-   - Check the status bar for current operation status
-   - Use the log panel to monitor progress
+* **Configuration**: Start with default settings. Adjust length filters or disable pronoun inclusion if needed
 
-3. **Exporting Results**
-   - Choose the format that best suits your needs
-   - TXT: Simple text format
-   - CSV: For spreadsheet analysis
-   - JSON: For programmatic use
+* **Batch Processing**: When extracting from a directory, ANPE saves one output file per input file
 
-## Troubleshooting
+## Acknowledgements
+The ANPE GUI relies on several open-source libraries:
 
-If you encounter issues:
+* **ANPE Core Engine**: The underlying extraction logic
+* **PyQt6**: For the graphical user interface framework
+* **spaCy**: For initial text processing (tokenization, sentence segmentation)
+* **Benepar**: For constituency parsing (identifying phrase structures)
+* **NLTK**: Used by Benepar and for certain tokenizer data
 
-1. **Check Model Status**
-   - Use the "Manage Models" button
-   - Ensure all required models are installed
-   - Download any missing models
+This GUI application was developed with significant assistance from AI, providing an accessible interface to the powerful ANPE library.
 
-2. **Processing Problems**
-   - Verify your input text/files
-   - Check the log panel for error messages
-   - Try resetting the application
-
-3. **Export Issues**
-   - Ensure you have write permissions
-   - Check available disk space
-   - Try a different export format
-
-## Need More Help?
-
-- Visit the project page for additional resources
-
-Remember: The status bar at the bottom of the window shows the current application state. Always check it if you're unsure what's happening!
+## Contact
+* **Project Page**: Visit the [ANPE GitHub Repository](https://github.com/rcverse/anpe) for source code and documentation
+* **Email**: For questions or feedback, contact rcverse6@gmail.com

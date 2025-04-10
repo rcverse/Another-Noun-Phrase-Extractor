@@ -333,10 +333,10 @@ def get_stylesheet():
     }}
     /* Style individual items */
     QComboBox QAbstractItemView::item {{
-        padding: 5px 8px; /* Adjusted padding */
+        padding: 3px 8px; /* Reduced top/bottom padding */
         background-color: {BACKGROUND_COLOR}; /* Default background */
         color: {TEXT_COLOR}; /* Default text */
-        min-height: 20px; /* Adjusted min height */
+        min-height: 18px; /* Reduced min height */
         outline: 0;
     }}
     QComboBox QAbstractItemView::item:selected {{
