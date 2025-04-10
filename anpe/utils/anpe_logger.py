@@ -73,6 +73,9 @@ class ANPELogger:
             except (IOError, PermissionError) as e:
                 # Fall back to just console logging if file can't be opened
                 self.logger.warning(f"Could not set up file logging: {str(e)}")
+        
+        # Prevent messages from propagating to the root logger's handlers
+        self.logger.propagate = False
     
     def set_level(self, level: str):
         """
