@@ -9,6 +9,9 @@ from PyQt6.QtWidgets import (
 )
 from PyQt6.QtCore import pyqtSignal, Qt
 
+# Import theme colors
+from anpe_gui.theme import PRIMARY_COLOR, LIGHT_HOVER_BLUE, TEXT_COLOR, BORDER_COLOR
+
 
 class FileListWidget(QWidget):
     """
@@ -50,6 +53,37 @@ class FileListWidget(QWidget):
         self.file_list = QListWidget()
         self.file_list.setSelectionMode(QListWidget.SelectionMode.ExtendedSelection)
         self.layout.addWidget(self.file_list, 1) # Give list stretch factor
+
+        # Apply custom styling for list items
+        self.file_list.setStyleSheet(f"""
+            QListWidget {{
+                border: 1px solid {BORDER_COLOR}; /* Match theme border */
+                background-color: white;
+                outline: 0; /* Remove focus outline */
+            }}
+            QListWidget::item {{
+                padding: 4px 6px; /* Adjust padding as needed */
+                color: {TEXT_COLOR};
+                background-color: white;
+                outline: 0;
+            }}
+            QListWidget::item:selected {{
+                background-color: {PRIMARY_COLOR};
+                color: white;
+                border: none; /* Remove selection border if any */
+                outline: 0;
+            }}
+            QListWidget::item:hover:!selected {{
+                background-color: {LIGHT_HOVER_BLUE};
+                color: {TEXT_COLOR};
+                outline: 0;
+            }}
+            /* Optional: Style for selected item when widget doesn't have focus */
+            /* QListWidget::item:selected:!active {{
+                background-color: #DDDDDD; 
+                color: {TEXT_COLOR};
+            }} */
+        """)
 
         # --- File Action Buttons ---
         self.file_button_layout = QHBoxLayout() 

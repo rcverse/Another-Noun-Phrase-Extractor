@@ -14,6 +14,7 @@ from PyQt6.QtWidgets import (
 )
 from PyQt6.QtGui import QIcon, QPixmap
 
+from anpe_gui.theme import ERROR_COLOR # Import the error color
 from anpe_gui.setup_wizard import SetupWizard # Import SetupWizard
 
 # Assuming these utilities exist and work as expected
@@ -123,6 +124,20 @@ class ModelManagementDialog(QDialog):
         self.setup_button = QPushButton("Run Setup/Install")
         self.clean_button = QPushButton("Clean Models")
         self.refresh_button = QPushButton("Refresh Status")
+
+        # Apply red style to Clean button
+        self.clean_button.setStyleSheet(f"""
+            QPushButton {{ 
+                background-color: {ERROR_COLOR}; 
+                color: white; 
+                border: none; 
+                padding: 5px 15px; 
+                border-radius: 4px; 
+                min-width: 60px;
+            }}
+            QPushButton:hover {{ background-color: #d9534f; }}
+            QPushButton:pressed {{ background-color: #c9302c; }}
+        """)
 
         self.setup_button.clicked.connect(self.run_setup)
         self.clean_button.clicked.connect(self.run_clean)

@@ -6,10 +6,13 @@ import os
 # import sys # Removed
 import logging
 import functools # Import functools
-from typing import Optional, Dict, Any, List
+from typing import Optional, Dict, Any, List, Union # Added Union
 from pathlib import Path
+from datetime import datetime # Added datetime
+import platform # Added platform
+import subprocess # Added subprocess
 
-from PyQt6.QtCore import Qt, QThreadPool, pyqtSignal, QSize, QTimer, QObject, QThread, pyqtSlot
+from PyQt6.QtCore import Qt, QThreadPool, pyqtSignal, QSize, QTimer, QObject, QThread, pyqtSlot, QPropertyAnimation, QEasingCurve, pyqtProperty
 from PyQt6.QtWidgets import (
     QMainWindow, QStackedWidget, QWidget, QVBoxLayout, QHBoxLayout,
     QPushButton, QLabel, QTextEdit, QFileDialog, QSpinBox,
@@ -17,10 +20,11 @@ from PyQt6.QtWidgets import (
     QProgressBar, QMessageBox, QSplitter, QFrame, QTabWidget, QGridLayout, QSizePolicy,
     QButtonGroup, QApplication
 )
-from PyQt6.QtGui import QIcon, QTextCursor
+from PyQt6.QtGui import QIcon, QTextCursor, QScreen # Added QScreen
 
-from .theme import PRIMARY_COLOR, SECONDARY_COLOR, SUCCESS_COLOR, ERROR_COLOR, WARNING_COLOR, INFO_COLOR, BORDER_COLOR, get_scroll_bar_style # Update the import
+from .theme import PRIMARY_COLOR, SECONDARY_COLOR, SUCCESS_COLOR, ERROR_COLOR, WARNING_COLOR, INFO_COLOR, BORDER_COLOR, get_scroll_bar_style, LIGHT_HOVER_BLUE, TEXT_COLOR # Update the import
 from .widgets.help_dialog import HelpDialog # Import the new dialog
+from anpe_gui.widgets.export_help_dialog import ExportHelpDialog # Import the new help dialog
 
 try:
     from anpe import ANPEExtractor, __version__ as anpe_version
@@ -149,7 +153,13 @@ class MainWindow(QMainWindow):
         super().__init__()
         
         self.setWindowTitle(f"ANPE GUI v{anpe_version_str}")
-        self.setGeometry(100, 100, 1200, 900)  
+        # Set default size first
+        self.initial_width = 1200
+        self.initial_height = 900
+        self.setGeometry(0, 0, self.initial_width, self.initial_height)  
+        
+        # Center the window
+        self._center_on_screen()
         
         # Set window icon
         resources_dir = Path(__file__).parent / "resources"
@@ -167,6 +177,10 @@ class MainWindow(QMainWindow):
         self.batch_worker: Optional[BatchWorker] = None # For batch processing
         self.results: Optional[Dict[str, Any]] = None # To store last processing results for export
 
+        # Animation setup
+        self._fade_animation = None
+        self.setWindowOpacity(0.0) # Start transparent for fade-in
+
         self.setup_ui()
         
         # Start Background Extractor Initialization only if ANPEExtractor is real
@@ -176,6 +190,63 @@ class MainWindow(QMainWindow):
              self.status_bar.showMessage("ANPE Library Error! Processing disabled.", 0) # Persistent message
              self.process_button.setEnabled(False) # Disable processing
              logging.error("ANPE library not found or dummy class used. Initialization skipped.")
+
+    def _center_on_screen(self):
+        """Centers the window on the primary screen."""
+        try:
+            screen = QApplication.primaryScreen()
+            if not screen:
+                logging.warning("Could not get primary screen. Centering skipped.")
+                return
+            screen_geometry = screen.availableGeometry() # Use available geometry to avoid taskbars etc.
+            window_rect = self.frameGeometry()
+            center_point = screen_geometry.center()
+            window_rect.moveCenter(center_point)
+            # Ensure the window doesn't go off-screen (e.g., if screen is smaller than window)
+            final_pos = window_rect.topLeft()
+            final_pos.setX(max(0, final_pos.x()))
+            final_pos.setY(max(0, final_pos.y()))
+            self.move(final_pos)
+            logging.debug(f"Centered window on screen at {final_pos}")
+        except Exception as e:
+            # Log error but don't prevent startup
+            logging.error(f"Error centering window: {e}", exc_info=True)
+
+    # Property for animation
+    @pyqtProperty(float)
+    def windowOpacity(self):
+        return super().windowOpacity()
+
+    @windowOpacity.setter
+    def windowOpacity(self, value):
+        super().setWindowOpacity(value)
+
+    def _fade(self, start_value, end_value, duration, on_finish=None):
+        """Helper function to create and run fade animation."""
+        if self._fade_animation:
+            self._fade_animation.stop() # Stop existing animation
+
+        self._fade_animation = QPropertyAnimation(self, b"windowOpacity")
+        self._fade_animation.setDuration(duration)
+        self._fade_animation.setStartValue(float(start_value)) # Ensure float
+        self._fade_animation.setEndValue(float(end_value))     # Ensure float
+        self._fade_animation.setEasingCurve(QEasingCurve.Type.InOutQuad)
+        
+        if on_finish:
+            # Disconnect previous connections to avoid multiple calls
+            try:
+                self._fade_animation.finished.disconnect() 
+            except TypeError: # No connection exists
+                pass 
+            self._fade_animation.finished.connect(on_finish)
+            
+        self._fade_animation.start()
+
+    def fade_in(self, duration=300):
+        """Fade the main window in."""
+        self.setWindowOpacity(0.0) # Ensure starting point
+        self.show() # Make window visible before animating opacity
+        self._fade(0.0, 1.0, duration) # Add this line back
 
     def start_background_initialization(self):
         """Starts the background thread for ANPEExtractor initialization."""
@@ -717,44 +788,101 @@ class MainWindow(QMainWindow):
         results_group_layout.addWidget(self.results_display_widget) # Add the new widget
         self.output_layout.addWidget(results_group, 1)  # Allow results area to stretch
 
-        # --- Export Options ---
+        # --- Export Options --- (Using QFormLayout for better alignment)
         export_group = QGroupBox("Export Options")
-        export_layout = QGridLayout(export_group)
+        # export_layout = QGridLayout(export_group) # Old layout
+        export_layout = QFormLayout(export_group) # New layout (QFormLayout)
         export_layout.setSpacing(10)
+        # export_layout.setFieldGrowthPolicy(QFormLayout.FieldGrowthPolicy.ExpandingFieldsGrow) # Ensure fields expand
 
-        # Export Format
-        export_layout.addWidget(QLabel("Format:"), 0, 0)
+        # Row 0: Format (ComboBox + Help Button)
         self.export_format_combo = QComboBox()
-        self.export_format_combo.addItems(["txt", "csv", "json"]) # Add more formats if supported
-        export_layout.addWidget(self.export_format_combo, 0, 1)
+        self.export_format_combo.addItems(["txt", "csv", "json"])
+        # Help button removed from here
+        # self.export_format_help_button = QPushButton("Help") ...
+        
+        # Format widget container now only holds the combo box
+        # format_widget_layout = QHBoxLayout()
+        # format_widget_layout.setContentsMargins(0,0,0,0)
+        # format_widget_layout.setSpacing(5)
+        # format_widget_layout.addWidget(self.export_format_combo, 1) # ComboBox takes stretch=1
+        # format_widget_layout.addWidget(self.export_format_help_button, 0) # Help button takes stretch=0
+        # format_widget_container = QWidget()
+        # format_widget_container.setLayout(format_widget_layout)
+        # Use the combo box directly
+        export_layout.addRow("Format:", self.export_format_combo)
 
-        # Export Filename
-        export_layout.addWidget(QLabel("Filename:"), 1, 0)
-        self.export_filename_edit = QLineEdit()
-        self.export_filename_edit.setPlaceholderText("Leave empty to use default names")
-        export_layout.addWidget(self.export_filename_edit, 1, 1)
+        # Row 1: Filename Prefix (Optional)
+        self.export_filename_prefix_edit = QLineEdit()
+        self.export_filename_prefix_edit.setPlaceholderText("Optional prefix for exported files")
+        # Rename the label instance variable as well for clarity if needed elsewhere, although it's only used here
+        self.export_filename_prefix_label = QLabel("Filename Prefix:") 
+        export_layout.addRow(self.export_filename_prefix_label, self.export_filename_prefix_edit)
 
-        # Export Directory
-        export_layout.addWidget(QLabel("Directory:"), 2, 0)
-        export_dir_layout = QHBoxLayout()
-        self.export_dir_edit = QLineEdit() # Standardized name
+        # Row 2: Directory (LineEdit + Browse Button)
+        self.export_dir_edit = QLineEdit()
         self.export_dir_edit.setPlaceholderText("Select export directory...")
-        self.export_dir_edit.setReadOnly(True) # Prevent manual editing
+        self.export_dir_edit.setReadOnly(True)
         self.browse_export_dir_button = QPushButton("Browse...")
         self.browse_export_dir_button.clicked.connect(self.browse_export_directory)
-        export_dir_layout.addWidget(self.export_dir_edit, 1) # Give edit stretch
-        export_dir_layout.addWidget(self.browse_export_dir_button)
-        export_layout.addLayout(export_dir_layout, 2, 1)
+        
+        export_dir_widget_layout = QHBoxLayout()
+        export_dir_widget_layout.setContentsMargins(0,0,0,0)
+        export_dir_widget_layout.setSpacing(5)
+        export_dir_widget_layout.addWidget(self.export_dir_edit, 1) # LineEdit takes stretch
+        export_dir_widget_layout.addWidget(self.browse_export_dir_button)
+        export_dir_widget_container = QWidget()
+        export_dir_widget_container.setLayout(export_dir_widget_layout)
+        export_layout.addRow("Directory:", export_dir_widget_container)
 
-        # Export Button (aligned right)
-        export_button_layout = QHBoxLayout()
-        export_button_layout.addStretch(1)
+        # Row 3: Export Button and Help Button (spans columns)
+        bottom_button_layout = QHBoxLayout()
+        bottom_button_layout.setContentsMargins(0,0,0,0) # No margins for this layout
+        
+        # Help button setup (moved from Format row)
+        self.export_format_help_button = QPushButton("?") # Changed text to "?"
+        self.export_format_help_button.setToolTip("Click for information about export formats and filename structure") # Tooltip remains helpful
+        self.export_format_help_button.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.export_format_help_button.clicked.connect(self.show_export_format_help)
+        
+        # Style the button to be round with a "?"
+        help_button_size = 26 # Define button size (width and height)
+        # Force the size using min/max and fixed policy
+        self.export_format_help_button.setMinimumSize(help_button_size, help_button_size)
+        self.export_format_help_button.setMaximumSize(help_button_size, help_button_size)
+        self.export_format_help_button.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Fixed)
+        # self.export_format_help_button.setFixedSize(help_button_size, help_button_size) # Keep this too for belt-and-braces?
+        
+        self.export_format_help_button.setStyleSheet(f'''
+            QPushButton {{
+                border: 1px solid #bbb; /* Slightly darker border */
+                border-radius: {help_button_size // 2}px; /* Half of size for roundness */
+                background-color: qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 #fefefe, stop:1 #f0f0f0); /* Lighter gradient */
+                color: #444; /* Darker grey for '?' */
+                font-weight: bold;
+                font-size: 10pt; /* Reduced font size */
+                padding: 0px; /* Explicitly zero padding */
+            }}
+            QPushButton:hover {{
+                background-color: #e8e8e8; /* Slightly darker hover */
+            }}
+            QPushButton:pressed {{
+                background-color: #d8d8d8; /* Pressed color */
+                border-color: #999;
+            }}
+        ''')
+
         self.export_button = QPushButton("Export Results")
         self.export_button.clicked.connect(self.export_results) 
-        self.export_button.setEnabled(False) # Enable only when results are available
-        export_button_layout.addWidget(self.export_button)
-        # Add the button layout spanning columns in the grid
-        export_layout.addLayout(export_button_layout, 3, 0, 1, 2) 
+        self.export_button.setEnabled(False)
+        # Optionally make export button slightly bigger/more prominent
+        # self.export_button.setMinimumHeight(30)
+
+        bottom_button_layout.addWidget(self.export_format_help_button) # Add help button (left aligned by default)
+        bottom_button_layout.addStretch(1) # Add stretch between buttons
+        bottom_button_layout.addWidget(self.export_button) # Add export button (right aligned due to stretch)
+        
+        export_layout.addRow(bottom_button_layout) # Add the combined layout spanning columns
 
         self.output_layout.addWidget(export_group)
 
@@ -763,9 +891,10 @@ class MainWindow(QMainWindow):
         # Back button removed for simplicity, users can just click the Input tab
         # self.back_to_input_button = QPushButton("Back to Input") ...
         
-        # Process New Button (acts as reset)
+        # Process New Button (Connects to new handler)
         self.process_new_button = QPushButton("Process New Input")
-        self.process_new_button.clicked.connect(self.reset_workflow)
+        # self.process_new_button.clicked.connect(self.reset_workflow) # Old connection
+        self.process_new_button.clicked.connect(self.handle_process_new_input_click) # New connection
 
         nav_button_layout.addStretch(1) # Push button to the right
         nav_button_layout.addWidget(self.process_new_button)
@@ -823,13 +952,12 @@ class MainWindow(QMainWindow):
             return None
 
     def start_processing(self):
-        """Main entry point when the 'Process' button is clicked."""
-        if not self.extractor_ready:
-            QMessageBox.warning(self, "Initialization Error", 
-                                "ANPE Extractor is not ready yet. Please wait or check logs.")
-            return
+        """Start the ANPE processing based on current UI settings and input."""
+        # --- Check and clear previous results first ---
+        if not self._confirm_and_clear_results():
+            return # User cancelled clearing previous results
 
-        # 1. Get Configuration
+        # --- Gather configuration ---
         config = self.apply_configuration()
         if config is None:
             # Error message already shown by apply_configuration
@@ -1080,11 +1208,14 @@ class MainWindow(QMainWindow):
             if can_export: # Use can_export flag which implies success and results exist
                  self.switch_to_output_tab()
             
-            # Disable process button after run, enable reset
+            # Re-enable the process button if the extractor is ready
             if hasattr(self, 'process_button'):
-                self.process_button.setEnabled(False) 
-            if hasattr(self, 'reset_button'):
-                 self.reset_button.setEnabled(True) # Ensure Reset is enabled
+                self.process_button.setEnabled(self.extractor_ready)
+            
+            # --- Auto-clear input fields after processing ---
+            self.file_list_widget.clear_files()
+            self.direct_text_input.clear()
+            logging.debug("Input fields cleared automatically.")
             
             logging.debug("Processing finished UI updates complete.")
 
@@ -1118,7 +1249,7 @@ class MainWindow(QMainWindow):
             logging.warning(f"Could not find results for selected file: {selected_file_path}")
 
     def export_results(self):
-        """Export the currently stored results to a file."""
+        """Export the currently stored results to a file using unified naming."""
         if self.results is None:
             QMessageBox.warning(self, "Export Error", "No extraction results available to export.")
             return
@@ -1133,50 +1264,66 @@ class MainWindow(QMainWindow):
                 return
             
         export_format = self.export_format_combo.currentText()
-        custom_filename = self.export_filename_edit.text().strip()
+        # Get the optional prefix
+        filename_prefix = self.export_filename_prefix_edit.text().strip() 
+        
+        # Generate timestamp string (YYYYMMDD_HHMMSS)
+        timestamp_str = datetime.now().strftime("%Y%m%d_%H%M%S")
+
         # Keep INFO for start of export
-        logging.info(f"Attempting export. Format: {export_format}, Dir: {export_dir}, Custom filename: {custom_filename}")
+        logging.info(f"Attempting export. Format: {export_format}, Dir: {export_dir}, Prefix: '{filename_prefix}'")
 
         try:
             from anpe.utils.export import ANPEExporter # Import here to avoid top-level dependency if export not used
+            from pathlib import Path # Ensure Path is imported
+
             exporter = ANPEExporter()
             
             export_successful = False
+            message = "" # Initialize message
+
             # Check if results are from batch processing (dict of file_path: result_data)
             # or single processing (single result_data dict)
             if isinstance(self.results, dict) and all(isinstance(k, str) and isinstance(v, dict) for k, v in self.results.items()):
-                # Likely Batch results: keys are file paths
+                # Batch results: keys are file paths
                 num_files = len(self.results)
-                # Keep INFO for batch export start
                 logging.info(f"Exporting batch results for {num_files} files.")
                 
-                if custom_filename:
-                    # If custom filename provided, use it for all files with index
-                    for idx, (file_path, result_data) in enumerate(self.results.items()):
-                        output_filename = f"{custom_filename}_{idx+1}.{export_format}"
-                        full_export_path = os.path.join(export_dir, output_filename)
-                        logging.debug(f"Exporting '{file_path}' results to '{full_export_path}'")
-                        exporter.export(result_data, format=export_format, output_filepath=full_export_path)
-                else:
-                    # Use default naming based on input files
-                    for file_path, result_data in self.results.items():
-                        base_name = Path(file_path).stem 
-                        output_filename = f"{base_name}_anpe_results.{export_format}" 
-                        full_export_path = os.path.join(export_dir, output_filename)
-                        logging.debug(f"Exporting '{file_path}' results to '{full_export_path}'")
-                        exporter.export(result_data, format=export_format, output_filepath=full_export_path)
-                
+                exported_filenames = [] # Keep track of generated names for the message
+
+                # Use unified naming based on input files + prefix + timestamp
+                for file_path, result_data in self.results.items():
+                    base_name = Path(file_path).stem 
+                    # Construct filename: [prefix_]<stem>_anpe_results_<timestamp>.<format>
+                    if filename_prefix:
+                        output_filename = f"{filename_prefix}_{base_name}_anpe_results_{timestamp_str}.{export_format}"
+                    else:
+                        output_filename = f"{base_name}_anpe_results_{timestamp_str}.{export_format}"
+                        
+                    full_export_path = os.path.join(export_dir, output_filename)
+                    logging.debug(f"Exporting '{file_path}' results to '{full_export_path}'")
+                    # TODO: Add check for file overwrite here? (See suggestions)
+                    exporter.export(result_data, format=export_format, output_filepath=full_export_path)
+                    exported_filenames.append(output_filename)
+
                 export_successful = True
-                message = f"Results for {num_files} files exported successfully to {export_dir}"
+                # Consider showing first few filenames if list is long?
+                message = f"Results for {num_files} files exported successfully to {export_dir}" 
                 
             elif isinstance(self.results, dict) and 'results' in self.results:
-                # Likely Single text result (has 'results' key)
+                # Single text result (has 'results' key)
                 logging.info("Exporting single text results.")
-                # Use custom filename if provided, otherwise default
-                output_filename = f"{custom_filename}.{export_format}" if custom_filename else f"anpe_text_results.{export_format}"
+                
+                # Construct filename: [prefix_]anpe_text_results_<timestamp>.<format>
+                if filename_prefix:
+                     output_filename = f"{filename_prefix}_anpe_text_results_{timestamp_str}.{export_format}"
+                else:
+                     output_filename = f"anpe_text_results_{timestamp_str}.{export_format}"
+
                 full_export_path = os.path.join(export_dir, output_filename)
                 
                 logging.debug(f"Exporting single text result to '{full_export_path}'")
+                # TODO: Add check for file overwrite here? (See suggestions)
                 exporter.export(self.results, format=export_format, output_filepath=full_export_path)
                 
                 export_successful = True
@@ -1188,8 +1335,25 @@ class MainWindow(QMainWindow):
                  return
 
             if export_successful:
-                logging.info(message)
-                QMessageBox.information(self, "Export Successful", message)
+                logging.info(message) # Log the final message
+                # Create a custom QMessageBox instead of static method
+                msg_box = QMessageBox(self)
+                msg_box.setIcon(QMessageBox.Icon.Information)
+                msg_box.setWindowTitle("Export Successful")
+                msg_box.setText(message)
+                
+                # Add standard OK button
+                ok_button = msg_box.addButton(QMessageBox.StandardButton.Ok)
+                
+                # Add custom 'Open Directory' button
+                open_dir_button = msg_box.addButton("Open Export Directory", QMessageBox.ButtonRole.ActionRole)
+                
+                # Execute the dialog
+                msg_box.exec()
+                
+                # Check if the custom button was clicked
+                if msg_box.clickedButton() == open_dir_button:
+                    self.open_directory(export_dir)
             
         except ImportError:
              logging.error("Export failed: ANPEExporter not found. Is 'anpe' installed correctly?")
@@ -1199,7 +1363,7 @@ class MainWindow(QMainWindow):
             QMessageBox.warning(self, "Export Error", f"Error exporting results: {e}")
 
     def reset_workflow(self):
-        """Reset the UI to start a new processing task."""
+        """Reset the UI to start a new processing task. Clears inputs and results."""
         # Check if there are any results to warn about
         if self.results is not None:
             reply = QMessageBox.question(
@@ -1238,12 +1402,9 @@ class MainWindow(QMainWindow):
         self.status_bar.showMessage(message, status_type=status_type)
         self.status_bar.clear_progress()
         
-        # Re-enable process button if extractor is ready, disable reset again?
+        # Re-enable process button if extractor is ready
         if hasattr(self, 'process_button'):
-            self.process_button.setEnabled(self.extractor_ready) 
-        # Re-enable reset button logic might need review, ensure it's enabled when appropriate
-        if hasattr(self, 'reset_button'):
-            self.reset_button.setEnabled(True) # Should Reset always be enabled after a run? Or only Process?
+            self.process_button.setEnabled(self.extractor_ready)
         
         logging.info("Workflow reset complete.")
 
@@ -1459,3 +1620,103 @@ class MainWindow(QMainWindow):
             # Catch potential errors during dialog creation/execution
             logging.error(f"Error showing help dialog: {e}", exc_info=True)
             QMessageBox.critical(self, "Help Error", f"An unexpected error occurred while trying to show help: {e}")
+
+    def _confirm_and_clear_results(self) -> bool:
+        """Checks for existing results, prompts user to confirm clearing them,
+        and clears them if confirmed. Returns True if processing should proceed, False otherwise."""
+        if self.results is not None:
+            # Create QMessageBox instance manually for styling
+            msg_box = QMessageBox(self) # Parent to MainWindow
+            msg_box.setWindowTitle("Clear Previous Results?")
+            msg_box.setTextFormat(Qt.TextFormat.RichText) # Allow rich text if needed, though not strictly necessary here
+            msg_box.setText(
+                "Processing new input will clear your previous results. "
+                "Make sure you have exported them if you wish to keep them.<br><br>"
+                "<b>Do you want to proceed?</b>"
+            )
+            msg_box.setIcon(QMessageBox.Icon.Question)
+            msg_box.setStandardButtons(QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No)
+            msg_box.setDefaultButton(QMessageBox.StandardButton.No) # Default focus on No
+
+            # Find the 'Yes' button
+            yes_button = msg_box.button(QMessageBox.StandardButton.Yes)
+            if yes_button:
+                # Apply custom style using the theme's ERROR_COLOR
+                yes_button.setStyleSheet(f"""
+                    QPushButton {{ 
+                        background-color: {ERROR_COLOR}; 
+                        color: white; 
+                        border: none; 
+                        padding: 5px 15px; 
+                        border-radius: 4px; 
+                        min-width: 60px; /* Ensure minimum width */
+                    }}
+                    QPushButton:hover {{ background-color: #d9534f; }}
+                    QPushButton:pressed {{ background-color: #c9302c; }}
+                """)
+            
+            # Execute the dialog
+            reply = msg_box.exec()
+
+            if reply == QMessageBox.StandardButton.No:
+                logging.info("User cancelled processing to keep previous results.")
+                return False # User cancelled
+
+        # Proceed with clearing results (or if no results existed)
+        logging.info("Clearing previous results before new processing run.")
+        self.results_display_widget.clear_display()
+        self.results = None
+        self.file_selector_label.hide()
+        self.file_selector_combo.hide()
+        self.file_selector_combo.clear()
+        self.export_button.setEnabled(False)
+        # Optional: Reset status bar here if desired
+        # self.status_bar.showMessage("Ready", status_type='ready')
+
+        return True # OK to proceed
+
+    @pyqtSlot()
+    def handle_process_new_input_click(self):
+        """Handles the 'Process New Input' button click."""
+        logging.debug("Process New Input button clicked.")
+        if self._confirm_and_clear_results():
+            # If results were cleared (or none existed), switch to input tab
+            try:
+                # Find index of Input tab (more robust than assuming 0)
+                input_tab_index = -1
+                for i in range(self.main_tabs.count()):
+                    if self.main_tabs.widget(i) == self.input_tab: # Check if it's the correct widget instance
+                        input_tab_index = i
+                        break
+                if input_tab_index != -1:
+                    self.main_tabs.setCurrentIndex(input_tab_index)
+                    logging.debug(f"Switched to Input tab (index {input_tab_index}).")
+                else:
+                    logging.warning("Could not find Input tab to switch to.")
+            except Exception as e:
+                logging.error(f"Error switching to Input tab: {e}")
+
+    def show_export_format_help(self):
+        """Shows the dialog explaining export formats."""
+        dialog = ExportHelpDialog(self)
+        dialog.exec()
+
+    def open_directory(self, path):
+        """Opens the specified directory in the default file explorer."""
+        try:
+            if platform.system() == "Windows":
+                # Use os.startfile on Windows
+                os.startfile(path)
+            elif platform.system() == "Darwin": # macOS
+                # Use subprocess.Popen with 'open' on macOS
+                subprocess.Popen(["open", path])
+            else: # Linux and other Unix-like systems
+                # Use subprocess.Popen with 'xdg-open' on Linux
+                subprocess.Popen(["xdg-open", path])
+            logging.info(f"Opened directory: {path}")
+        except FileNotFoundError:
+            logging.error(f"Cannot open directory: Path not found '{path}'")
+            QMessageBox.warning(self, "Open Directory Error", f"The directory could not be found:\n{path}")
+        except Exception as e:
+            logging.error(f"Error opening directory '{path}': {e}", exc_info=True)
+            QMessageBox.warning(self, "Open Directory Error", f"Could not open the directory:\n{e}")

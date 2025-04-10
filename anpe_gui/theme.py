@@ -328,23 +328,20 @@ def get_stylesheet():
     QComboBox QAbstractItemView {{
         background-color: {BACKGROUND_COLOR};
         border: 1px solid {BORDER_COLOR};
-        border-radius: 4px;
         padding: 0px; /* Remove internal padding */
         outline: 0px; /* Remove focus outline */
     }}
     /* Style individual items */
-    QComboBox::item {{
-        padding: 7px 8px; /* Adjusted padding */
-        min-height: 24px; /* Adjusted min height */
-        /* border-radius: 2px; Removed */
+    QComboBox QAbstractItemView::item {{
+        padding: 5px 8px; /* Adjusted padding */
+        background-color: {BACKGROUND_COLOR}; /* Default background */
+        color: {TEXT_COLOR}; /* Default text */
+        min-height: 20px; /* Adjusted min height */
+        outline: 0;
     }}
-    QComboBox::item:selected {{
-        background-color: {PRIMARY_COLOR};
-        color: white;
-    }}
-    QComboBox::item:hover {{
+    QComboBox QAbstractItemView::item:selected {{
         background-color: {LIGHT_HOVER_BLUE};
-        color: {TEXT_COLOR}; /* Ensure dark text on light hover */
+        outline: 0;
     }}
 
     /* List Widgets */
