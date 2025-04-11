@@ -13,9 +13,10 @@ from PyQt6.QtWidgets import (
     QSplitter, QTreeWidget, QTreeWidgetItem, QSizePolicy, QScrollArea
 )
 from PyQt6.QtCore import Qt, QUrl, QSize, QCoreApplication
-from PyQt6.QtGui import QDesktopServices, QIcon, QPixmap, QFont, QColor, QTextDocument # For opening URLs and painting
+from PyQt6.QtGui import QDesktopServices, QIcon, QPixmap, QFont, QColor, QTextDocument, QGuiApplication # For opening URLs and painting
 from PyQt6.QtWidgets import QMessageBox # For About box
-from anpe_gui.theme import PRIMARY_COLOR, get_scroll_bar_style  # Import theme colors and scroll bar style
+from anpe_gui.theme import PRIMARY_COLOR, get_scroll_bar_style, LIGHT_HOVER_BLUE  # Import theme colors and scroll bar style
+from anpe_gui.resource_manager import ResourceManager
 
 class HelpDialog(QDialog):
     def __init__(self, help_file_path: Path, gui_version: str, core_version: str, parent=None):
@@ -24,8 +25,8 @@ class HelpDialog(QDialog):
         self.gui_version = gui_version
         self.core_version = core_version
         self.setWindowTitle("ANPE GUI Help")
-        self.setMinimumSize(700, 600)  # Reduced minimum width
-        self.resize(700, 600)  # Reduced default width
+        self.setMinimumSize(800, 700)  # Reduced minimum width
+        self.resize(800, 700)  # Reduced default width
         
         # Store sections for navigation
         self.sections = {}  # Will hold section name -> anchor mapping
@@ -45,6 +46,8 @@ class HelpDialog(QDialog):
         
         # Create a splitter as the main container
         content_splitter = QSplitter(Qt.Orientation.Horizontal)
+        content_splitter.setChildrenCollapsible(False)  # Prevent collapsing sections
+        content_splitter.setHandleWidth(0)  # Remove the visible resize handle
         
         # Left side: Navigation tree
         nav_container = QWidget()
@@ -68,32 +71,50 @@ class HelpDialog(QDialog):
         # Tree widget for navigation
         self.nav_tree = QTreeWidget()
         self.nav_tree.setHeaderHidden(True)
-        self.nav_tree.setMinimumWidth(200)
-        self.nav_tree.setMaximumWidth(250)
+        self.nav_tree.setFixedWidth(250)  # Increased width from 230 to 250
+        
+        # Use specific SVG files for branch indicators
+        expand_close_url = ResourceManager.get_style_url("expand_close.svg")
+        expand_open_url = ResourceManager.get_style_url("expand_open.svg")
+        
         self.nav_tree.setStyleSheet(f"""
             QTreeWidget {{
+                background-color: #F7F7F7;
                 border: none;
-                background-color: #f8f9fa;
-                font-size: 12px;
+                font-size: 10pt;
+                padding: 5px;
             }}
             QTreeWidget::item {{
-                padding: 4px 4px;
-                border-bottom: 1px solid #f0f0f0;
+                padding: 4px 2px; /* vertical padding = 4px, horizontal padding = 2px */
+                min-height: 22px; /* Set minimum height to prevent crowding */
+                border-bottom: 1px solid #EEEEEE;
+                border: none; /* Remove border */
+                outline: none; /* Remove outline */
+            }}
+            QTreeWidget::item:hover:!selected {{
+                background-color: {LIGHT_HOVER_BLUE}; /* Light blue background on hover */
+                color: {PRIMARY_COLOR}; /* Use primary color text on hover */
             }}
             QTreeWidget::item:selected {{
-                background-color: #e7f3ff;
-                color: #005A9C;
-                border: none;
+                background-color: #E1EDFF; /* Light blue background when selected */
+                color: #333333; /* Keep text dark for better contrast */
+                border: none; /* No border */
+                outline: none; /* Remove focus rectangle */
                 border-radius: 0px;
             }}
-            /* Use simple triangle indicators with high contrast */
+            QTreeWidget:focus {{
+                outline: none; /* Remove focus outline */
+            }}
+            /* Use specific SVG files for branch indicators */
             QTreeWidget::branch:has-children:!has-siblings:closed,
             QTreeWidget::branch:closed:has-children:has-siblings {{
-                image: url(data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iOCIgaGVpZ2h0PSI4IiB2aWV3Qm94PSIwIDAgOCA4IiB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciPjxwYXRoIGQ9Ik0yIDFsNCAzLjUtNCAzLjV2LTd6IiBmaWxsPSIjMDAwIi8+PC9zdmc+);
+                image: url("{expand_close_url}");
+                margin-right: 3px; /* Add some space */
             }}
             QTreeWidget::branch:open:has-children:!has-siblings,
             QTreeWidget::branch:open:has-children:has-siblings {{
-                image: url(data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iOCIgaGVpZ2h0PSI4IiB2aWV3Qm94PSIwIDAgOCA4IiB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciPjxwYXRoIGQ9Ik0xIDJsMyA0IDMtNEgxeiIgZmlsbD0iIzAwMCIvPjwvc3ZnPg==);
+                image: url("{expand_open_url}"); 
+                margin-right: 3px; /* Add some space */
             }}
             {get_scroll_bar_style(vertical_width=8, horizontal_height=8, handle_min_size=30, border_radius=4)}
         """)
@@ -164,8 +185,10 @@ class HelpDialog(QDialog):
         content_layout.addWidget(button_container)
         content_splitter.addWidget(content_container)
         
-        # Set splitter sizes (25% navigation, 75% content)
-        content_splitter.setSizes([225, 675])  # Adjusted ratio to give navigation more space
+        # Set fixed sizes for the splitter (navigation panel fixed, content panel takes the rest)
+        content_splitter.setSizes([250, 550])  # Adjusted to match the new navigation width
+        content_splitter.setStretchFactor(0, 0)  # Don't allow navigation panel to stretch
+        content_splitter.setStretchFactor(1, 1)  # Allow content panel to stretch
         layout.addWidget(content_splitter)
 
     def load_help_content(self):
@@ -381,66 +404,53 @@ class HelpDialog(QDialog):
         return content
 
     def markdown_to_html(self, markdown_text):
-        """Basic markdown to HTML conversion without external dependencies."""
+        """Basic markdown to HTML conversion using explicit tags."""
         html = markdown_text
-        
-        # Convert headings (e.g., # Heading -> <h1>Heading</h1>)
+
+        # Convert custom tags first
+        html = re.sub(r'<button>(.*?)</button>', r'<span class="custom-button">\1</span>', html)
+        html = re.sub(r'<option>(.*?)</option>', r'<span class="custom-option">\1</span>', html)
+        html = re.sub(r'<format>(.*?)</format>', r'<span class="custom-format">\1</span>', html)
+
+        # Convert standard markdown headings (e.g., # Heading -> <h1>Heading</h1>)
         for i in range(6, 0, -1):
             pattern = r'^{0}\s+(.+?)$'.format('#' * i)
             replacement = r'<h{0}>\1</h{0}>'.format(i)
             html = re.sub(pattern, replacement, html, flags=re.MULTILINE)
-        
-        # Check for special patterns that shouldn't be italicized
-        # Mark button-like terms before italic conversion
-        buttons = ['Add Files', 'Add Directory', 'Remove/Clear All', 'Clear All', 'Process', 'Export', 'Reset', 'Paste', 'Clear']
-        for btn in buttons:
-            html = re.sub(r'\b' + re.escape(btn) + r'\b', r'__NOFORMAT__' + btn + r'__NOFORMAT__', html)
-        
+
         # Convert bold (e.g., **text** -> <strong>text</strong>)
         html = re.sub(r'\*\*([^*]+)\*\*', r'<strong>\1</strong>', html)
-        
-        # Convert italic (e.g., *text* -> <em>text</em>) - but not in URLs or special cases
-        # Look for single asterisks that aren't part of double asterisks or URLs
-        def replace_italic(match):
-            content = match.group(1)
-            if '://' in content or content.strip() == '':  # Skip URLs and empty content
-                return '*' + content + '*'
-            return '<em>' + content + '</em>'
-        
-        html = re.sub(r'(?<!\*)\*(?!\*)([^*\n]+?)(?<!\*)\*(?!\*)', replace_italic, html)
-        
-        # Restore special button-like terms
-        html = html.replace('__NOFORMAT__', '')
-        
+
         # Convert code (e.g., `text` -> <code>text</code>)
         html = re.sub(r'`([^`]+)`', r'<code>\1</code>', html)
-        
+
         # Convert horizontal rule (e.g., --- -> <hr>)
         html = re.sub(r'^---+$', r'<hr>', html, flags=re.MULTILINE)
-        
+
         # Convert unordered lists
         # First, detect list items and wrap with <li> tags
         html = re.sub(r'^\s*[-*]\s+(.+?)$', r'<li>\1</li>', html, flags=re.MULTILINE)
-        
+
         # Then, group consecutive <li> items into <ul> lists
         html = re.sub(r'(?:<li>.*?</li>\s*)+', lambda m: f'<ul>{m.group(0)}</ul>', html, flags=re.DOTALL)
-        
+
         # Convert links (e.g., [text](url) -> <a href="url">text</a>)
         html = re.sub(r'\[([^\]]+)\]\(([^)]+)\)', r'<a href="\2">\1</a>', html)
-        
+
         # Convert paragraphs (blocks of text not otherwise formatted)
         # First, split into blocks separated by blank lines
         blocks = re.split(r'\n\s*\n', html)
         for i, block in enumerate(blocks):
-            # Skip blocks that are already wrapped with HTML tags
-            if not block.strip() or re.match(r'^\s*<[a-z]+', block):
+            # Skip blocks that are already wrapped with HTML tags (headings, lists, hr, etc.)
+            stripped_block = block.strip()
+            if not stripped_block or re.match(r'^\s*<(h[1-6]|ul|li|hr|p|code|strong|a|span)', stripped_block.lower()):
                 continue
             # Wrap other blocks with <p> tags
-            blocks[i] = f'<p>{block.strip()}</p>'
+            blocks[i] = f'<p>{stripped_block}</p>'
         html = '\n\n'.join(blocks)
-        
+
         return html
-    
+
     def apply_styling(self, html_content):
         """Apply custom styling to HTML content."""
         # Add CSS styles
@@ -451,13 +461,14 @@ class HelpDialog(QDialog):
                 line-height: 1.6;
                 margin: 0;
                 padding: 0;
-                color: #333;
+                color: #333; /* Default text color */
             }
             h1, h2, h3, h4, h5, h6 {
-                color: #005A9C;
+                color: #005A9C; /* Heading color */
                 margin-top: 1.2em;
                 margin-bottom: 0.6em;
                 line-height: 1.3;
+                font-weight: bold;
             }
             h1 { font-size: 1.8em; }
             h2 { font-size: 1.5em; border-bottom: 1px solid #eaecef; padding-bottom: 0.3em; }
@@ -466,138 +477,77 @@ class HelpDialog(QDialog):
             p { margin: 0.6em 0 0.8em 0; }
             ul, ol {
                 margin: 0.6em 0;
-                padding-left: 1.2em;  /* Reduce indentation */
+                padding-left: 1.5em;  /* Standard list indentation */
             }
             li {
-                margin: 0.2em 0;
+                margin: 0.3em 0;
                 list-style-position: outside;
             }
             hr {
                 height: 0.15em;
                 padding: 0;
-                margin: 1.2em 0;
+                margin: 1.5em 0; /* Increased margin for visual separation */
                 background-color: #e1e4e8;
                 border: 0;
             }
             code {
                 font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, Courier, monospace;
-                background-color: #f5f5f5;
+                background-color: #f5f5f5; /* Light grey background for code */
                 color: #333;
-                padding: 2px 4px;
-                border-radius: 3px;
+                padding: 2px 5px;
+                border-radius: 4px;
+                font-size: 0.95em;
+            }
+            strong {
+                font-weight: bold;
             }
             a {
-                color: #005A9C;
+                color: #005A9C; /* Link color */
                 text-decoration: none;
             }
             a:hover {
                 text-decoration: underline;
             }
-            .button {
+            /* Custom tag styles */
+            .custom-button {
                 display: inline-block;
-                background-color: #e7f3ff;
-                color: #005A9C;
+                background-color: #e7f3ff; /* Light blue background */
+                color: #005A9C; /* Dark blue text */
                 font-weight: bold;
-                padding: 2px 6px;
-                border-radius: 3px;
+                padding: 4px 10px; /* Further Increased padding */
+                border-radius: 12px; /* Further Rounded corners */
                 white-space: nowrap;
                 font-style: normal;
+                font-size: 0.95em;
+                line-height: 1.3; /* Ensure line-height doesn't interfere */
             }
-            .ui-element {
-                color: #005A9C;
-                font-weight: bold;
-                white-space: nowrap;
-                font-style: normal;
-            }
-            .option-badge {
+            .custom-option {
                 display: inline-block;
-                background-color: #e7f3ff;
-                color: #005A9C;
-                font-weight: bold;
-                padding: 2px 6px;
-                border-radius: 3px;
+                background-color: #f0f0f0; /* Light grey background */
+                color: #333; /* Dark text */
+                font-weight: normal;
+                padding: 4px 10px; /* Further Increased padding */
+                border-radius: 12px; /* Further Rounded corners */
                 white-space: nowrap;
                 font-style: normal;
+                font-size: 0.95em;
+                line-height: 1.3; /* Ensure line-height doesn't interfere */
             }
-            .file-format {
-                font-family: monospace;
-                background-color: #f5f5f5;
-                padding: 1px 3px;
-                border-radius: 2px;
-                color: #333;
-                font-style: normal;
-            }
-            .button-label {
+            .custom-format {
+                display: inline-block;
+                background-color: #f0f0f0; /* Light grey background */
+                color: #333; /* Dark text */
+                font-weight: normal;
+                padding: 4px 10px; /* Further Increased padding */
+                border-radius: 12px; /* Further Rounded corners */
                 white-space: nowrap;
-                font-style: normal;
-            }
-            .option-label {
-                white-space: nowrap;
-                font-style: normal;
-            }
-            /* Fix for inconsistent italics */
-            em {
                 font-style: italic;
-            }
-            p, li, span {
-                font-style: normal;
+                font-size: 0.95em;
+                line-height: 1.3; /* Ensure line-height doesn't interfere */
             }
         </style>
         """
-        
-        # Fix line breaks by wrapping "The X button" phrases in a nowrap span
-        buttons = ['Process', 'Export', 'Reset', 'Add Files', 'Add Directory', 'Remove/Clear All', 'Remove', 'Clear All', 'Paste', 'Clear', 'Default']
-        for button in buttons:
-            # Match the entire phrase "The X button" and wrap it to prevent breaks
-            pattern = rf'The\s+("{button}"|{button})\s+(button|buttons|option|options)'
-            replacement = rf'<span class="button-label">The <span class="button">\1</span> \2</span>'
-            html_content = re.sub(pattern, replacement, html_content)
-        
-        # Define all option names we want to style
-        options = [
-            'Include nested phrases', 'Add metadata to output', 'Treat newlines as sentence boundaries',
-            'Min Length', 'Max Length', 'Accept Pronouns', 'General Settings', 'Filtering Options',
-            'Structure Filtering', 'Control Buttons'
-        ]
-        
-        # First style option names when they appear in "The X option" pattern
-        for option in options:
-            pattern = rf'The\s+("{option}"|{option})\s+(option|setting)'
-            replacement = rf'<span class="option-label">The <span class="ui-element">\1</span> \2</span>'
-            html_content = re.sub(pattern, replacement, html_content)
-        
-        # Then style option names wherever they appear as standalone options
-        for option in options:
-            # Match the option name when it appears as standalone text, checking for quotes and word boundaries
-            pattern = rf'\b("{option}"|{option})\b(?!\s+(option|setting|button|buttons))'
-            replacement = rf'<span class="option-badge">\1</span>'
-            html_content = re.sub(pattern, replacement, html_content)
-        
-        # Special handling for specific option-like terms that should be styled
-        special_options = ['Include nested phrases', 'Add metadata to output', 'Treat newlines as sentence boundaries', 
-                          'Min Length', 'Max Length', 'Accept Pronouns']
-        for option in special_options:
-            # Make sure these specific options always get the option badge styling
-            html_content = re.sub(r'\b' + re.escape(option) + r'\b', 
-                               r'<span class="option-badge">' + option + r'</span>', 
-                               html_content)
-        
-        # Style file formats with light grey badges
-        html_content = re.sub(r'\b(\.txt|\.csv|\.json|TXT|CSV|JSON)\b', 
-                              r'<span class="file-format">\1</span>',
-                              html_content)
-        
-        # Clean up any text that might still have "The X button" without styling
-        html_content = re.sub(r'\bThe\s+"([^"]+)"\s+button', r'<span class="button-label">The <span class="button">\1</span> button</span>', html_content)
-        
-        # Prevent breaks in "Add X" actions
-        html_content = re.sub(r'\b(Add\s+[A-Za-z\s]+)\b', r'<span class="ui-element">\1</span>', html_content)
-        
-        # Fix for missing styles on some elements
-        html_content = re.sub(r'\b(option|button|file|format):',
-                              r'<span style="font-style: normal;">\1</span>:',
-                              html_content)
-        
+
         # Wrap in HTML structure
         return f"""
         <!DOCTYPE html>
@@ -626,226 +576,186 @@ class AboutDialog(QDialog):
         self.setup_ui()
         
     def setup_ui(self):
-        layout = QVBoxLayout(self)
-        layout.setSpacing(15)
-        layout.setContentsMargins(20, 20, 20, 20)
-        
-        # Header section with icon on left and title on right
+        main_layout = QVBoxLayout(self)
+        main_layout.setSpacing(15)
+        main_layout.setContentsMargins(20, 20, 20, 20)
+
+        # --- Header Section ---
         header_widget = QWidget()
         header_layout = QHBoxLayout(header_widget)
-        header_layout.setSpacing(15)
-        
-        # Icon container (left side)
-        icon_container = QWidget()
-        icon_layout = QVBoxLayout(icon_container)
-        icon_layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        icon_container.setMinimumHeight(110)  # Ensure enough vertical space for the icon
-        
-        # Load and display the PNG icon directly
-        icon_path = Path(__file__).parent.parent / "resources" / "app_icon.png"
+        header_layout.setSpacing(20) # Increased spacing
+        header_layout.setContentsMargins(0, 0, 0, 10) # Add bottom margin
+
+        # Icon (left)
         icon_label = QLabel()
         icon_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        
-        if icon_path.exists():
-            # Simply load and display the PNG
-            pixmap = QPixmap(str(icon_path))
-            pixmap = pixmap.scaled(100, 100, Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation)
-            icon_label.setPixmap(pixmap)
-        else:
-            # Fallback if icon loading fails
-            icon_label.setText("ANPE")
-            icon_label.setStyleSheet("font-size: 24px; font-weight: bold; color: #005A9C;")
-        
-        icon_layout.addWidget(icon_label)
-        header_layout.addWidget(icon_container)
-        
-        # Title container (right side)
+        pixmap = ResourceManager.get_pixmap("app_icon.png")
+        pixmap = pixmap.scaled(100, 100, Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation)
+        icon_label.setPixmap(pixmap)
+        icon_label.setFixedSize(100, 100) # Fix size for consistent layout
+        header_layout.addWidget(icon_label, 0, Qt.AlignmentFlag.AlignTop) # Align icon to top
+
+        # Title/Subtitle (right)
         title_container = QWidget()
         title_layout = QVBoxLayout(title_container)
-        title_layout.setAlignment(Qt.AlignmentFlag.AlignVCenter)
-        
-        # Title
+        title_layout.setContentsMargins(0, 0, 0, 0)
+        title_layout.setSpacing(5)
+        title_layout.addStretch(1) # Push content down vertically
+
         title_label = QLabel("ANPE")
         title_label.setStyleSheet("font-size: 24px; font-weight: bold; color: #005A9C;")
         title_layout.addWidget(title_label)
-        
-        # Subtitle
+
         subtitle_label = QLabel("Another Noun Phrase Extractor")
         subtitle_label.setStyleSheet("font-size: 16px; color: #666666;")
         title_layout.addWidget(subtitle_label)
-        
-        header_layout.addWidget(title_container, 1)  # Give the title section more stretch
-        layout.addWidget(header_widget)
-        
-        # Add a separator line
-        separator = QFrame()
-        separator.setFrameShape(QFrame.Shape.HLine)
-        separator.setFrameShadow(QFrame.Shadow.Sunken)
-        separator.setStyleSheet("background-color: #ddd; max-height: 1px;")
-        layout.addWidget(separator)
-        
-        # Version information - Now in a table-like layout with better alignment
-        version_widget = QWidget()
-        version_layout = QGridLayout(version_widget)
-        version_layout.setSpacing(8)  # Increased spacing
-        version_layout.setContentsMargins(10, 10, 10, 10)
-        
+        title_layout.addStretch(1) # Push content up vertically
+
+        header_layout.addWidget(title_container, 1)
+        main_layout.addWidget(header_widget)
+
+        # --- Info Grid ---
+        info_widget = QWidget()
+        info_layout = QGridLayout(info_widget)
+        info_layout.setContentsMargins(10, 0, 10, 10) # Reduced top margin
+        info_layout.setSpacing(8)
+        info_layout.setColumnStretch(1, 1) # Allow value column to stretch
+
+        # Labels column width
+        label_width = 110
+
+        # GUI Version
         gui_label = QLabel("GUI Version:")
         gui_label.setStyleSheet("font-weight: bold;")
-        gui_label.setFixedWidth(120)  # Fixed width for alignment
+        gui_label.setFixedWidth(label_width)
         gui_value = QLabel(self.gui_version)
-        
+        info_layout.addWidget(gui_label, 0, 0, Qt.AlignmentFlag.AlignLeft)
+        info_layout.addWidget(gui_value, 0, 1, Qt.AlignmentFlag.AlignLeft)
+
+        # Core Version
         core_label = QLabel("Core Version:")
         core_label.setStyleSheet("font-weight: bold;")
-        core_label.setFixedWidth(120)  # Fixed width for alignment
+        core_label.setFixedWidth(label_width)
         core_value = QLabel(self.core_version)
-        
-        version_layout.addWidget(gui_label, 0, 0, Qt.AlignmentFlag.AlignLeft)
-        version_layout.addWidget(gui_value, 0, 1, Qt.AlignmentFlag.AlignLeft)
-        version_layout.addWidget(core_label, 1, 0, Qt.AlignmentFlag.AlignLeft)
-        version_layout.addWidget(core_value, 1, 1, Qt.AlignmentFlag.AlignLeft)
-        version_layout.setColumnStretch(1, 1)  # Give more stretch to value column
-        
-        layout.addWidget(version_widget)
-        
-        # Another separator
-        separator2 = QFrame()
-        separator2.setFrameShape(QFrame.Shape.HLine)
-        separator2.setFrameShadow(QFrame.Shadow.Sunken)
-        separator2.setStyleSheet("background-color: #ddd; max-height: 1px;")
-        layout.addWidget(separator2)
-        
-        # Description section
-        desc_widget = QWidget()
-        desc_layout = QVBoxLayout(desc_widget)
-        desc_layout.setContentsMargins(0, 0, 0, 0)
-        desc_layout.setSpacing(10)
-        
-        desc_title = QLabel("Description")
-        desc_title.setStyleSheet(
-            f"font-size: 16px; color: #005A9C; font-weight: bold; padding-bottom: 4px;"
-        )
-        desc_layout.addWidget(desc_title)
-        
-        desc_content = QLabel(
-            "ANPE GUI is a user-friendly graphical interface designed to simplify the extraction "
-            "of noun phrases from text. It provides an accessible way to perform NP extraction "
-            "without requiring programming knowledge."
-        )
-        desc_content.setWordWrap(True)
-        desc_layout.addWidget(desc_content)
-        
-        layout.addWidget(desc_widget)
-        
-        # Built with section
-        built_widget = QWidget()
-        built_layout = QVBoxLayout(built_widget)
-        built_layout.setContentsMargins(0, 0, 0, 0)
-        built_layout.setSpacing(10)
-        
-        built_title = QLabel("Built with")
-        built_title.setStyleSheet(
-            f"font-size: 16px; color: #005A9C; font-weight: bold; padding-bottom: 4px;"
-        )
-        built_layout.addWidget(built_title)
-        
-        bullet_list = QLabel(
-            "• <b>Benepar</b> - Berkeley Neural Parser, the core constituency parsing engine<br>"
-            "• <b>spaCy</b> - Industrial-strength Natural Language Processing<br>"
-            "• <b>NLTK</b> - Natural Language Toolkit for text processing"
-        )
-        bullet_list.setWordWrap(True)
-        bullet_list.setTextFormat(Qt.TextFormat.RichText)
-        bullet_list.setContentsMargins(20, 0, 0, 0)
-        built_layout.addWidget(bullet_list)
-        
-        layout.addWidget(built_widget)
-        
-        # Acknowledgments section
-        ack_widget = QWidget()
-        ack_layout = QVBoxLayout(ack_widget)
-        ack_layout.setContentsMargins(0, 0, 0, 0)
-        ack_layout.setSpacing(10)
-        
-        ack_title = QLabel("Acknowledgments")
-        ack_title.setStyleSheet(
-            f"font-size: 16px; color: #005A9C; font-weight: bold; padding-bottom: 4px;"
-        )
-        ack_layout.addWidget(ack_title)
-        
-        ack_content = QLabel(
-            "This project builds upon the excellent work of the Berkeley Neural Parser (Benepar), "
-            "spaCy, and NLTK communities. Special thanks to the developers of these "
-            "open source projects that made ANPE possible.\n\n"
-            "ANPE is distributed as open source software under the MIT License, allowing "
-            "for free use, modification, and distribution."
-        )
-        ack_content.setWordWrap(True)
-        ack_layout.addWidget(ack_content)
-        
-        layout.addWidget(ack_widget)
-        
-        # Author info
-        author_widget = QWidget()
-        author_layout = QGridLayout(author_widget)
-        author_layout.setContentsMargins(0, 10, 0, 0)
-        author_layout.setSpacing(8)
-        
+        info_layout.addWidget(core_label, 1, 0, Qt.AlignmentFlag.AlignLeft)
+        info_layout.addWidget(core_value, 1, 1, Qt.AlignmentFlag.AlignLeft)
+
+        # Author
         author_label = QLabel("Author:")
         author_label.setStyleSheet("font-weight: bold;")
-        author_label.setFixedWidth(120)  # Fixed width for alignment
+        author_label.setFixedWidth(label_width)
         author_value = QLabel("Richard Chen (@rcverse)")
-        
+        info_layout.addWidget(author_label, 2, 0, Qt.AlignmentFlag.AlignLeft)
+        info_layout.addWidget(author_value, 2, 1, Qt.AlignmentFlag.AlignLeft)
+
+        # License
         license_label = QLabel("License:")
         license_label.setStyleSheet("font-weight: bold;")
-        license_label.setFixedWidth(120)  # Fixed width for alignment
-        license_value = QLabel("MIT License")
+        license_label.setFixedWidth(label_width)
+        license_value = QLabel("GNU General Public License v3") # View button moved
+        info_layout.addWidget(license_label, 3, 0, Qt.AlignmentFlag.AlignLeft)
+        info_layout.addWidget(license_value, 3, 1, Qt.AlignmentFlag.AlignLeft)
 
+        # Contact
         email_label = QLabel("Contact:")
         email_label.setStyleSheet("font-weight: bold;")
-        email_label.setFixedWidth(120)  # Fixed width for alignment
+        email_label.setFixedWidth(label_width)
         email_value = QLabel('<a href="mailto:rcverse6@gmail.com">rcverse6@gmail.com</a>')
         email_value.setTextFormat(Qt.TextFormat.RichText)
         email_value.setOpenExternalLinks(True)
-        
-        author_layout.addWidget(author_label, 0, 0, Qt.AlignmentFlag.AlignLeft)
-        author_layout.addWidget(author_value, 0, 1, Qt.AlignmentFlag.AlignLeft)
-        author_layout.addWidget(license_label, 1, 0, Qt.AlignmentFlag.AlignLeft)
-        author_layout.addWidget(license_value, 1, 1, Qt.AlignmentFlag.AlignLeft)
-        author_layout.addWidget(email_label, 2, 0, Qt.AlignmentFlag.AlignLeft)
-        author_layout.addWidget(email_value, 2, 1, Qt.AlignmentFlag.AlignLeft)
-        author_layout.setColumnStretch(1, 1)  # Give more stretch to value column
-        
-        layout.addWidget(author_widget)
-        
-        # Project page link
-        link_widget = QWidget()
-        link_layout = QHBoxLayout(link_widget)
-        link_layout.setContentsMargins(0, 10, 0, 0)
-        
-        project_page_button = QPushButton("Visit Project Page")
-        project_page_button.setStyleSheet(
-            "QPushButton { color: #005A9C; background-color: transparent; border: 1px solid #005A9C; "
-            "border-radius: 3px; padding: 5px 10px; }"
-            "QPushButton:hover { background-color: #e0e0e0; }"
+        info_layout.addWidget(email_label, 4, 0, Qt.AlignmentFlag.AlignLeft)
+        info_layout.addWidget(email_value, 4, 1, Qt.AlignmentFlag.AlignLeft)
+
+        main_layout.addWidget(info_widget)
+
+        # --- Separator ---
+        separator = QFrame()
+        separator.setFrameShape(QFrame.Shape.HLine)
+        separator.setFrameShadow(QFrame.Shadow.Sunken)
+        separator.setStyleSheet("background-color: #e0e0e0;")
+        main_layout.addWidget(separator)
+
+
+        # --- Acknowledgements Section ---
+        ack_widget = QWidget()
+        ack_layout = QVBoxLayout(ack_widget)
+        ack_layout.setContentsMargins(10, 5, 10, 5) # Reduced vertical margins
+        ack_layout.setSpacing(5)
+
+        ack_title = QLabel("Acknowledgements")
+        ack_title.setStyleSheet("font-size: 14px; font-weight: bold; color: #333; margin-bottom: 5px;")
+        ack_layout.addWidget(ack_title)
+
+        ack_text = (
+            "This application uses the following open-source libraries:<br>"
+            "• <b>PyQt6</b> (GPLv3 / Commercial)<br>"
+            "• <b>spaCy</b> (MIT License)<br>"
+            "• <b>Benepar</b> (MIT License)<br>"
+            "• <b>NLTK</b> (Apache License 2.0)<br><br>"
+            "We are grateful for the developers of these packages that make ANPE and ANPE GUI possible. "
+            "You can find more detailed license information in the application's About dialog."
         )
+        ack_label = QLabel(ack_text)
+        ack_label.setWordWrap(True)
+        ack_label.setTextFormat(Qt.TextFormat.RichText) # Use RichText for <br>
+        ack_label.setStyleSheet("font-size: 11px; color: #555;")
+        ack_layout.addWidget(ack_label)
+
+        main_layout.addWidget(ack_widget)
+        main_layout.addStretch(1) # Push buttons to the bottom
+
+        # --- Button Bar ---
+        button_widget = QWidget()
+        button_layout = QHBoxLayout(button_widget)
+        button_layout.setContentsMargins(0, 10, 0, 0) # Add top margin
+        button_layout.setSpacing(10)
+
+        # Project Page Button
+        project_page_button = QPushButton("Visit Project Page")
         project_page_button.clicked.connect(self._visit_project_page)
-        link_layout.addWidget(project_page_button)
-        link_layout.addStretch()
+        button_layout.addWidget(project_page_button)
         
-        layout.addWidget(link_widget)
-        
-        # OK button
-        button_layout = QHBoxLayout()
-        button_layout.addStretch()
-        
+        # View License Button
+        self.license_view_button = QPushButton("View License") # Store as member
+        self.license_view_button.clicked.connect(self._show_license)
+        button_layout.addWidget(self.license_view_button)
+
+
+        button_layout.addStretch(1) # Push OK button to the right
+
+        # OK Button
         ok_button = QPushButton("OK")
-        ok_button.setFixedWidth(80)
+        ok_button.setDefault(True) # Make OK the default button
+        ok_button.setFixedWidth(100) # Slightly wider
         ok_button.clicked.connect(self.accept)
         button_layout.addWidget(ok_button)
+
+        main_layout.addWidget(button_widget)
+
+    def _show_license(self):
+        """Show the license dialog."""
+        # Center the license dialog on the main window or screen
+        try:
+            from anpe_gui.widgets.license_dialog import LicenseDialog
+            license_dialog = LicenseDialog(self)
+            parent_geometry = self.geometry()
+            screen_geometry = QGuiApplication.primaryScreen().availableGeometry()
+            dialog_size = license_dialog.sizeHint() # Get the recommended size
+
+            # Calculate center position relative to parent
+            x = parent_geometry.x() + (parent_geometry.width() - dialog_size.width()) // 2
+            y = parent_geometry.y() + (parent_geometry.height() - dialog_size.height()) // 2
+
+            # Ensure it's within screen bounds
+            x = max(screen_geometry.x(), min(x, screen_geometry.x() + screen_geometry.width() - dialog_size.width()))
+            y = max(screen_geometry.y(), min(y, screen_geometry.y() + screen_geometry.height() - dialog_size.height()))
+
+            license_dialog.move(x, y)
+            license_dialog.exec()
+        except Exception as e:
+            logging.error(f"Failed to show license dialog: {e}")
+            QMessageBox.warning(self, "Error", "Could not display the license information.")
         
-        layout.addLayout(button_layout)
-    
     def _visit_project_page(self):
         """Open project page in browser."""
         QDesktopServices.openUrl(QUrl("https://github.com/rcverse/Another-Noun-Phrase-Extractor")) 

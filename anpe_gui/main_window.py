@@ -15,19 +15,19 @@ import subprocess # Added subprocess
 # Import version from dedicated module
 from anpe_gui.version import __version__ as GUI_VERSION
 
-from PyQt6.QtCore import Qt, QThreadPool, pyqtSignal, QSize, QTimer, QObject, QThread, pyqtSlot, QPropertyAnimation, QEasingCurve, pyqtProperty
+# Corrected imports: QCoreApplication moved to QtCore
+from PyQt6.QtCore import Qt, QThreadPool, pyqtSignal, QSize, QTimer, QObject, QThread, pyqtSlot, QPropertyAnimation, QEasingCurve, pyqtProperty, QUrl, QCoreApplication 
 from PyQt6.QtWidgets import (
     QMainWindow, QStackedWidget, QWidget, QVBoxLayout, QHBoxLayout,
     QPushButton, QLabel, QTextEdit, QFileDialog, QSpinBox,
     QCheckBox, QComboBox, QGroupBox, QFormLayout, QLineEdit,
     QProgressBar, QMessageBox, QSplitter, QFrame, QTabWidget, QGridLayout, QSizePolicy,
-    QButtonGroup, QApplication
+    QButtonGroup, QApplication, QToolButton
 )
 from PyQt6.QtGui import QIcon, QTextCursor, QScreen, QPixmap # Added QScreen and QPixmap
 
 from .theme import PRIMARY_COLOR, SECONDARY_COLOR, SUCCESS_COLOR, ERROR_COLOR, WARNING_COLOR, INFO_COLOR, BORDER_COLOR, get_scroll_bar_style, LIGHT_HOVER_BLUE, TEXT_COLOR # Update the import
 from .widgets.help_dialog import HelpDialog # Import the new dialog
-from anpe_gui.widgets.export_help_dialog import ExportHelpDialog # Import the new help dialog
 
 try:
     from anpe import ANPEExtractor, __version__ as anpe_version
@@ -165,13 +165,11 @@ class MainWindow(QMainWindow):
         self._center_on_screen()
         
         # Set window icon
-        resources_dir = Path(__file__).parent / "resources"
-        icon_path = str(resources_dir / "app_icon.png")  # Changed from SVG to PNG
-        if os.path.exists(icon_path):
-            self.setWindowIcon(QIcon(icon_path))
+        from anpe_gui.resource_manager import ResourceManager
+        self.setWindowIcon(ResourceManager.get_icon("app_icon.png"))
         
         # Apply theme stylesheet
-        self.setStyleSheet(get_stylesheet()) 
+        self.setStyleSheet(get_stylesheet())
         
         # self.thread_pool = QThreadPool() # Removed unused thread pool
         self.extractor_ready = False # Flag to indicate if core extractor is ready
@@ -421,8 +419,7 @@ class MainWindow(QMainWindow):
 
     def setup_header(self):
         """Set up the application header with text title and version."""
-        # Get the resources directory path
-        resources_dir = Path(__file__).parent / "resources"
+        from anpe_gui.resource_manager import ResourceManager
         
         header_container = QWidget()
         header_layout = QHBoxLayout(header_container)
@@ -437,25 +434,21 @@ class MainWindow(QMainWindow):
 
         # Icon Label (Added)
         icon_label = QLabel()
-        icon_path = str(resources_dir / "app_icon.png")
-        if os.path.exists(icon_path):
-            pixmap = QPixmap(icon_path)
-            pixmap = pixmap.scaled(40, 40, Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation) # Scaled icon
-            icon_label.setPixmap(pixmap)
-            icon_label.setFixedSize(40, 40) # Set fixed size for alignment
-            title_layout.addWidget(icon_label)
-        else:
-            logging.warning(f"Header icon not found: {icon_path}")
-
+        pixmap = ResourceManager.get_pixmap("app_icon.png")
+        pixmap = pixmap.scaled(60, 60, Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation) # Scaled icon
+        icon_label.setPixmap(pixmap)
+        icon_label.setFixedSize(60, 60) # Set fixed size for alignment
+        title_layout.addWidget(icon_label)
+        
         # Main Title: ANPE
         title_label = QLabel()
-        title_label.setText(f'<b style="color:{PRIMARY_COLOR}; font-size: 19pt;">ANPE</b>')
+        title_label.setText(f'<b style="color:{PRIMARY_COLOR}; font-size: 22pt;">ANPE</b>')
         title_layout.addWidget(title_label)
         
         # Subtitle (two lines with version and creator)
         subtitle_label = QLabel()
         subtitle_label.setText(f'''
-            <div style="color: #666666; font-size: 9pt; line-height: 0.9; margin-top: 3px;">
+            <div style="color: #666666; font-size: 9pt; line-height: 0.8; margin-top: 3px;">
                 GUI v{GUI_VERSION} | Core v{anpe_version_str}<br>
                 Created by @rcverse
             </div>
@@ -475,59 +468,57 @@ class MainWindow(QMainWindow):
         icon_container = QWidget()
         icon_layout = QHBoxLayout(icon_container)
         icon_layout.setContentsMargins(0, 0, 0, 0)
-        icon_layout.setSpacing(2)  # Minimal spacing between icons
+        icon_layout.setSpacing(15)  # Increased spacing between icons (was 2)
         
         # Help Button (using local SVG)
-        self.help_button = QPushButton()
-        help_icon = QIcon(str(resources_dir / "help.svg"))
-        self.help_button.setIcon(help_icon)
-        self.help_button.setIconSize(QSize(20, 20))
-        self.help_button.setText("")
-        self.help_button.setToolTip("Show application help")
-        self.help_button.setStyleSheet("""
-            QPushButton {
+        help_button = QToolButton()
+        help_button.setIcon(ResourceManager.get_icon("help.svg"))
+        help_button.setToolTip("Show application help")
+        help_button.setIconSize(QSize(20, 20))
+        help_button.setStyleSheet("""
+            QToolButton {
                 background-color: transparent;
                 border: none;
                 padding: 0px;
             }
-            QPushButton:hover {
+            QToolButton:hover {
                 background-color: #e0e0e0;
                 border-radius: 3px;
             }
-            QPushButton:pressed {
+            QToolButton:pressed {
                 background-color: #cccccc;
             }
         """)
-        self.help_button.setCursor(Qt.CursorShape.PointingHandCursor)
-        self.help_button.setFixedSize(30, 30)
-        self.help_button.clicked.connect(self.show_help)
+        help_button.setCursor(Qt.CursorShape.PointingHandCursor)
+        help_button.setFixedSize(30, 30)
+        self.help_button = help_button
         icon_layout.addWidget(self.help_button)
+        self.help_button.clicked.connect(self.show_help)
 
         # Setup/Model Management Button (using local SVG)
-        self.model_manage_button = QPushButton()
-        settings_icon = QIcon(str(resources_dir / "setting.svg"))
-        self.model_manage_button.setIcon(settings_icon)
-        self.model_manage_button.setIconSize(QSize(20, 20))
-        self.model_manage_button.setText("")
-        self.model_manage_button.setToolTip("Open Model Management (Setup/Clean)")
-        self.model_manage_button.setStyleSheet("""
-            QPushButton {
+        settings_button = QToolButton()
+        settings_button.setIcon(ResourceManager.get_icon("setting.svg"))
+        settings_button.setIconSize(QSize(20, 20))
+        settings_button.setStyleSheet("""
+            QToolButton {
                 background-color: transparent;
                 border: none;
                 padding: 0px;
             }
-            QPushButton:hover {
+            QToolButton:hover {
                 background-color: #e0e0e0;
                 border-radius: 3px;
             }
-            QPushButton:pressed {
+            QToolButton:pressed {
                 background-color: #cccccc;
             }
         """)
-        self.model_manage_button.setCursor(Qt.CursorShape.PointingHandCursor)
-        self.model_manage_button.setFixedSize(30, 30)
-        self.model_manage_button.clicked.connect(self.open_model_management)
+        settings_button.setCursor(Qt.CursorShape.PointingHandCursor)
+        settings_button.setFixedSize(30, 30)
+        self.model_manage_button = settings_button
+        self.model_manage_button.setToolTip("Open Model Management (Setup/Clean)")
         icon_layout.addWidget(self.model_manage_button)
+        self.model_manage_button.clicked.connect(self.open_model_management)
         
         # Add the icon container to the header layout
         header_layout.addWidget(icon_container)
@@ -850,7 +841,8 @@ class MainWindow(QMainWindow):
         self.export_format_help_button = QPushButton("?") # Changed text to "?"
         self.export_format_help_button.setToolTip("Click for information about export formats and filename structure") # Tooltip remains helpful
         self.export_format_help_button.setCursor(Qt.CursorShape.PointingHandCursor)
-        self.export_format_help_button.clicked.connect(self.show_export_format_help)
+        # Connect to the new handler function
+        self.export_format_help_button.clicked.connect(self.show_help_at_export_section) 
         
         # Style the button to be round with a "?"
         help_button_size = 26 # Define button size (width and height)
@@ -1612,24 +1604,70 @@ class MainWindow(QMainWindow):
         event.accept()
 
     # --- Help Function --- 
-    def show_help(self):
-        """Creates and shows the custom HelpDialog."""
+    def show_help(self, anchor: Optional[str] = None): # Modified to accept optional anchor
+        """Creates and shows the custom HelpDialog, optionally scrolling to an anchor."""
         help_file_path = Path(__file__).parent / "docs" / "Help.md"
         # Check if file exists before creating dialog
         if not help_file_path.is_file():
             error_msg = f"Help file not found at: {help_file_path}"
             logging.error(error_msg)
-            QMessageBox.warning(self, "Help Not Found", f"Could not find the help file.\nExpected location: {help_file_path}")
+            QMessageBox.warning(self, "Help Not Found", f"Could not find the help file.\\nExpected location: {help_file_path}")
             return
             
         try:
             # Create and execute the custom dialog, passing both versions
             dialog = HelpDialog(help_file_path, GUI_VERSION, self.anpe_version, self)
+            
+            # If an anchor is provided, try to navigate after the dialog is shown
+            if anchor:
+                 # Use a single shot timer to allow the dialog to fully render first
+                 QTimer.singleShot(100, lambda: self.navigate_help_to_anchor(dialog, anchor)) 
+                 
             dialog.exec()
         except Exception as e:
             # Catch potential errors during dialog creation/execution
             logging.error(f"Error showing help dialog: {e}", exc_info=True)
             QMessageBox.critical(self, "Help Error", f"An unexpected error occurred while trying to show help: {e}")
+            
+    def navigate_help_to_anchor(self, help_dialog, anchor_id: str):
+        """Tries to scroll the help dialog's text browser to a specific anchor."""
+        if not help_dialog: return
+        
+        # Attempt 1: Scroll using the tree navigation if possible (matches heading text)
+        # Assuming anchor_id corresponds to a heading text like "Exporting Results"
+        items = help_dialog.nav_tree.findItems(anchor_id, Qt.MatchFlag.MatchExactly | Qt.MatchFlag.MatchRecursive)
+        if items:
+            item = items[0]
+            help_dialog.nav_tree.setCurrentItem(item) # Select the item
+            # Trigger the navigation click handler programmatically
+            help_dialog.on_nav_item_clicked(item, 0) 
+            logging.debug(f"Navigated help dialog to section: {anchor_id} using tree.")
+            return
+
+        # Attempt 2: Fallback to scrolling the QTextBrowser directly
+        # Convert anchor_id to a suitable HTML anchor if needed (e.g., lowercase, replace spaces)
+        # This assumes the HTML generation creates predictable anchors
+        html_anchor = anchor_id.lower().replace(' ', '-') 
+        logging.debug(f"Attempting to scroll help dialog QTextBrowser directly to anchor: #{html_anchor}")
+        if hasattr(help_dialog, 'text_browser'):
+            # Use scrollToAnchor method
+            help_dialog.text_browser.scrollToAnchor(html_anchor)
+            # For redundancy, try moving cursor too if positions are stored (optional)
+            if hasattr(help_dialog, 'heading_positions') and anchor_id in help_dialog.heading_positions:
+                position = help_dialog.heading_positions[anchor_id]
+                cursor = help_dialog.text_browser.textCursor()
+                cursor.setPosition(position)
+                help_dialog.text_browser.setTextCursor(cursor)
+            QCoreApplication.processEvents() # Force update
+            logging.debug(f"Scrolled help dialog QTextBrowser to anchor: #{html_anchor}")
+        else:
+            logging.warning("Could not find text_browser in HelpDialog to scroll.")
+
+    @pyqtSlot()
+    def show_help_at_export_section(self):
+        """Shows the main help dialog scrolled to the 'Exporting Results' section."""
+        # The anchor should match the heading text in Help.md
+        self.show_help(anchor="Exporting Results") 
 
     def _confirm_and_clear_results(self) -> bool:
         """Checks for existing results, prompts user to confirm clearing them,
@@ -1705,11 +1743,6 @@ class MainWindow(QMainWindow):
                     logging.warning("Could not find Input tab to switch to.")
             except Exception as e:
                 logging.error(f"Error switching to Input tab: {e}")
-
-    def show_export_format_help(self):
-        """Shows the dialog explaining export formats."""
-        dialog = ExportHelpDialog(self)
-        dialog.exec()
 
     def open_directory(self, path):
         """Opens the specified directory in the default file explorer."""

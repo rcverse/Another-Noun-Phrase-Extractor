@@ -1,99 +1,191 @@
-# ANPE GUI
+# ANPE GUI - Developer Guide
 
-A graphical user interface for [ANPE (Another Noun Phrase Extractor)](https://github.com/rcverse/anpe).
+A PyQt6-based graphical user interface for [ANPE (Another Noun Phrase Extractor)](https://github.com/rcverse/anpe), implemented using a modular architecture with separate workers for background processing.
 
-<!-- Optional: Insert Screenshot Here -->
-<!-- ![ANPE GUI Screenshot](resources/screenshot.png) -->
+## Architecture Overview
 
-## Features
+ANPE GUI follows a modular structure with careful separation of concerns:
 
-- **Modern User Interface**: Clean, intuitive interface with distinct Input and Output tabs.
-- **Input Modes**: Process text via Direct Text Input (with Paste/Clear) or File Input.
-- **File Handling**: Add single files or entire directories; view and manage the list.
-- **Batch Processing**: Automatically handles multiple files from selected directories.
-- **Visual Configuration**: Easily configure all ANPE settings:
-    - General: Include Nested Phrases, Include Metadata, Treat Newlines as Boundaries.
-    - Filtering: Min/Max NP length, Accept Pronouns.
-    - Structure Filtering: Master toggle switch and individual selection for specific NP structures (Determiner, Compound, Relative Clause, etc.).
-    - Tooltips: Hover over options for detailed explanations.
-- **Real-time Log Viewer**: Track operations and potential issues with log level filtering.
-- **Results Visualization**: View formatted extraction results in the Output tab.
-- **Batch Result Navigation**: Use a dropdown to view results for specific files when processing batches.
-- **Export Options**: Export results to TXT, CSV, or JSON formats to a selected directory.
-- **Status Bar**: Provides feedback on application readiness, processing progress, and completion status.
-- **Workflow Control**: Process button initiates extraction, Reset button clears inputs/outputs for a new task.
-- **High-DPI Support**: Optimized for high-resolution displays with sharp, crisp UI elements.
+- **UI Layer**: PyQt6-based widgets and windows
+- **Processing Layer**: Background workers that run ANPE operations without blocking the UI
+- **Data Models**: Classes for managing and transforming extraction results
+- **Configuration**: Settings management and persistence
 
-## Installation & Usage
+## Code Organization
 
-The ANPE GUI application can be used in two main ways:
-
-### 1. Run from source (Recommended for Development)
-
-Requires Python 3.9+ and the necessary dependencies. Navigate to the `anpe_gui` directory and run:
-
-```bash
-# Install dependencies
-pip install -r requirements.txt
-
-# Run the application
-python run.py
+```
+anpe_gui/
+├── __init__.py             # Package initialization
+├── __main__.py             # Entry point for module execution
+├── app.py                  # Application initialization and QApplication setup
+├── main_window.py          # Main application window implementation
+├── run.py                  # Convenience script for launching the application
+├── setup_wizard.py         # First-run setup and model downloader
+├── theme.py                # UI styling, colors, and theme constants
+├── version.py              # Version information
+├── splash_screen.py        # Application splash screen
+├── docs/                   # Documentation files
+│   ├── Help.md             # User help documentation
+├── resources/              # UI assets (icons, images, stylesheets)
+├── widgets/                # Reusable UI components
+│   ├── input_widgets.py    # Text and file input widgets
+│   ├── result_display.py   # Tree-based result visualization
+│   ├── config_panel.py     # Configuration UI components
+│   └── ...                 # Other widget modules
+└── workers/                # Background processing classes
+    ├── extractor.py        # ANPE processing worker
+    ├── exporter.py         # Results export worker
+    └── ...                 # Other worker modules
 ```
 
-### 2. Use Standalone Executable (Recommended for End Users)
+## Key Components
 
-Download the standalone executable for your platform (e.g., `ANPE.exe` for Windows, `ANPE` for macOS) from the project's GitHub Releases page (if available).
+### Main Window (`main_window.py`)
 
-No installation is required - just download and run!
+The central controller that orchestrates all UI components and manages application flow. Implements the tab-based interface and coordinates between input, configuration, and output components.
 
-## Building Standalone Executable from Source
+### Widgets (`widgets/`)
 
-To create a standalone executable for distribution:
+Reusable UI components that encapsulate specific functionalities:
 
-1. **Install Dependencies:**
+- **input_widgets.py**: Implements text input and file selection interfaces
+- **config_panel.py**: UI for configuring ANPE extraction parameters
+- **result_display.py**: Tree-based visualization of extraction results with filtering and sorting
+
+### Workers (`workers/`)
+
+Background processing components that run in separate threads to keep the UI responsive:
+
+- **extractor.py**: Runs ANPE extraction operations without blocking the UI
+- **exporter.py**: Handles saving results to different output formats
+
+### Theme (`theme.py`)
+
+Central styling definitions including colors, spacing, and stylesheet generators for consistent UI appearance.
+
+## Development Workflow
+
+### Setting Up Development Environment
+
+1. **Clone the Repository:**
    ```bash
-   pip install -r requirements.txt
+   git clone https://github.com/rcverse/anpe.git
+   cd anpe
    ```
 
-2. **Navigate to Project Directory:**
+2. **Install Dependencies:**
+   ```bash
+   pip install -e .  # Install ANPE in development mode
+   cd anpe_gui
+   pip install -r requirements.txt  # Install GUI dependencies
+   ```
+
+3. **Run in Development Mode:**
+   ```bash
+   python run.py
+   ```
+
+### Adding New Features
+
+#### Extending the UI
+
+1. Create or modify widget classes in the `widgets/` directory
+2. Update the main window to integrate the new widget
+3. Connect signals and slots for interaction
+
+Example:
+```python
+# In a widget file (widgets/my_feature.py)
+class MyFeatureWidget(QWidget):
+    dataReady = pyqtSignal(object)  # Define custom signals
+    
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self._setup_ui()
+    
+    def _setup_ui(self):
+        # Create and arrange UI components
+        layout = QVBoxLayout(self)
+        # ... add widgets to layout
+```
+
+## Building and Packaging
+
+### Using PyInstaller
+
+The application is packaged using PyInstaller with custom hooks to ensure all dependencies are properly included.
+
+1. **Prepare for packaging:**
    ```bash
    cd anpe_gui
    ```
 
-3. **Run Build Script:**
+2. **Run the build script:**
    ```bash
-   python build.py
+   python setup_cx.py
    ```
 
-The build script (`build.py`) will:
-- Create a single executable file
-- Include all necessary resources and documentation
-- Optimize the build for performance
-- Handle platform-specific configurations
+### Platform-Specific Considerations
 
-The executable will be created in the `dist` directory.
+- **Windows**: Ensure that the `pywin32` package is installed
+- **macOS**: Set up code signing if you plan to distribute the application
+- **Linux**: Consider packaging as AppImage or distribution-specific package
 
-### Build Options
+### Customizing the Build
 
-The build script includes several optimizations:
-- Bytecode optimization (`--optimize=2`)
-- Exclusion of unnecessary modules (tkinter, matplotlib, etc.)
-- Automatic inclusion of required dependencies
-- Resource file bundling
-- Icon support (if available)
+Edit `setup_cx.py` to modify:
+- Application metadata
+- Included/excluded modules
+- Icon and resource handling
+- Platform-specific optimizations
 
-### Platform-Specific Notes
+## Testing
 
-- **Windows**: The executable will be named `ANPE.exe`
-- **macOS**: The executable will be named `ANPE`
-- You must build the executable on each target platform separately
+The codebase doesn't currently include automated tests, but the recommended approach for implementing them would be:
 
-## Dependencies
+1. Unit tests for individual components using `pytest-qt`
+2. Integration tests for worker interactions
+3. UI automation tests for end-to-end scenarios
 
-Key dependencies include:
-- PyQt6 ≥ 6.4.0: Main GUI framework
-- anpe ≥ 0.1.0: Core extraction engine
-- pyinstaller ≥ 5.6.0: For creating standalone executables
+## Contributing
+
+1. **Coding Style**: Follow PEP 8 with consistent indentation (4 spaces)
+2. **Documentation**: Document classes and complex functions with docstrings
+3. **UI Design**: Maintain consistency with existing UI elements and theme
+4. **Submit PRs**: Create pull requests with clear descriptions of changes
+
+## Key Technical Implementations
+
+### Resource Management
+
+The application uses Qt's resource system to handle icons, images, and stylesheet resources:
+
+- **ResourceManager**: A centralized class that provides access to resources both in development and packaged environments
+- **Qt Resource Collection (QRC)**: Resources are defined in `resources.qrc` and compiled to binary `.rcc` files
+- **Consistent Access**: All UI components access resources through the ResourceManager class rather than direct file paths
+- **Fallback Mechanism**: If Qt resources aren't available, falls back to file-based resources
+
+To compile resources:
+- Windows: Run `compile_resources.bat`
+- Unix/Mac: Run `compile_resources.sh`
+
+### QTreeView-based Result Display
+
+The result display (`widgets/result_display.py`) uses a custom tree model to visualize hierarchical noun phrase structures with filtering and sorting capabilities. It includes:
+
+- Custom `AnpeResultModel` extending `QAbstractItemModel`
+- Custom proxy model for numeric sorting
+- Detachable window for enhanced viewing
+- Tree traversal algorithms for data manipulation
+
+### Background Processing
+
+The application uses `QThread`-based workers to perform processing without blocking the UI:
+
+- Signal-based communication between threads
+- Progress reporting to keep the UI updated
+- Error handling with user-friendly messages
+- Resource management to prevent memory leaks
 
 ## License
 

@@ -11,6 +11,7 @@ from PyQt6.QtGui import QFont # Original import
 from anpe_gui.main_window import MainWindow
 from anpe_gui.splash_screen import SplashScreen
 from anpe_gui.theme import apply_theme
+from anpe_gui.resource_manager import ResourceManager
 from anpe.utils.setup_models import check_all_models_present # Assuming this function exists
 from anpe_gui.setup_wizard import SetupWizard # Assuming this class will be created
 
@@ -27,6 +28,9 @@ def main():
     app = QApplication(sys.argv)
     app.setApplicationName("ANPE GUI")
     app.setOrganizationName("ANPE")
+    
+    # Initialize resource manager
+    ResourceManager.initialize()
     
     # Adjust default font slightly based on screen DPI
     screen = app.primaryScreen()

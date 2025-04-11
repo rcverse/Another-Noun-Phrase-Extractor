@@ -4,6 +4,9 @@ Uses a cohesive blue theme.
 """
 from PyQt6.QtGui import QPalette, QColor
 
+# Import ResourceManager for consistent resource access
+from anpe_gui.resource_manager import ResourceManager
+
 # --- Color Palette (Simplified Grey/White Style) --- 
 PRIMARY_COLOR = "#005A9C"     # Dark blue for key elements
 SECONDARY_COLOR = "#003F7A"   # Darker blue accent
@@ -109,6 +112,11 @@ def get_stylesheet():
         handle_min_size=30, 
         border_radius=6
     )
+    
+    # Get resource URLs from ResourceManager
+    chevron_up_url = ResourceManager.get_style_url("chevron-up.svg")
+    chevron_down_url = ResourceManager.get_style_url("chevron-down.svg")
+    down_arrow_url = ResourceManager.get_style_url("down_arrow.svg")
     
     return f"""
     /* General Styling */
@@ -227,7 +235,7 @@ def get_stylesheet():
         background-color: #D0D0D0;
     }}
     QSpinBox::up-arrow {{
-        image: url(anpe_gui/resources/chevron-up.svg); /* Use chevron-up SVG */
+        image: url({chevron_up_url}); /* Use chevron-up SVG */
         width: 8px;
         height: 8px;
     }}
@@ -243,7 +251,7 @@ def get_stylesheet():
         background-color: #D0D0D0;
     }}
     QSpinBox::down-arrow {{
-        image: url(anpe_gui/resources/chevron-down.svg); /* Use chevron-down SVG */
+        image: url({chevron_down_url}); /* Use chevron-down SVG */
         width: 8px;
         height: 8px;
     }}
@@ -319,7 +327,7 @@ def get_stylesheet():
         padding-right: 5px; /* Push arrow slightly left */
     }}
     QComboBox::down-arrow {{
-        image: url(anpe_gui/resources/down_arrow.svg);
+        image: url({down_arrow_url});
         /* Adjust size */
         width: 8px;
         height: 8px;

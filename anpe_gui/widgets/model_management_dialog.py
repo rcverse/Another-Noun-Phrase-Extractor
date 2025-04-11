@@ -10,7 +10,7 @@ from PyQt6.QtCore import Qt, QThread, QObject, pyqtSignal, pyqtSlot, QSize
 from PyQt6.QtWidgets import (
     QDialog, QVBoxLayout, QHBoxLayout, QLabel, QPushButton, QGroupBox,
     QGridLayout, QProgressBar, QMessageBox, QWidget, QSpacerItem, QSizePolicy,
-    QApplication # Added QApplication import
+    QApplication, QFrame # Added QFrame import
 )
 from PyQt6.QtGui import QIcon, QPixmap
 
@@ -86,7 +86,35 @@ class ModelManagementDialog(QDialog):
         layout = QVBoxLayout(self)
         layout.setSpacing(15)
 
-        # --- Status Section ---\n        status_group = QGroupBox("Model Status")
+        # --- Header Section ---
+        header_widget = QWidget()
+        header_layout = QVBoxLayout(header_widget)
+        header_layout.setContentsMargins(0, 0, 0, 10)
+
+        # Title
+        title_label = QLabel("Model Management")
+        title_label.setStyleSheet("font-size: 18px; font-weight: bold; color: #005A9C;")
+        header_layout.addWidget(title_label)
+
+        # Description
+        desc_label = QLabel(
+            "Check, install, and manage the required models for ANPE. "
+            "These models are essential for the noun phrase extraction functionality."
+        )
+        desc_label.setWordWrap(True)
+        desc_label.setStyleSheet("color: #555555;")
+        header_layout.addWidget(desc_label)
+
+        # Add a separator line
+        separator = QFrame()
+        separator.setFrameShape(QFrame.Shape.HLine)
+        separator.setFrameShadow(QFrame.Shadow.Sunken)
+        separator.setStyleSheet("background-color: #dddddd; max-height: 1px;")
+        header_layout.addWidget(separator)
+
+        layout.addWidget(header_widget)
+
+        # --- Status Section ---
         status_group = QGroupBox("Model Status")
         status_layout = QGridLayout(status_group)
         status_layout.setColumnStretch(1, 1) # Allow status label to expand

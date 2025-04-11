@@ -2,7 +2,7 @@
 
 All notable changes to the ANPE project will be documented in this file.
 
-## [0.2.0] - 2023-04-05
+## [0.2.0] - 2025-04-05
 
 ### Changed
 - Enhanced output path handling with intelligent detection of files vs directories
@@ -14,7 +14,7 @@ All notable changes to the ANPE project will be documented in this file.
 - Comprehensive tests for the new file handling logic
 - Better documentation explaining path handling rules
 
-## [0.1.0] - 2023-04-02
+## [0.1.0] - 2025-04-02
 
 ### Added
 - Initial release of ANPE (Another Noun Phrase Extractor)

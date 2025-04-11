@@ -1,0 +1,16 @@
+<!DOCTYPE RCC>
+<RCC version="1.0">
+  <qresource prefix="/icons">
+    <file alias="app_icon.png">resources/app_icon.png</file>
+    <file alias="app_icon_logo.png">resources/app_icon_logo.png</file>
+    <file alias="app_icon_transparent.svg">resources/app_icon_transparent.svg</file>
+    <file alias="app_icon_logo.svg">resources/app_icon_logo.svg</file>
+    <file alias="expand_open.svg">resources/expand_open.svg</file>
+    <file alias="expand_close.svg">resources/expand_close.svg</file>
+    <file alias="chevron-up.svg">resources/chevron-up.svg</file>
+    <file alias="chevron-down.svg">resources/chevron-down.svg</file>
+    <file alias="down_arrow.svg">resources/down_arrow.svg</file>
+    <file alias="help.svg">resources/help.svg</file>
+    <file alias="setting.svg">resources/setting.svg</file>
+  </qresource>
+</RCC> 

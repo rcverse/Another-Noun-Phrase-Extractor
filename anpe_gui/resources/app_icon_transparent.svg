@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<svg width="512" height="512" viewBox="0 0 512 512" xmlns="http://www.w3.org/2000/svg">
+  <!-- Definitions for gradients -->
+  <defs>
+    <linearGradient id="text_gradient" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#0073c2" />
+      <stop offset="100%" stop-color="#005A9C" />
+    </linearGradient>
+    <filter id="shadow" x="-5%" y="-5%" width="110%" height="110%">
+      <feDropShadow dx="0" dy="1" stdDeviation="1" flood-opacity="0.15" />
+    </filter>
+  </defs>
+  
+  <!-- Text Group - AN over PE - Symmetrically centered and scaled up -->
+  <g fill="url(#text_gradient)" filter="url(#shadow)" font-family="'Segoe UI Black', 'Arial Black', sans-serif" font-size="230" font-weight="900" text-anchor="middle" dominant-baseline="central" 
+     transform="translate(256, 256) scale(1.15) translate(-256, -256)">
+    <!-- Top Row (Centered around x=256, y adjusted for scale) -->
+    <text x="180" y="180">A</text> <!-- Coordinates are relative to pre-transform state -->
+    <text x="332" y="180">N</text> 
+    
+    <!-- Bottom Row (Centered around x=256, y adjusted for scale) -->
+    <text x="180" y="330">P</text> 
+    <text x="332" y="330">E</text> 
+  </g>
+</svg> 

@@ -94,50 +94,39 @@ class SplashScreen(QSplashScreen):
         text_section_width = width - logo_section_width
         
         # Left side: Logo only
-        icon_path = os.path.join(os.path.dirname(__file__), "resources", "app_icon.png")
+        from anpe_gui.resource_manager import ResourceManager
         
-        if os.path.exists(icon_path):
-            # Load the PNG with higher resolution for better quality
-            logo = QPixmap(icon_path)
+        # Load the PNG with higher resolution for better quality
+        logo = ResourceManager.get_pixmap("app_icon.png")
+        
+        # Get device pixel ratio for high DPI displays
+        device_pixel_ratio = QApplication.primaryScreen().devicePixelRatio()
+        
+        # Scale logo to appropriate size while maintaining aspect ratio
+        # Multiply by device pixel ratio to ensure crisp display on high DPI screens
+        logo_size = 160
+        target_size = int(logo_size * device_pixel_ratio)
+        
+        # Only scale down, not up to avoid pixelation
+        if logo.width() > target_size or logo.height() > target_size:
+            logo = logo.scaled(target_size, target_size, 
+                            Qt.AspectRatioMode.KeepAspectRatio, 
+                            Qt.TransformationMode.SmoothTransformation)
+        
+        # Set the device pixel ratio to ensure proper rendering
+        # This is a crucial step for high DPI displays
+        if device_pixel_ratio > 1.0:
+            logo.setDevicePixelRatio(device_pixel_ratio)
             
-            # Get device pixel ratio for high DPI displays
-            device_pixel_ratio = QApplication.primaryScreen().devicePixelRatio()
-            
-            # Scale logo to appropriate size while maintaining aspect ratio
-            # Multiply by device pixel ratio to ensure crisp display on high DPI screens
-            logo_size = 160
-            target_size = int(logo_size * device_pixel_ratio)
-            
-            # Only scale down, not up to avoid pixelation
-            if logo.width() > target_size or logo.height() > target_size:
-                logo = logo.scaled(target_size, target_size, 
-                                Qt.AspectRatioMode.KeepAspectRatio, 
-                                Qt.TransformationMode.SmoothTransformation)
-            
-            # Set the device pixel ratio to ensure proper rendering
-            # This is a crucial step for high DPI displays
-            if device_pixel_ratio > 1.0:
-                logo.setDevicePixelRatio(device_pixel_ratio)
-                
-            # Calculate display size (adjusted for device pixel ratio)
-            display_size = logo_size
-            
-            # Center the logo in the left section
-            logo_x = (logo_section_width - display_size) // 2
-            logo_y = (height - display_size) // 2
-            
-            # Draw the pixmap at the calculated position
-            painter.drawPixmap(logo_x, logo_y, display_size, display_size, logo)
-        else:
-            # If logo not found, draw a placeholder
-            painter.setPen(Qt.PenStyle.NoPen)
-            # Use PRIMARY_COLOR from theme
-            primary_color = QColor(PRIMARY_COLOR)
-            painter.setBrush(primary_color)
-            logo_size = 160
-            logo_x = (logo_section_width - logo_size) // 2
-            logo_y = (height - logo_size) // 2
-            painter.drawRoundedRect(logo_x, logo_y, logo_size, logo_size, 10, 10)
+        # Calculate display size (adjusted for device pixel ratio)
+        display_size = logo_size
+        
+        # Center the logo in the left section
+        logo_x = (logo_section_width - display_size) // 2
+        logo_y = (height - display_size) // 2
+        
+        # Draw the pixmap at the calculated position
+        painter.drawPixmap(logo_x, logo_y, display_size, display_size, logo)
         
         # Add a subtle separator line between logo and text
         separator_x = logo_section_width
@@ -182,18 +171,18 @@ class SplashScreen(QSplashScreen):
                 subtitle_font.setFamily(subtitle_font.defaultFamily())
                 
         painter.setFont(subtitle_font)
-        painter.setPen(QColor("#555555"))  # Darker gray for better contrast and readability
+        painter.setPen(QColor("#666666"))  # Darker gray for better contrast and readability
         
         # Subtitle in its own region below the title
-        subtitle_rect = QRect(text_start_x, 120, text_section_width - 40, 30)
+        subtitle_rect = QRect(text_start_x, 105, text_section_width - 40, 30)
         painter.drawText(subtitle_rect, Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignTop, 
                         "Another Noun Phrase Extractor")
         
         # Add version info with improved rendering
         version_font = QFont()
         version_font.setFamily("Segoe UI")
-        version_font.setPointSize(11)  # Slightly larger for better readability
-        version_font.setWeight(QFont.Weight.Medium)  # Medium weight instead of regular
+        version_font.setPointSize(9)  # Smaller font size
+        version_font.setWeight(QFont.Weight.Normal)  # Lighter weight
         
         if not QFont(version_font).exactMatch():
             version_font.setFamily("Arial")
@@ -201,7 +190,7 @@ class SplashScreen(QSplashScreen):
                 version_font.setFamily(version_font.defaultFamily())
                 
         painter.setFont(version_font)
-        painter.setPen(QColor("#444444"))  # Darker for better contrast
+        painter.setPen(QColor("#777777"))  # Lighter color
         
         version_rect = QRect(text_start_x, 155, text_section_width - 40, 20)
         version_text = f"GUI v{gui_version} | Core v{core_version}"
@@ -210,7 +199,7 @@ class SplashScreen(QSplashScreen):
         # Add author credit with improved rendering
         credit_font = QFont()
         credit_font.setFamily("Segoe UI")
-        credit_font.setPointSize(10)
+        credit_font.setPointSize(8)  # Smaller font size
         credit_font.setWeight(QFont.Weight.Normal)
         
         if not QFont(credit_font).exactMatch():
@@ -219,7 +208,7 @@ class SplashScreen(QSplashScreen):
                 credit_font.setFamily(credit_font.defaultFamily())
                 
         painter.setFont(credit_font)
-        painter.setPen(QColor("#666666"))
+        painter.setPen(QColor("#888888"))  # Lighter color
         
         credit_rect = QRect(text_start_x, 175, text_section_width - 40, 20)
         painter.drawText(credit_rect, Qt.AlignmentFlag.AlignLeft, "@rcverse")

@@ -13,21 +13,68 @@ from PyQt6.QtWidgets import (
     QLineEdit,
     QPushButton,
     QHBoxLayout,
-    QSizePolicy
+    QSizePolicy,
+    QMainWindow,
+    QDialog,
+    QToolButton
 )
-from PyQt6.QtGui import QColor, QFont, QStandardItemModel, QStandardItem
-from PyQt6.QtCore import Qt, QAbstractItemModel, QModelIndex, QVariant, QSortFilterProxyModel, QRegularExpression
+from PyQt6.QtGui import QColor, QFont, QStandardItemModel, QStandardItem, QIcon, QKeySequence, QShortcut
+from PyQt6.QtCore import Qt, QAbstractItemModel, QModelIndex, QVariant, QSortFilterProxyModel, QRegularExpression, QSize
+from anpe_gui.resource_manager import ResourceManager
 
 # Attempt relative import first, then absolute
 try:
-    from ..theme import get_scroll_bar_style
+    from ..theme import get_scroll_bar_style, LIGHT_HOVER_BLUE, PRIMARY_COLOR
 except ImportError:
     try:
-        from anpe_gui.theme import get_scroll_bar_style
+        from anpe_gui.theme import get_scroll_bar_style, LIGHT_HOVER_BLUE, PRIMARY_COLOR
     except ImportError:
-        logging.warning("Could not import get_scroll_bar_style. Scrollbar styling may be missing.")
-        def get_scroll_bar_style(): # Dummy function
-            return ""
+        logging.warning("Could not import theme constants. Styling may be affected.")
+        # Provide fallback values if necessary
+        def get_scroll_bar_style(): return ""
+        LIGHT_HOVER_BLUE = "#EFF5FB" # Example fallback
+        PRIMARY_COLOR = "#005A9C"   # Example fallback
+
+# --- Custom Sort Filter Proxy Model ---
+class AnpeResultProxyModel(QSortFilterProxyModel):
+    """Custom proxy model that provides proper numeric sorting for the Length column."""
+    
+    def lessThan(self, left: QModelIndex, right: QModelIndex) -> bool:
+        """Override to properly sort the Length column numerically instead of lexicographically."""
+        source_model = self.sourceModel()
+        column = left.column()
+        
+        # For Length column, compare numeric values
+        if column == AnpeResultModel.COL_LEN:
+            # Get the actual items from the source model
+            left_item = source_model.data(left, Qt.ItemDataRole.UserRole)
+            right_item = source_model.data(right, Qt.ItemDataRole.UserRole)
+            
+            # In PyQt6, get values properly from QVariant
+            if left_item is not None and right_item is not None:
+                left_value = 0
+                right_value = 0
+                
+                # QVariant to int conversion for PyQt6
+                if isinstance(left_item, QVariant) and left_item.isValid():
+                    left_value = left_item.value() or 0
+                elif isinstance(left_item, (int, float)):
+                    left_value = left_item
+                elif isinstance(left_item, str) and left_item.isdigit():
+                    left_value = int(left_item)
+                    
+                if isinstance(right_item, QVariant) and right_item.isValid():
+                    right_value = right_item.value() or 0
+                elif isinstance(right_item, (int, float)):
+                    right_value = right_item
+                elif isinstance(right_item, str) and right_item.isdigit():
+                    right_value = int(right_item)
+                
+                logging.debug(f"Comparing length values: {left_value} vs {right_value}")
+                return left_value < right_value
+                
+        # For other columns, use default string comparison
+        return super().lessThan(left, right)
 
 # --- Placeholder/Structure for Tree Item --- 
 class NpTreeItem:
@@ -106,7 +153,8 @@ class AnpeResultModel(QAbstractItemModel):
             if metadata:
                 if "length" in metadata:
                     length_str = str(metadata['length'])
-                    length_val = metadata['length']
+                    length_val = int(metadata['length']) if isinstance(metadata['length'], (int, float, str)) else 0
+                    logging.debug(f"Length value loaded: {length_val}, type: {type(length_val)}")
                 if "structures" in metadata:
                     structs = metadata.get('structures', [])
                     # Just the comma-separated list for the column
@@ -186,7 +234,14 @@ class AnpeResultModel(QAbstractItemModel):
                 np_data = item.data(column)
                 if np_data:
                     return QVariant(np_data)
-
+        
+        # --- User Role (for Sorting) ---
+        elif role == Qt.ItemDataRole.UserRole:
+            # Provide numeric length value for sorting
+            if column == self.COL_LEN:
+                # Return raw integer value, not wrapped in QVariant
+                return item.length_value
+        
         # TODO: Add roles for background color (for structure labels - requires delegate)
 
         return QVariant()
@@ -236,6 +291,133 @@ class AnpeResultModel(QAbstractItemModel):
             return Qt.ItemFlag.NoItemFlags
         return Qt.ItemFlag.ItemIsEnabled | Qt.ItemFlag.ItemIsSelectable
 
+# --- Detached Result Window ---
+class DetachedResultWindow(QMainWindow):
+    """A standalone window for displaying extraction results."""
+    
+    def __init__(self, parent=None):
+        super().__init__(parent, Qt.WindowType.Window)
+        self.setWindowTitle("ANPE Results Viewer")
+        self.resize(800, 600)  # Set default size
+        
+        # Create central widget and layout
+        central_widget = QWidget()
+        self.setCentralWidget(central_widget)
+        layout = QVBoxLayout(central_widget)
+        layout.setContentsMargins(5, 5, 5, 5)
+        
+        # Create filter input
+        self.filter_input = QLineEdit()
+        self.filter_input.setPlaceholderText("Search results...")
+        layout.addWidget(self.filter_input)
+        
+        # Create buttons layout
+        buttons_layout = QHBoxLayout()
+        
+        # Sorting buttons
+        self.sort_order_button = QPushButton("Sort by Order")
+        self.sort_length_button = QPushButton("Sort by Length ↑")  # Default arrow
+        self.sort_structure_button = QPushButton("Sort by Structure")
+        
+        buttons_layout.addWidget(self.sort_order_button)
+        buttons_layout.addWidget(self.sort_length_button)
+        buttons_layout.addWidget(self.sort_structure_button)
+        buttons_layout.addStretch()
+        
+        layout.addLayout(buttons_layout)
+        
+        # Create tree view
+        self.tree_view = QTreeView()
+        self.tree_view.setAlternatingRowColors(True)
+        self.tree_view.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
+        self.tree_view.setSortingEnabled(True)
+        self.tree_view.setIndentation(12)
+        self.tree_view.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
+        layout.addWidget(self.tree_view)
+        
+        # Apply the same styling as the embedded view
+        expand_open_url = ResourceManager.get_style_url("expand_open.svg")
+        expand_close_url = ResourceManager.get_style_url("expand_close.svg")
+        
+        self.tree_view.setStyleSheet(f"""
+            QTreeView {{
+                outline: none;
+                background-color: white;
+            }}
+            QTreeView::item {{
+                padding-top: 3px;
+                padding-bottom: 3px;
+            }}
+            QTreeView::item:hover:!selected {{
+                background-color: {LIGHT_HOVER_BLUE};
+                color: {PRIMARY_COLOR};
+            }}
+            QTreeView::item:selected {{
+                background-color: {PRIMARY_COLOR};
+                color: white;
+                padding-top: 3px;
+                padding-bottom: 3px;
+                border: none;
+                outline: none;
+            }}
+            QTreeView::branch:open:has-children,
+            QTreeView::branch:closed:has-children {{
+                margin-right: 1px;
+                background-color: transparent !important;
+                border: none;
+            }}
+            QTreeView::branch:open:has-children {{
+                image: url({expand_open_url});
+                background-color: transparent;
+            }}
+            QTreeView::branch:closed:has-children {{
+                image: url({expand_close_url});
+                background-color: transparent;
+            }}
+            QTreeView::branch:!has-children {{
+                background-color: transparent;
+                border: none;
+            }}
+            QHeaderView::section:horizontal:first {{
+                padding-left: 10px;
+            }}
+            {get_scroll_bar_style()}
+        """)
+        
+        # Add keyboard shortcuts
+        self.setup_shortcuts()
+    
+    def setup_shortcuts(self):
+        """Setup keyboard shortcuts for the detached window."""
+        # Add keyboard shortcut for expanding all items
+        expand_shortcut = QShortcut(QKeySequence("Ctrl+E"), self)
+        expand_shortcut.activated.connect(self.tree_view.expandAll)
+        
+        # Add keyboard shortcut for collapsing all items
+        collapse_shortcut = QShortcut(QKeySequence("Ctrl+C"), self)
+        collapse_shortcut.activated.connect(self.tree_view.collapseAll)
+        
+        # Add keyboard shortcut for search focus
+        search_shortcut = QShortcut(QKeySequence("Ctrl+F"), self)
+        search_shortcut.activated.connect(self.filter_input.setFocus)
+    
+    def update_button_styles(self):
+        """Updates arrow indicator on Sort by Length button based on sort order."""
+        if not self.tree_view.model():
+            return
+        
+        model = self.tree_view.model()
+        sort_col = model.sortColumn()
+        
+        # Only change the arrow on the length button, based on sort state
+        if sort_col == AnpeResultModel.COL_LEN:
+            # Show up or down arrow based on sort order
+            arrow = "↑" if model.sortOrder() == Qt.SortOrder.AscendingOrder else "↓"
+            self.sort_length_button.setText(f"Sort by Length {arrow}")
+        else:
+            # Default to up arrow if not sorting by length
+            self.sort_length_button.setText("Sort by Length ↑")
+
 # --- Result Display Widget --- 
 class ResultDisplayWidget(QWidget):
     """A widget dedicated to displaying ANPE results using a QTreeView."""
@@ -248,14 +430,19 @@ class ResultDisplayWidget(QWidget):
         self._setup_ui()
         self.source_model = None # To hold the original AnpeResultModel
         self.proxy_model = None # To hold the QSortFilterProxyModel
+        self.detached_window = None # Reference to detached window when active
 
     def _setup_ui(self):
         """Initialize the UI components of the widget."""
+        # Get resource URLs
+        expand_open_url = ResourceManager.get_style_url("expand_open.svg")
+        expand_close_url = ResourceManager.get_style_url("expand_close.svg")
+        
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(5) # Add some spacing between filter and tree
         
-        # --- Top Layout (Filter + Sort Buttons) ---
+        # --- Top Layout (Filter + Sort Buttons + Eject Button) ---
         top_layout = QHBoxLayout()
         top_layout.setSpacing(5)
         
@@ -273,7 +460,7 @@ class ResultDisplayWidget(QWidget):
         self.sort_order_button.setVisible(False) # Initially hidden
         top_layout.addWidget(self.sort_order_button) # Add to top layout
 
-        self.sort_length_button = QPushButton("Sort by Length")
+        self.sort_length_button = QPushButton("Sort by Length ↑")  # Default arrow
         self.sort_length_button.setToolTip("Sort results by noun phrase length (click again to reverse order).")
         self.sort_length_button.clicked.connect(self._sort_by_length)
         self.sort_length_button.setVisible(False) # Initially hidden
@@ -285,6 +472,15 @@ class ResultDisplayWidget(QWidget):
         self.sort_structure_button.setVisible(False) # Initially hidden
         top_layout.addWidget(self.sort_structure_button) # Add to top layout
         
+        # --- Eject Button ---
+        self.eject_button = QToolButton()
+        self.eject_button.setText("⇱")  # Unicode external link symbol
+        self.eject_button.setToolTip("Open results in a separate window")
+        self.eject_button.clicked.connect(self._eject_results)
+        self.eject_button.setVisible(False)  # Initially hidden like other buttons
+        self.eject_button.setFixedSize(QSize(24, 24))  # Fixed size for the button
+        top_layout.addWidget(self.eject_button)
+        
         layout.addLayout(top_layout) # Add combined layout to main layout
 
         # --- Tree View --- 
@@ -295,27 +491,58 @@ class ResultDisplayWidget(QWidget):
         self.tree_view.setAlternatingRowColors(True)
         self.tree_view.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
         self.tree_view.setSortingEnabled(True) # Enable sorting
-        self.tree_view.setIndentation(10) # Increase indentation further
+        self.tree_view.setIndentation(12) 
         
-        # Apply Item Padding, Branch Indicator Styling, and Header Padding
+        # Selection behavior for entire rows
+        self.tree_view.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
+        
+        # Connect the clicked signal to handle row expansion
+        self.tree_view.clicked.connect(self._handle_item_click)
+        
+        # Apply Item Padding, Branch Indicator Styles, and Header Padding
         # Note: Using forward slashes for paths in stylesheets, even on Windows
         self.tree_view.setStyleSheet(f"""
-            /* TreeView Item Styles */
-            QTreeView::item {{ 
-                padding-top: 3px; 
-                padding-bottom: 3px; 
+            QTreeView {{
+                outline: none; /* Remove focus rectangle from the view itself */
+                background-color: white; /* Ensure white background */
             }}
-            QTreeView::item:selected {{ 
-                /* Ensure selection style doesn't remove padding */ 
-                padding-top: 3px; 
-                padding-bottom: 3px; 
+            /* TreeView Item Styles */
+            QTreeView::item {{
+                padding-top: 3px;
+                padding-bottom: 3px;
+            }}
+            QTreeView::item:hover:!selected {{
+                background-color: {LIGHT_HOVER_BLUE}; /* Light blue background on hover */
+                color: {PRIMARY_COLOR}; /* Use primary color text on hover */
+            }}
+            QTreeView::item:selected {{
+                background-color: {PRIMARY_COLOR}; /* Primary color background when selected */
+                color: white; /* White text when selected */
+                /* Keep padding consistent */
+                padding-top: 3px;
+                padding-bottom: 3px;
+                border: none; /* Remove border on selection */
+                outline: none; /* Remove focus outline */
             }}
             /* TreeView Branch Indicator Styles */
+            QTreeView::branch:open:has-children,
+            QTreeView::branch:closed:has-children {{
+                margin-right: 1px; /* Minimal space between arrow and text */
+                background-color: transparent !important; /* Force transparency */
+                border: none; /* Ensure no border */
+            }}
             QTreeView::branch:open:has-children {{
-                image: url(anpe_gui/resources/expand_open.svg);
+                image: url({expand_open_url});
+                background-color: transparent; /* Force transparency for open branch */
             }}
             QTreeView::branch:closed:has-children {{
-                image: url(anpe_gui/resources/expand_close.svg);
+                image: url({expand_close_url});
+                background-color: transparent; /* Force transparency for closed branch */
+            }}
+            /* Explicitly style branches without children to ensure consistent appearance */
+            QTreeView::branch:!has-children {{
+                background-color: transparent; /* Force transparency for leaf item branches */
+                border: none;
             }}
             /* Header Section Padding */
             QHeaderView::section:horizontal:first {{
@@ -336,6 +563,7 @@ class ResultDisplayWidget(QWidget):
         self.sort_order_button.setVisible(False)
         self.sort_length_button.setVisible(False)
         self.sort_structure_button.setVisible(False)
+        self.eject_button.setVisible(False)
         logging.debug("Results display cleared.")
 
     def set_placeholder_text(self, text: str):
@@ -363,9 +591,9 @@ class ResultDisplayWidget(QWidget):
             logging.debug("Creating source model...")
             self.source_model = AnpeResultModel(data)
             
-            logging.debug("Creating standard proxy model...")
-            # Use the standard QSortFilterProxyModel
-            self.proxy_model = QSortFilterProxyModel() 
+            logging.debug("Creating custom proxy model for numeric sorting...")
+            # Use our custom QSortFilterProxyModel that handles numeric sorting
+            self.proxy_model = AnpeResultProxyModel() 
             self.proxy_model.setSourceModel(self.source_model)
             self.proxy_model.setFilterKeyColumn(AnpeResultModel.COL_NP) # Filter by NP
             self.proxy_model.setRecursiveFilteringEnabled(True)
@@ -374,7 +602,8 @@ class ResultDisplayWidget(QWidget):
             logging.debug("Setting model on tree view...")
             self.tree_view.setModel(self.proxy_model)
             # Reset sorting when new data is loaded to default (order)
-            self.proxy_model.sort(-1, Qt.SortOrder.AscendingOrder) 
+            # Important: -1 means unsorted (original order)
+            self.proxy_model.sort(-1, Qt.SortOrder.AscendingOrder)
             
             # --- Show/Hide Columns based on metadata flag ---
             self.tree_view.setColumnHidden(AnpeResultModel.COL_LEN, not metadata_enabled)
@@ -399,7 +628,7 @@ class ResultDisplayWidget(QWidget):
             # Structures stretches to fill the rest.
             header.resizeSection(AnpeResultModel.COL_ID, 50)  # Set fixed initial width for ID
             if metadata_enabled: # Only set NP width if Structures is also present
-                header.resizeSection(AnpeResultModel.COL_NP, 400) # Set larger fixed initial width for NP
+                header.resizeSection(AnpeResultModel.COL_NP, 350) # Set larger fixed initial width for NP
             if metadata_enabled:
                 header.resizeSection(AnpeResultModel.COL_LEN, 60) # Slightly wider for Length + indicator
             # ---------------------------------------------
@@ -416,6 +645,8 @@ class ResultDisplayWidget(QWidget):
             self.sort_order_button.setVisible(metadata_enabled)
             self.sort_length_button.setVisible(metadata_enabled)
             self.sort_structure_button.setVisible(metadata_enabled)
+            # Show eject button whenever we have results
+            self.eject_button.setVisible(True)
             self._update_button_styles() # Set initial button style
 
             logging.debug("Results display updated with sorting enabled.")
@@ -425,43 +656,20 @@ class ResultDisplayWidget(QWidget):
              self.clear_display() 
 
     def _update_button_styles(self):
-        """Updates button appearance based on the current sort column and order."""
+        """Updates arrow indicator on Sort by Length button based on sort order."""
         if not self.proxy_model or not self.sort_order_button.isVisible():
             return
              
         sort_col = self.proxy_model.sortColumn()
-        arrow = " ↑" if self.proxy_model.sortOrder() == Qt.SortOrder.AscendingOrder else " ↓"
         
-        if sort_col == -1: # Sorted by Order (default)
-            self.sort_order_button.setProperty("activeSort", True)
-            self.sort_order_button.setText("Sort by Order" + arrow) # Indicate default is usually asc
-            if self.sort_length_button.isVisible():
-               self.sort_length_button.setText("Sort by Length")
-            if self.sort_structure_button.isVisible():
-               self.sort_structure_button.setText("Sort by Structure")
-        elif sort_col == AnpeResultModel.COL_LEN:
-            self.sort_order_button.setText("Sort by Order")
-            if self.sort_length_button.isVisible():
-               self.sort_length_button.setProperty("activeSort", True)
-               self.sort_length_button.setText("Sort by Length" + arrow)
-            if self.sort_structure_button.isVisible():
-               self.sort_structure_button.setText("Sort by Structure")
-        elif sort_col == AnpeResultModel.COL_STRUCT:
-            self.sort_order_button.setText("Sort by Order")
-            if self.sort_length_button.isVisible():
-               self.sort_length_button.setText("Sort by Length")
-            if self.sort_structure_button.isVisible():
-               self.sort_structure_button.setProperty("activeSort", True)
-               self.sort_structure_button.setText("Sort by Structure" + arrow)
-        else: # Should not happen with current setup, but reset just in case
-            self.sort_order_button.setText("Sort by Order")
-            if self.sort_length_button.isVisible():
-               self.sort_length_button.setText("Sort by Length")
-            if self.sort_structure_button.isVisible():
-               self.sort_structure_button.setText("Sort by Structure")
-
-        # Re-apply stylesheet to update appearance based on property
-        # This might require a theme.py or centralized styling approach
+        # Only change the arrow on the length button, based on sort state
+        if sort_col == AnpeResultModel.COL_LEN:
+            # Show up or down arrow based on sort order
+            arrow = "↑" if self.proxy_model.sortOrder() == Qt.SortOrder.AscendingOrder else "↓"
+            self.sort_length_button.setText(f"Sort by Length {arrow}")
+        else:
+            # Default to up arrow if not sorting by length
+            self.sort_length_button.setText("Sort by Length ↑")
 
     # --- Sorting Slots ---
     def _sort_by_order(self):
@@ -482,8 +690,12 @@ class ResultDisplayWidget(QWidget):
             if current_col == AnpeResultModel.COL_LEN and current_order == Qt.SortOrder.AscendingOrder:
                 new_order = Qt.SortOrder.DescendingOrder
                 
+            logging.debug(f"Sorting by Length column ({AnpeResultModel.COL_LEN}) with order: {new_order}")
             self.proxy_model.sort(AnpeResultModel.COL_LEN, new_order)
-            logging.debug(f"Sorted by Length ({new_order}).")
+            
+            # Update button style after sort
+            self._update_button_styles()
+            logging.debug(f"Sort completed. Current sort column: {self.proxy_model.sortColumn()}")
         else:
             logging.warning("Attempted to sort by length but proxy model is not set.")
 
@@ -502,7 +714,183 @@ class ResultDisplayWidget(QWidget):
         else:
             logging.warning("Attempted to sort by structure but proxy model is not set.")
 
-    # --- Potential Future Enhancements ---
-    # ...
+    # --- Click Handling ---
+    def _handle_item_click(self, index: QModelIndex):
+        """Handle clicks on items, specifically to toggle expansion when a row is clicked."""
+        if not index.isValid():
+            return
+        
+        # Get the root index (first column) for this row regardless of which column was clicked
+        root_index = self.proxy_model.index(index.row(), 0, index.parent())
+        
+        # For any valid click, if the item has children, toggle expansion
+        # Important: We must use the proxy_model to properly handle children
+        if self.proxy_model and self.proxy_model.hasChildren(root_index):
+            # Toggle expansion state
+            self.tree_view.setExpanded(root_index, not self.tree_view.isExpanded(root_index))
+            logging.debug(f"Toggled expansion for item at row {root_index.row()} via row click.")
+
+    def _eject_results(self):
+        """Open the results in a separate, resizable window."""
+        if not self.proxy_model:
+            logging.warning("No results to display in detached window.")
+            return
+            
+        # Create or show detached window
+        if not self.detached_window:
+            self.detached_window = DetachedResultWindow(self)
+            
+            # Connect signals for closing
+            self.detached_window.destroyed.connect(self._on_detached_window_closed)
+            
+            # Copy filter, sorting, and data from current view
+            if self.filter_input.text():
+                self.detached_window.filter_input.setText(self.filter_input.text())
+                
+            # Connect signals
+            self.detached_window.filter_input.textChanged.connect(self._update_detached_filter)
+            self.detached_window.sort_order_button.clicked.connect(self._detached_sort_by_order)
+            self.detached_window.sort_length_button.clicked.connect(self._detached_sort_by_length)
+            self.detached_window.sort_structure_button.clicked.connect(self._detached_sort_by_structure)
+            
+            # Create new proxy model for detached window
+            detached_proxy = AnpeResultProxyModel()
+            detached_proxy.setSourceModel(self.source_model)
+            detached_proxy.setFilterKeyColumn(AnpeResultModel.COL_NP)
+            detached_proxy.setRecursiveFilteringEnabled(True)
+            detached_proxy.setFilterCaseSensitivity(Qt.CaseSensitivity.CaseInsensitive)
+            
+            # Set model on detached tree view
+            self.detached_window.tree_view.setModel(detached_proxy)
+            
+            # Default to sort by order - match the main view's sorting
+            detached_proxy.sort(-1, Qt.SortOrder.AscendingOrder)
+            
+            # Update sort button styles
+            self.detached_window.update_button_styles()
+            
+            # Configure header just like in the main window
+            header = self.detached_window.tree_view.header()
+            header.setSectionsClickable(False)
+            
+            # Check if metadata columns should be visible
+            # Look at the main tree view to determine if metadata is enabled
+            metadata_enabled = not self.tree_view.isColumnHidden(AnpeResultModel.COL_LEN)
+            
+            # Show/hide columns based on metadata_enabled flag
+            self.detached_window.tree_view.setColumnHidden(AnpeResultModel.COL_LEN, not metadata_enabled)
+            self.detached_window.tree_view.setColumnHidden(AnpeResultModel.COL_STRUCT, not metadata_enabled)
+            
+            # Show/hide buttons based on metadata_enabled flag
+            self.detached_window.sort_order_button.setVisible(metadata_enabled)
+            self.detached_window.sort_length_button.setVisible(metadata_enabled)
+            self.detached_window.sort_structure_button.setVisible(metadata_enabled)
+            
+            # Only stretch the Structures column if it's visible
+            if metadata_enabled:
+                header.setSectionResizeMode(AnpeResultModel.COL_STRUCT, QHeaderView.ResizeMode.Stretch)
+            else:
+                # If no metadata, make the NP column stretch
+                header.setSectionResizeMode(AnpeResultModel.COL_NP, QHeaderView.ResizeMode.Stretch)
+            
+            # Make other columns interactive (resizable by user)
+            header.setSectionResizeMode(AnpeResultModel.COL_ID, QHeaderView.ResizeMode.Interactive)
+            if not metadata_enabled:
+                # If no metadata, ensure NP can stretch
+                header.setSectionResizeMode(AnpeResultModel.COL_NP, QHeaderView.ResizeMode.Stretch)
+            else:
+                # With metadata, NP is resizable but not stretching
+                header.setSectionResizeMode(AnpeResultModel.COL_NP, QHeaderView.ResizeMode.Interactive)
+                header.setSectionResizeMode(AnpeResultModel.COL_LEN, QHeaderView.ResizeMode.Interactive)
+                
+            header.setSortIndicatorShown(False)
+            
+            # Set initial column widths
+            header.resizeSection(AnpeResultModel.COL_ID, 50)
+            header.resizeSection(AnpeResultModel.COL_NP, 350)
+            if metadata_enabled:
+                header.resizeSection(AnpeResultModel.COL_LEN, 60)
+            
+            # Apply current filter
+            if self.filter_input.text():
+                regex = QRegularExpression(self.filter_input.text(), 
+                                          QRegularExpression.PatternOption.CaseInsensitiveOption)
+                detached_proxy.setFilterRegularExpression(regex)
+            
+            # Connect click signal for expansion
+            self.detached_window.tree_view.clicked.connect(self._handle_detached_item_click)
+            
+            # Collapse all items by default
+            self.detached_window.tree_view.collapseAll()
+            
+            # Show the window
+            self.detached_window.show()
+            
+        else:
+            # Window exists, just show it and bring to front
+            self.detached_window.show()
+            self.detached_window.raise_()
+            self.detached_window.activateWindow()
+            
+        logging.debug("Results displayed in detached window.")
+    
+    def _on_detached_window_closed(self):
+        """Handle detached window being closed."""
+        self.detached_window = None
+        logging.debug("Detached results window closed.")
+    
+    # --- Detached Window Event Handlers ---
+    def _update_detached_filter(self, text):
+        """Update filter in the detached window."""
+        if self.detached_window and self.detached_window.tree_view.model():
+            regex = QRegularExpression(text, QRegularExpression.PatternOption.CaseInsensitiveOption)
+            self.detached_window.tree_view.model().setFilterRegularExpression(regex)
+    
+    def _detached_sort_by_order(self):
+        """Sort by order in detached window."""
+        if self.detached_window and self.detached_window.tree_view.model():
+            self.detached_window.tree_view.model().sort(-1)
+            self.detached_window.update_button_styles()
+    
+    def _detached_sort_by_length(self):
+        """Sort by length in detached window."""
+        if self.detached_window and self.detached_window.tree_view.model():
+            model = self.detached_window.tree_view.model()
+            current_col = model.sortColumn()
+            current_order = model.sortOrder()
+            new_order = Qt.SortOrder.AscendingOrder
+            if current_col == AnpeResultModel.COL_LEN and current_order == Qt.SortOrder.AscendingOrder:
+                new_order = Qt.SortOrder.DescendingOrder
+                
+            logging.debug(f"Detached window: Sorting by Length column ({AnpeResultModel.COL_LEN}) with order: {new_order}")
+            model.sort(AnpeResultModel.COL_LEN, new_order)
+            self.detached_window.update_button_styles()
+            logging.debug(f"Detached window: Sort completed. Current sort column: {model.sortColumn()}")
+    
+    def _detached_sort_by_structure(self):
+        """Sort by structure in detached window."""
+        if self.detached_window and self.detached_window.tree_view.model():
+            model = self.detached_window.tree_view.model()
+            current_col = model.sortColumn()
+            current_order = model.sortOrder()
+            new_order = Qt.SortOrder.AscendingOrder
+            if current_col == AnpeResultModel.COL_STRUCT and current_order == Qt.SortOrder.AscendingOrder:
+                new_order = Qt.SortOrder.DescendingOrder
+            model.sort(AnpeResultModel.COL_STRUCT, new_order)
+            self.detached_window.update_button_styles()
+    
+    def _handle_detached_item_click(self, index):
+        """Handle clicks in the detached window tree view."""
+        if not index.isValid():
+            return
+        
+        model = self.detached_window.tree_view.model()
+        root_index = model.index(index.row(), 0, index.parent())
+        
+        if model.hasChildren(root_index):
+            self.detached_window.tree_view.setExpanded(
+                root_index, 
+                not self.detached_window.tree_view.isExpanded(root_index)
+            )
 
 # Remove the extraneous tag below this line 
