@@ -49,7 +49,7 @@ print(result)
 ```
 
 ### GUI App
-[TBC]
+[To be released from Dependency HELL]
 
 ## Installation
 
@@ -603,7 +603,7 @@ The system categorizes patterns into fundamental types, organized from simple to
 For a comprehensive explanation of all structure patterns and their detection logic, please refer to the [structure_patterns.md](/docs/structure_patterns.md) file included in the repository. This system enables precise identification of noun phrase structures while maintaining high processing efficiency.
 
 ## GUI Application
->*❗[Under development]*
+>*❗[Still in development, being tortured by dependency hell]*
 >
 > Please note that the gui app is now still being developed, no release is provided at the moment.
 
