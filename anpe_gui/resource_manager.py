@@ -20,19 +20,21 @@ class ResourceManager:
     @classmethod
     def initialize(cls):
         """
-        Initialize the resource system. Check if Qt resource system is available,
-        otherwise fall back to file system access.
+        Initialize the resource system. Assume resources are embedded via imported module,
+        but keep fallback to file system access if needed.
         """
-        # Check if resources are embedded in the PyQt resource system
-        if QResource.registerResource("anpe_gui/resources.rcc"):
+        # Check if resources are accessible via the Qt resource system (qrc:/ prefix).
+        # We test this by trying to check for the existence of a known resource file.
+        # QFile.exists() works with the qrc:/ paths.
+        test_resource = QFile(":/icons/app_icon.png") # Use a known resource from your qrc
+        if test_resource.exists():
             cls._using_embedded_resources = True
         else:
-            # Try alternate location for packaged app
-            alt_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "resources.rcc")
-            if os.path.exists(alt_path) and QResource.registerResource(alt_path):
-                cls._using_embedded_resources = True
-            else:
-                cls._using_embedded_resources = False
+            # If the embedded resource check fails, assume we need the filesystem fallback.
+            # This might happen during development if resources_rc.py hasn't been generated/imported
+            # or if there's an issue with the resource system itself.
+            cls._using_embedded_resources = False
+            print("INFO: Embedded resources not found or accessible. Falling back to file system paths.", flush=True) # Optional: Add logging/print
 
     @classmethod
     def get_icon(cls, icon_name):
@@ -50,7 +52,7 @@ class ResourceManager:
         else:
             # Fallback to file system
             icon_path = cls.get_resource_path(icon_name)
-            return QIcon(icon_path)
+            return QIcon(str(icon_path)) # Ensure path is string
 
     @classmethod
     def get_pixmap(cls, image_name):
@@ -68,22 +70,22 @@ class ResourceManager:
         else:
             # Fallback to file system
             image_path = cls.get_resource_path(image_name)
-            return QPixmap(image_path)
+            return QPixmap(str(image_path)) # Ensure path is string
 
     @classmethod
     def get_resource_path(cls, resource_name):
         """
-        Get the full path to a resource file.
+        Get the full path to a resource file (for fallback).
         
         Args:
             resource_name: Name of the resource file (e.g., 'app_icon.png')
             
         Returns:
-            str: Full path to the resource
+            Path: Path object to the resource
         """
-        # When in development, resources are in the resources directory
+        # When in development or fallback, resources are in the resources directory relative to this file
         resources_dir = Path(__file__).parent / "resources"
-        return str(resources_dir / resource_name)
+        return resources_dir / resource_name
 
     @classmethod
     def get_style_url(cls, resource_name):
@@ -97,8 +99,22 @@ class ResourceManager:
             str: URL for the resource that works in Qt stylesheets
         """
         if cls._using_embedded_resources:
-            return f"qrc:/icons/{resource_name}"
+            # Use the simpler :/ prefix, which is often more reliable in stylesheets
+            return f":/icons/{resource_name}"
         else:
-            # For development mode, use relative path
-            # Need to handle the path differently for stylesheets
-            return f"anpe_gui/resources/{resource_name}" 
+            # For development/fallback mode, use relative path from the perspective
+            # of where the application is run or how stylesheets resolve paths.
+            # This might need adjustment depending on the context where it's used.
+            # Using a relative path from the package root might be more robust.
+            # Let's assume the style is applied from code within anpe_gui.
+            # We need to ensure the path is relative to the CWD or correctly resolvable.
+            # A simple relative path from the package root is often best.
+            resource_path = cls.get_resource_path(resource_name)
+            # Try to make it relative to the CWD if possible, otherwise use absolute
+            try:
+                relative_path = resource_path.relative_to(Path.cwd())
+                return str(relative_path).replace("\\\\", "/") # Use forward slashes for URLs
+            except ValueError:
+                 # If not relative to CWD, use absolute path (might not always work in stylesheets)
+                 # Using Path.as_uri() is safer for file URLs
+                 return resource_path.as_uri() 

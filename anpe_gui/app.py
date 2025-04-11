@@ -5,6 +5,8 @@ Main entry point for the ANPE GUI application.
 
 import sys
 import os
+from pathlib import Path
+import logging
 from PyQt6.QtWidgets import QApplication
 from PyQt6.QtCore import QTimer # Original import
 from PyQt6.QtGui import QFont # Original import
@@ -14,6 +16,9 @@ from anpe_gui.theme import apply_theme
 from anpe_gui.resource_manager import ResourceManager
 from anpe.utils.setup_models import check_all_models_present # Assuming this function exists
 from anpe_gui.setup_wizard import SetupWizard # Assuming this class will be created
+
+# Import resource module
+import anpe_gui.resources_rc
 
 def main():
     """Launch the main application."""

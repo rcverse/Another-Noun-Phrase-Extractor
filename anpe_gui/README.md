@@ -189,4 +189,4 @@ The application uses `QThread`-based workers to perform processing without block
 
 ## License
 
-This project is licensed under the same terms as ANPE - see the [LICENSE](../LICENSE) file for details. 
+This project is licensed under GPLv3 - see the [LICENSE](../LICENSE) file for details. 

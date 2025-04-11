@@ -3,7 +3,7 @@ Main window implementation for the ANPE GUI application.
 """
 
 import os
-# import sys # Removed
+import sys # Add this import
 import logging
 import functools # Import functools
 from typing import Optional, Dict, Any, List, Union # Added Union
@@ -28,7 +28,6 @@ from PyQt6.QtGui import QIcon, QTextCursor, QScreen, QPixmap # Added QScreen and
 
 from .theme import PRIMARY_COLOR, SECONDARY_COLOR, SUCCESS_COLOR, ERROR_COLOR, WARNING_COLOR, INFO_COLOR, BORDER_COLOR, get_scroll_bar_style, LIGHT_HOVER_BLUE, TEXT_COLOR # Update the import
 from .widgets.help_dialog import HelpDialog # Import the new dialog
-
 try:
     from anpe import ANPEExtractor, __version__ as anpe_version
 except ImportError:
@@ -80,6 +79,17 @@ class ExtractorInitializer(QObject):
             logging.error(f"Error initializing ANPEExtractor: {e}", exc_info=True)
             self.error.emit(str(e))
 # --- End Worker --- 
+
+# Helper function to get the base path
+def get_base_path():
+    """ Gets the path relative to the executable or script """
+    if getattr(sys, 'frozen', False):
+        # If the application is run as a bundle/frozen executable, the base path is the directory containing the executable
+        base_path = Path(sys.executable).parent
+    else:
+        # If run from source, assume main_window.py is in anpe_gui and we need the parent (project root)
+        base_path = Path(__file__).resolve().parent.parent
+    return base_path
 
 class MainWindow(QMainWindow):
     """Main window for the ANPE GUI application."""
@@ -1606,29 +1616,31 @@ class MainWindow(QMainWindow):
     # --- Help Function --- 
     def show_help(self, anchor: Optional[str] = None): # Modified to accept optional anchor
         """Creates and shows the custom HelpDialog, optionally scrolling to an anchor."""
-        help_file_path = Path(__file__).parent / "docs" / "Help.md"
+        base_dir = get_base_path()
+        help_file_path = base_dir / "docs" / "gui_help.md" # Use base_dir and correct filename
+
         # Check if file exists before creating dialog
         if not help_file_path.is_file():
             error_msg = f"Help file not found at: {help_file_path}"
             logging.error(error_msg)
             QMessageBox.warning(self, "Help Not Found", f"Could not find the help file.\\nExpected location: {help_file_path}")
             return
-            
+
         try:
             # Create and execute the custom dialog, passing both versions
-            dialog = HelpDialog(help_file_path, GUI_VERSION, self.anpe_version, self)
-            
+            dialog = HelpDialog(help_file_path, GUI_VERSION, self.anpe_version, self) # Pass the correct path object
+
             # If an anchor is provided, try to navigate after the dialog is shown
             if anchor:
                  # Use a single shot timer to allow the dialog to fully render first
-                 QTimer.singleShot(100, lambda: self.navigate_help_to_anchor(dialog, anchor)) 
-                 
+                 QTimer.singleShot(100, lambda: self.navigate_help_to_anchor(dialog, anchor))
+
             dialog.exec()
         except Exception as e:
             # Catch potential errors during dialog creation/execution
             logging.error(f"Error showing help dialog: {e}", exc_info=True)
             QMessageBox.critical(self, "Help Error", f"An unexpected error occurred while trying to show help: {e}")
-            
+
     def navigate_help_to_anchor(self, help_dialog, anchor_id: str):
         """Tries to scroll the help dialog's text browser to a specific anchor."""
         if not help_dialog: return

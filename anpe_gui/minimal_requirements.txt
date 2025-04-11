@@ -1,4 +1,4 @@
-anpe>=0.1.0
+anpe>=0.2.0
 PyQt6>=6.4.0
 cx_Freeze>=6.15.0
 spacy>=3.5.0

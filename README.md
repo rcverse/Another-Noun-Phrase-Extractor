@@ -600,7 +600,7 @@ The system categorizes patterns into fundamental types, organized from simple to
 | **Relative Clause** | Clause that modifies a noun | "a past that takes in fascism" |
 | **others** | Other NP structures that are not identifed | N/A |  
 
-For a comprehensive explanation of all structure patterns and their detection logic, please refer to the [structure_patterns.md](structure_patterns.md) file included in the repository. This system enables precise identification of noun phrase structures while maintaining high processing efficiency.
+For a comprehensive explanation of all structure patterns and their detection logic, please refer to the [structure_patterns.md](/docs/structure_patterns.md) file included in the repository. This system enables precise identification of noun phrase structures while maintaining high processing efficiency.
 
 ## GUI Application
 >*❗[Under development]*

@@ -15,27 +15,6 @@ APP_NAME = "ANPE"
 DESCRIPTION = "Another Noun Phrase Extractor"
 MAIN_SCRIPT = "anpe_gui/run.py"
 
-# Compile Qt resources
-print("Compiling Qt resources...")
-try:
-    # Check if pyrcc6 is available
-    subprocess.run(["pyrcc6", "--version"], stdout=subprocess.PIPE, stderr=subprocess.PIPE, check=False)
-    
-    # Compile the resources
-    res_file = os.path.abspath("anpe_gui/resources.qrc")
-    out_file = os.path.abspath("anpe_gui/resources.rcc")
-    
-    subprocess.run(
-        ["pyrcc6", "-o", out_file, res_file], 
-        stdout=subprocess.PIPE, 
-        stderr=subprocess.PIPE, 
-        check=True
-    )
-    print(f"Resources compiled to {out_file}")
-except Exception as e:
-    print(f"Warning: Could not compile Qt resources: {e}")
-    print("Resources will be included as files instead.")
-
 # Determine base for executable
 # base="Win32GUI" for Windows GUI applications,
 # None for console applications, or "MacOSXApp" for macOS
@@ -56,7 +35,7 @@ executables = [
         base=base,
         target_name=APP_NAME,
         icon=icon,
-        copyright="Copyright © 2025",
+        copyright="Copyright © 2025 Richard Chen",
     )
 ]
 
@@ -87,9 +66,11 @@ excludes = [
 
 # Additional files/folders to include
 include_files = [
-    ("anpe_gui/resources.rcc", "resources.rcc"),  # Include compiled resources
-    ("anpe_gui/resources", "resources"),  # Include original resources as fallback
-    ("anpe_gui/docs", "docs"),
+    # Removed: ("anpe_gui/resources.rcc", "resources.rcc"), # No longer needed
+    # Keep the help file
+    ("docs/gui_help.md", "docs/gui_help.md"),
+    # We don't need to include the resources directory itself
+    # as resources are now embedded in resources_rc.py
 ]
 
 # Define build options
