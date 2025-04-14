@@ -1,0 +1,54 @@
+---
+description: gui development
+globs: 
+alwaysApply: false
+---
+# ANPE Setup Application Development Rules
+
+## Goal
+
+Create a self-contained, modern setup application (first-run wizard) for ANPE:
+
+*   **Deliverables:** Standalone `.exe` for Windows, `.app` for macOS.
+*   **Functionality:**
+    1.  Deploys an isolated Python environment (using bundled distributions).
+    2.  Installs the `anpe` core library and other Python dependencies via `pip` into the environment.
+    3.  Deploys the `anpe_gui` application source code alongside the environment.
+    4.  Downloads and sets up required language models (spaCy, Benepar, NLTK).
+*   **Motivation:** Avoid packaging large dependencies directly into the application executable, keeping the distributable small while ensuring a foolproof setup for end-users.
+
+## UI Design
+
+*   **Paradigm:** Single-window (`QMainWindow`) with `QStackedWidget` for different views.
+*   **Style:** Modern, clean aesthetic based on mockups.
+*   **Mockups:** @./docs/ui_design/
+*   **Logo:** @./installer/assets/app_icon_logo.png (Assumed location)
+*   **Platform Variations:** Welcome/Completion views differ slightly for Windows vs. macOS (path selection, shortcut options).
+
+## Core Logic
+
+*   **Orchestration:** The GUI (`setup_windows.pyw` / `setup_macos.pyw`) manages the process.
+*   **Stage 1 (Environment + App Code):**
+    *   Executed by @./installer/installer_core.py (run via `QProcess` by the GUI).
+    *   Unpacks Python, installs packages via `pip`, copies `anpe_gui` source code.
+    *   Communicates via stdout (`STEP:`, `SUCCESS:`, `FAILURE:`, `Python executable found:`).
+*   **Stage 2 (Models):**
+    *   Uses logic from @./anpe/utils/setup_models.py.
+    *   Executed using the Python interpreter deployed in Stage 1 (via `QProcess`).
+    *   Communicates via stdout.
+*   **Workers:** GUI uses `QThread` to run background tasks (`EnvironmentSetupWorker`, `ModelSetupWorker`).
+
+## Development Context
+
+*   **Current Platform:** Windows.
+*   **Terminal Commands:** Ensure commands run via the tool are compatible with Windows (PowerShell/CMD). `mkdir`, `mv`, etc., might need adjustment or confirmation.
+
+## Key Files & References
+
+*   **Design Document:** @./docs/installer_gui_v2.md
+*   **GUI (Windows):** @./installer/setup_windows.pyw (To be created)
+*   **GUI (macOS):** `installer/setup_macos.pyw` (To be created)
+*   **Backend (Env):** @./installer/installer_core.py (To be created)
+*   **Backend (Models):** @./anpe/utils/setup_models.py
+*   **Assets:** `installer/assets/` (Contains bundled Python, icon, license; `anpe_gui` source is added during build - prompt user to provide whenvever necessary)
+*   **UI Mockups:** @./docs/ui_design/
