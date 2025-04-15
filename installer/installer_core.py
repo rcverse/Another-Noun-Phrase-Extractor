@@ -325,7 +325,12 @@ def copy_app_code(target_install_path: str):
 
     print_step(f"Copying application code from {source_app_dir} to {target_app_dir}...")
     try:
-        shutil.copytree(source_app_dir, target_app_dir, dirs_exist_ok=False) # Be explicit
+        # Create a function to ignore __pycache__ directories
+        def ignore_pycache(dir, files):
+            return [f for f in files if f == '__pycache__']
+            
+        # Use the ignore function with copytree
+        shutil.copytree(source_app_dir, target_app_dir, dirs_exist_ok=False, ignore=ignore_pycache)
     except FileExistsError:
         # This shouldn't happen due to the rmtree above, but handle defensively
         print_failure(f"Target application directory already exists after attempting removal: {target_app_dir}")

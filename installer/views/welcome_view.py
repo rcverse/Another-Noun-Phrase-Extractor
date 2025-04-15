@@ -12,6 +12,7 @@ from PyQt6.QtGui import QPixmap, QMouseEvent
 from .license_dialog import LicenseDialog # Relative import for view
 # Use relative import for utils
 from ..utils import get_resource_path
+from ..styles import PRIMARY_BUTTON_STYLE, BROWSE_BUTTON_STYLE, TITLE_LABEL_STYLE, INFO_LABEL_STYLE, LINK_LABEL_STYLE
 
 # Subclass QLabel to make it clickable for the license link
 class ClickableLabel(QLabel):
@@ -25,8 +26,8 @@ class ClickableLabel(QLabel):
 
 class WelcomeViewWidget(QWidget):
     """Widget for the welcome screen of the setup wizard (Windows version)."""
-    # Signal arguments: install_path (str), license_accepted (bool)
-    setup_requested = pyqtSignal(str, bool)
+    # Signal arguments: install_path (str)
+    setup_requested = pyqtSignal(str)
 
     def __init__(self, parent=None):
         """Initialize the welcome view."""
@@ -69,21 +70,13 @@ class WelcomeViewWidget(QWidget):
         # --- Welcome Text ---
         title_label = QLabel("Welcome to ANPE Setup")
         title_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        title_label.setStyleSheet("font-size: 18pt; font-weight: bold;") # Basic styling
+        title_label.setStyleSheet(TITLE_LABEL_STYLE) # Basic styling
         layout.addWidget(title_label)
 
-        welcome_text = QLabel(
-            "This wizard will guide you through setting up the ANPE application environment. "
-            "It will install a dedicated Python environment and necessary components."
-        )
-        welcome_text.setWordWrap(True)
-        welcome_text.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        layout.addWidget(welcome_text)
-
-        layout.addSpacerItem(QSpacerItem(20, 20, QSizePolicy.Policy.Minimum, QSizePolicy.Policy.Expanding))
+        layout.addSpacerItem(QSpacerItem(20, 30, QSizePolicy.Policy.Minimum, QSizePolicy.Policy.Expanding))
 
         # --- Installation Path (Windows Specific) ---
-        path_label = QLabel("Installation Location:")
+        path_label = QLabel("Install ANPE GUI to:")
         layout.addWidget(path_label)
 
         path_layout = QHBoxLayout()
@@ -93,46 +86,47 @@ class WelcomeViewWidget(QWidget):
         is_admin = self._is_admin()
         if is_admin:
             default_path = os.path.join(os.environ.get('ProgramFiles', 'C:\\Program Files'), "ANPE")
-            path_info = QLabel("(Standard installation in Program Files)")
         else:
             default_path = os.path.join(os.environ.get('LOCALAPPDATA', os.path.expanduser("~\\AppData\\Local")), "ANPE")
-            path_info = QLabel("(User installation in local AppData)")
         
         self.path_edit.setText(default_path)
         self.path_edit.textChanged.connect(self._validate_inputs) # Validate on change
         path_layout.addWidget(self.path_edit)
 
         browse_button = QPushButton("Browse...")
+        browse_button.setStyleSheet(BROWSE_BUTTON_STYLE)
         browse_button.clicked.connect(self._browse_directory)
         path_layout.addWidget(browse_button)
         layout.addLayout(path_layout)
         
         # Add explanation about installation location
-        path_info.setStyleSheet("color: #666666; font-style: italic;")
+        path_info = QLabel("Please make sure you have enough disk space to install the application")
+        path_info.setStyleSheet(INFO_LABEL_STYLE)
         layout.addWidget(path_info)
 
         # --- License Agreement ---
         license_layout = QHBoxLayout()
-        license_layout.addSpacerItem(QSpacerItem(0, 0, QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Minimum))
-        self.license_checkbox = QCheckBox("I agree to the terms of the ")
-        self.license_checkbox.stateChanged.connect(self._validate_inputs) # Validate on change
-        license_layout.addWidget(self.license_checkbox)
+        license_layout.addStretch(1)  # Add stretch at the beginning to center
+        license_text = QLabel("ANPE is open-source software licensed under")
+        license_text.setStyleSheet(INFO_LABEL_STYLE)
+        license_layout.addWidget(license_text)
 
-        license_link_label = ClickableLabel("<a href=\"#\">License Agreement</a>")
-        license_link_label.setStyleSheet("text-decoration: none;") # Remove default underline if needed
+        license_link_label = ClickableLabel("GNU GPL v3")  # Remove the HTML link styling
+        license_link_label.setStyleSheet(LINK_LABEL_STYLE)  # Blue color matching theme
         license_link_label.setOpenExternalLinks(False)
         license_link_label.clicked.connect(self._show_license_dialog)
         license_layout.addWidget(license_link_label)
-        license_layout.addSpacerItem(QSpacerItem(0, 0, QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Minimum))
+        license_layout.addStretch(1)  # Add stretch at the end to center
+        
         layout.addLayout(license_layout)
 
         layout.addSpacerItem(QSpacerItem(20, 20, QSizePolicy.Policy.Minimum, QSizePolicy.Policy.Expanding))
 
         # --- Setup Button ---
         self.setup_button = QPushButton("Setup")
-        self.setup_button.setEnabled(False) # Initially disabled
-        self.setup_button.setObjectName("SetupButton") # For potential styling
-        self.setup_button.setStyleSheet("QPushButton#SetupButton { font-size: 14pt; padding: 10px; }") # Bigger button
+        self.setup_button.setObjectName("SetupButton")  # For potential styling
+        # Update button style to use centralized style
+        self.setup_button.setStyleSheet(PRIMARY_BUTTON_STYLE)
         self.setup_button.clicked.connect(self._on_setup_clicked)
         layout.addWidget(self.setup_button, alignment=Qt.AlignmentFlag.AlignCenter)
 
@@ -148,21 +142,74 @@ class WelcomeViewWidget(QWidget):
             self._validate_inputs() # Re-validate after path change
 
     def _validate_inputs(self):
-        """Enable the setup button only if path is non-empty and license is checked."""
-        path_valid = bool(self.path_edit.text().strip())
-        license_accepted = self.license_checkbox.isChecked()
-        # TODO: Add path writability check
-        self.setup_button.setEnabled(path_valid and license_accepted)
+        """Enable the setup button only if path is non-empty and valid."""
+        install_path = self.path_edit.text().strip()
+        
+        # Basic validation - path must not be empty
+        path_valid = bool(install_path)
+        
+        # Check if parent directory exists or can be created
+        if path_valid:
+            try:
+                parent_dir = os.path.dirname(os.path.abspath(install_path))
+                
+                # Check if parent directory exists
+                if not os.path.exists(parent_dir):
+                    try:
+                        # Try temporarily creating it to check permissions
+                        os.makedirs(parent_dir, exist_ok=True)
+                        os.rmdir(parent_dir)  # Clean up if we created it just for testing
+                    except (PermissionError, OSError):
+                        path_valid = False
+                
+                # If target exists, check if it's writable
+                if os.path.exists(install_path):
+                    if not os.access(install_path, os.W_OK):
+                        path_valid = False
+                else:
+                    # Check if we can write to the parent directory
+                    if not os.access(parent_dir, os.W_OK):
+                        path_valid = False
+            except Exception:
+                path_valid = False
+                
+        self.setup_button.setEnabled(path_valid)
 
     def _on_setup_clicked(self):
         """Emit the setup_requested signal when the setup button is clicked."""
         install_path = self.path_edit.text().strip()
-        license_accepted = self.license_checkbox.isChecked()
-        # Basic validation again, although button should be disabled if invalid
-        if install_path and license_accepted:
-            # TODO: Add more robust validation (path exists, is writable?) before emitting
-            print(f"Setup requested: Path='{install_path}', License Accepted={license_accepted}") # Debug print
-            self.setup_requested.emit(install_path, license_accepted)
+        
+        # Final validation before emitting the signal
+        try:
+            # Convert to absolute path
+            abs_path = os.path.abspath(install_path)
+            parent_dir = os.path.dirname(abs_path)
+            
+            # Ensure parent directory exists or can be created
+            if not os.path.exists(parent_dir):
+                os.makedirs(parent_dir, exist_ok=True)
+                
+            # Check write permissions by attempting to create a test file
+            if os.path.exists(abs_path):
+                test_dir = abs_path
+            else:
+                test_dir = parent_dir
+                
+            test_file = os.path.join(test_dir, ".write_test")
+            with open(test_file, "w") as f:
+                f.write("test")
+            os.remove(test_file)
+            
+            # If we got here, the path is valid and writable
+            print(f"Setup requested: Path='{abs_path}'")
+            self.setup_requested.emit(abs_path)
+        except Exception as e:
+            from PyQt6.QtWidgets import QMessageBox
+            QMessageBox.critical(
+                self,
+                "Invalid Installation Path",
+                f"Cannot install to the selected location:\n{install_path}\n\nError: {str(e)}"
+            )
 
     def _show_license_dialog(self):
         """Show the license agreement dialog."""
@@ -178,16 +225,3 @@ class WelcomeViewWidget(QWidget):
         except Exception:
             return False
 
-# Example usage (for testing the view directly)
-if __name__ == '__main__':
-    import sys
-    from PyQt6.QtWidgets import QApplication
-    # Need to adjust path for fallback get_resource_path if running directly
-    # This is tricky, usually test main window which imports correctly
-    # For standalone test, ensure assets is findable or skip logo load
-
-    app = QApplication(sys.argv)
-    welcome_view = WelcomeViewWidget()
-    welcome_view.resize(500, 350) # Give it some size for standalone testing
-    welcome_view.show()
-    sys.exit(app.exec())

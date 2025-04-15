@@ -5,7 +5,7 @@ import platform # Added for platform-specific checks
 import shutil
 import winreg  # For Windows registry operations
 from PyQt6.QtWidgets import QApplication, QMainWindow, QStackedWidget, QWidget, QMessageBox, QVBoxLayout, QFrame
-from PyQt6.QtCore import Qt, QThread # Added QThread
+from PyQt6.QtCore import Qt, QThread, QProcess # Added QThread and QProcess
 from PyQt6.QtGui import QPalette, QColor # Added for background
 
 # Import views
@@ -49,7 +49,7 @@ class SetupMainWindow(QMainWindow):
         # Fixed size might conflict slightly with exact border/radius look
         # Consider setting minimum size and letting layout manage?
         # For now, keep fixed size.
-        self.setFixedSize(600 + (BORDER_THICKNESS * 2), 450 + self._title_bar.height() + (BORDER_THICKNESS * 2) if hasattr(self, '_title_bar') else 450 + 35 + (BORDER_THICKNESS * 2)) 
+        self.setFixedSize(650 + (BORDER_THICKNESS * 2), 550 + self._title_bar.height() + (BORDER_THICKNESS * 2) if hasattr(self, '_title_bar') else 500 + 35 + (BORDER_THICKNESS * 2)) 
 
         # --- Custom Window Frame --- 
         self.setWindowFlags(Qt.WindowType.FramelessWindowHint)
@@ -131,6 +131,7 @@ class SetupMainWindow(QMainWindow):
         self._model_worker = None
         self._model_thread = None
         self._is_running = False # Flag to track if setup is in progress
+        self._is_env_setup_stage = True  # Track current stage
 
         self._create_views()
         self.stacked_widget.setCurrentIndex(VIEW_WELCOME) # Show welcome view initially
@@ -162,13 +163,10 @@ class SetupMainWindow(QMainWindow):
         self.completion_view.launch_requested.connect(self._launch_anpe)
         self.completion_view.close_requested.connect(self.close)
 
-    def _handle_setup_request(self, install_path: str, license_accepted: bool):
+    def _handle_setup_request(self, install_path: str):
         """Slot to handle the setup request from the Welcome view."""
-        print(f"Main Window received setup request: Path='{install_path}', License Accepted={license_accepted}")
-        if not license_accepted:
-            QMessageBox.warning(self, "License Agreement", "You must agree to the license terms to proceed.")
-            return
-
+        print(f"Main Window received setup request: Path='{install_path}'")
+        
         self._install_path = install_path
 
         # --- Path Validation --- 
@@ -209,7 +207,8 @@ class SetupMainWindow(QMainWindow):
         """Instantiate and start the EnvironmentSetupWorker in a QThread."""
         print("Starting environment setup thread...")
         self._is_running = True
-
+        self._is_env_setup_stage = True  # Track current stage
+        
         # Prepare progress view
         self.env_progress_view.clear_log()
         self.env_progress_view.update_status("Initializing environment setup...")
@@ -218,6 +217,10 @@ class SetupMainWindow(QMainWindow):
 
         # Create worker and thread
         self._env_worker = EnvironmentSetupWorker(self._install_path)
+        
+        # Set up task list based on worker's tasks
+        self.env_progress_view.setup_tasks_from_worker(self._env_worker)
+        
         self._env_thread = QThread()
         self._env_worker.moveToThread(self._env_thread)
 
@@ -225,6 +228,7 @@ class SetupMainWindow(QMainWindow):
         self._env_worker.log_update.connect(self.env_progress_view.append_log)
         self._env_worker.log_update.connect(self._print_log_message)
         self._env_worker.status_update.connect(self.env_progress_view.update_status)
+        self._env_worker.task_status_update.connect(self.env_progress_view.update_task_status)
         self._env_worker.finished.connect(self._environment_setup_finished)
         self._env_thread.started.connect(self._env_worker.run)
         self._env_worker.finished.connect(self._env_thread.quit)
@@ -246,13 +250,15 @@ class SetupMainWindow(QMainWindow):
         else:
             # Setup failed, show completion view in failure state
             self._is_running = False
+            self._is_env_setup_stage = True  # Still in env stage when failed
             self._show_completion_view(success=False)
 
     def _start_model_setup(self):
         """Instantiate and start the ModelSetupWorker in a QThread."""
         print("Starting model setup thread...")
         self._is_running = True # Still running
-
+        self._is_env_setup_stage = False  # Now in model setup stage
+        
         # Prepare progress view
         self.model_progress_view.clear_log()
         self.model_progress_view.update_status("Initializing language model setup...")
@@ -261,6 +267,10 @@ class SetupMainWindow(QMainWindow):
 
         # Create worker and thread
         self._model_worker = ModelSetupWorker(self._python_exe_path)
+        
+        # Set up task list based on worker's tasks
+        self.model_progress_view.setup_tasks_from_worker(self._model_worker)
+        
         self._model_thread = QThread()
         self._model_worker.moveToThread(self._model_thread)
 
@@ -268,6 +278,7 @@ class SetupMainWindow(QMainWindow):
         self._model_worker.log_update.connect(self.model_progress_view.append_log)
         self._model_worker.log_update.connect(self._print_log_message)
         self._model_worker.status_update.connect(self.model_progress_view.update_status)
+        self._model_worker.task_status_update.connect(self.model_progress_view.update_task_status)
         self._model_worker.finished.connect(self._model_setup_finished)
         self._model_thread.started.connect(self._model_worker.run)
         self._model_worker.finished.connect(self._model_thread.quit)
@@ -288,7 +299,17 @@ class SetupMainWindow(QMainWindow):
 
     def _show_completion_view(self, success: bool):
         """Switch to the completion view and set its state."""
-        self.completion_view.set_success_state(success)
+        # Collect logs from the appropriate progress view
+        log_content = ""
+        if hasattr(self, '_is_env_setup_stage') and self._is_env_setup_stage:
+            # Environment setup logs
+            log_content = self.env_progress_view._log_area.toPlainText()
+        else:
+            # Model setup logs (default to this if we can't determine stage)
+            log_content = self.model_progress_view._log_area.toPlainText()
+            
+        # Set success state and pass logs
+        self.completion_view.set_success_state(success, log_content)
         self.stacked_widget.setCurrentIndex(VIEW_COMPLETION)
 
     # --- Slots for Completion Actions --- 
@@ -348,7 +369,8 @@ class SetupMainWindow(QMainWindow):
             # Register application in Windows and create uninstaller
             self._register_app_and_create_uninstaller(app_dir_abs, pythonw_exe_abs, icon_path)
             
-            QMessageBox.information(self, "Shortcut Created", "Desktop and Start Menu shortcuts created successfully.")
+            # No dialog needed, user already has the completion screen
+            print("Desktop and Start Menu shortcuts created successfully.")
         except Exception as e:
             print(f"make_shortcut failed: {e}")
             import traceback
@@ -484,16 +506,53 @@ if __name__ == "__main__":
                                        QMessageBox.StandardButton.No)
 
             if reply == QMessageBox.StandardButton.Yes:
-                # TODO: Implement process termination if possible/safe
-                # For now, just accept the close
-                print("Warning: Closing setup window while process is running.")
-                # Attempt to terminate workers cleanly? Difficult with external process.
+                print("Terminating running processes and closing...")
+                
+                # First try to terminate any running processes gracefully
+                # Environment setup worker
                 if self._env_thread and self._env_thread.isRunning():
-                    self._env_thread.quit() # Request quit
-                    # self._env_thread.wait(1000) # Wait briefly
+                    if hasattr(self._env_worker, "_process") and self._env_worker._process:
+                        try:
+                            # Try to terminate any running subprocess
+                            self._env_worker._process.terminate()
+                            # Give it a moment to terminate
+                            self._env_worker._process.waitForFinished(1000)
+                            # If it's still running, kill it
+                            if self._env_worker._process.state() != QProcess.ProcessState.NotRunning:
+                                self._env_worker._process.kill()
+                        except Exception as e:
+                            print(f"Error terminating environment process: {e}")
+                    
+                    # Quit the thread
+                    self._env_thread.quit()
+                    # Wait briefly for thread to finish
+                    if not self._env_thread.wait(1000):
+                        print("Environment setup thread did not terminate in time")
+                
+                # Model setup worker
                 if self._model_thread and self._model_thread.isRunning():
+                    if hasattr(self._model_worker, "_process") and self._model_worker._process:
+                        try:
+                            # Try to terminate any running subprocess
+                            self._model_worker._process.terminate()
+                            # Give it a moment to terminate
+                            self._model_worker._process.waitForFinished(1000)
+                            # If it's still running, kill it
+                            if self._model_worker._process.state() != QProcess.ProcessState.NotRunning:
+                                self._model_worker._process.kill()
+                        except Exception as e:
+                            print(f"Error terminating model process: {e}")
+                    
+                    # Quit the thread
                     self._model_thread.quit()
-                    # self._model_thread.wait(1000)
+                    # Wait briefly for thread to finish
+                    if not self._model_thread.wait(1000):
+                        print("Model setup thread did not terminate in time")
+                
+                # Set flag to not running
+                self._is_running = False
+                
+                # Accept the close event
                 event.accept()
             else:
                 event.ignore()
