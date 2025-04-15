@@ -7,6 +7,7 @@ import winreg  # For Windows registry operations
 from PyQt6.QtWidgets import QApplication, QMainWindow, QStackedWidget, QWidget, QMessageBox, QVBoxLayout, QFrame
 from PyQt6.QtCore import Qt, QThread, QProcess # Added QThread and QProcess
 from PyQt6.QtGui import QPalette, QColor # Added for background
+from PyQt6.QtCore import QPropertyAnimation, QEasingCurve # Added for fade-in
 
 # Import views
 from .views.welcome_view import WelcomeViewWidget
@@ -136,7 +137,17 @@ class SetupMainWindow(QMainWindow):
         self._create_views()
         self.stacked_widget.setCurrentIndex(VIEW_WELCOME) # Show welcome view initially
 
+        # Initialize window opacity to 0 for fade-in
+        self.setWindowOpacity(0.0)
         self.show()
+        
+        # Create and start fade-in animation
+        self._fade_in_animation = QPropertyAnimation(self, b"windowOpacity")
+        self._fade_in_animation.setDuration(500) # 500 ms duration
+        self._fade_in_animation.setStartValue(0.0)
+        self._fade_in_animation.setEndValue(1.0)
+        self._fade_in_animation.setEasingCurve(QEasingCurve.Type.InOutQuad) # Smooth easing
+        self._fade_in_animation.start()
 
     def _print_log_message(self, message: str):
         """Helper slot to print log messages directly to the console."""
@@ -392,43 +403,24 @@ class SetupMainWindow(QMainWindow):
                 
                 # Log the directories and their contents
                 for root, dirs, files in os.walk(self._install_path):
+                    # Skip __pycache__ directories
+                    dirs[:] = [d for d in dirs if d != '__pycache__']
+                    files = [f for f in files if not f.endswith('.pyc')]
+                    
                     for file in files:
                         file_path = os.path.join(root, file)
                         log_file.write(f"FILE={file_path}\n")
-                    for dir in dirs:
-                        dir_path = os.path.join(root, dir)
+                    for dir_name in dirs:
+                        dir_path = os.path.join(root, dir_name)
                         log_file.write(f"DIR={dir_path}\n")
             
-            # 2. Copy the uninstaller module to the installation directory
-            uninstaller_source = get_resource_path("uninstaller")
-            uninstaller_dest = os.path.join(self._install_path, "uninstaller")
-            if os.path.exists(uninstaller_source):
-                if not os.path.exists(uninstaller_dest):
-                    os.makedirs(uninstaller_dest, exist_ok=True)
-                shutil.copytree(uninstaller_source, uninstaller_dest, dirs_exist_ok=True)
-                print(f"Copied uninstaller from {uninstaller_source} to {uninstaller_dest}")
-            else:
-                print(f"Warning: Uninstaller source not found at {uninstaller_source}")
+            # Step 2: Copying uninstaller directory is removed, assuming uninstall.pyw is part of the main copy
+            print("Skipping separate uninstaller directory copy.")
                 
-            # 3. Create uninstaller script
-            uninstaller_script = os.path.join(self._install_path, "uninstall_ANPE.pyw")
-            with open(uninstaller_script, "w") as f:
-                f.write(f'''import os
-import sys
-import subprocess
-
-# Launch the uninstaller GUI
-def main():
-    uninstaller_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "uninstaller", "uninstall.pyw")
-    pythonw_exe = "{pythonw_exe_abs}"
-    
-    # Launch uninstaller GUI
-    subprocess.Popen([pythonw_exe, uninstaller_path], 
-                    cwd=os.path.dirname(uninstaller_path))
-
-if __name__ == "__main__":
-    main()
-''')
+            # Step 3: Creating separate launcher script is removed.
+            # Define the path to the actual uninstaller script copied with the app
+            actual_uninstaller_script_path = os.path.join(self._install_path, "uninstall.pyw")
+            print(f"Uninstaller script path expected at: {actual_uninstaller_script_path}")
 
             # 4. Create registry entries to add the application to Add/Remove Programs
             app_name = "ANPE"
@@ -443,10 +435,12 @@ if __name__ == "__main__":
             # Set values for the key
             winreg.SetValueEx(reg_key, "DisplayName", 0, winreg.REG_SZ, app_name)
             winreg.SetValueEx(reg_key, "DisplayVersion", 0, winreg.REG_SZ, app_version)
-            winreg.SetValueEx(reg_key, "Publisher", 0, winreg.REG_SZ, "ANPE Developer")
+            winreg.SetValueEx(reg_key, "Publisher", 0, winreg.REG_SZ, "Richard Chen")
             winreg.SetValueEx(reg_key, "InstallLocation", 0, winreg.REG_SZ, self._install_path)
+            # --- Update UninstallString to point directly to the actual script ---
             winreg.SetValueEx(reg_key, "UninstallString", 0, winreg.REG_SZ, 
-                             f'"{pythonw_exe_abs}" "{uninstaller_script}"')
+                             f'"{pythonw_exe_abs}" "{actual_uninstaller_script_path}"')
+            # ---------------------------------------------------------------------
             winreg.SetValueEx(reg_key, "DisplayIcon", 0, winreg.REG_SZ, icon_path if icon_path else "")
             winreg.SetValueEx(reg_key, "NoModify", 0, winreg.REG_DWORD, 1)
             winreg.SetValueEx(reg_key, "NoRepair", 0, winreg.REG_DWORD, 1)

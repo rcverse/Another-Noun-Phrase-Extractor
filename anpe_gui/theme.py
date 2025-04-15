@@ -23,6 +23,11 @@ WARNING_COLOR = "#FFC107"     # Yellow for warnings
 INFO_COLOR = "#17A2B8"        # Teal for info
 LIGHT_HOVER_BLUE = "#EFF5FB" # Very light blue for hover effects (updated)
 
+# --- Frameless Window Constants ---
+BORDER_RADIUS = 10 # Adjust for desired roundness
+BORDER_THICKNESS = 2 # Adjust for desired thickness
+# --- End Frameless Window Constants ---
+
 def get_scroll_bar_style(vertical_width=8, horizontal_height=8, handle_min_size=20, border_radius=4):
     """
     Return a modern scroll bar style that can be reused across widgets.
@@ -162,9 +167,9 @@ def get_stylesheet():
         background-color: {PRIMARY_COLOR};
         color: white;
         border: 1px solid {SECONDARY_COLOR};
-        padding: 5px 10px; /* Reduced padding */
-        border-radius: 3px; /* Slightly smaller radius */
-        min-width: 70px; /* Adjust min width */
+        padding: 8px 15px; /* Restore original padding */
+        border-radius: 4px; /* Restore original radius */
+        min-width: 80px; /* Restore original min width */
     }}
     QPushButton:hover {{
         background-color: {HOVER_COLOR};
@@ -390,8 +395,8 @@ def get_stylesheet():
         border-bottom: none; /* No border at the bottom */
         border-top-left-radius: 4px;
         border-top-right-radius: 4px;
-        padding: 6px 20px; /* Reduced height (from 8px to 6px) and increased width (from 15px to 25px) */
-        min-height: 20px; /* Reduced from 25px to 20px */
+        padding: 8px 15px; /* Restore original padding */
+        min-height: 25px; /* Restore original height */
         margin-right: 2px; /* Space between tabs */
     }}
     QTabBar::tab:hover {{
@@ -544,6 +549,68 @@ def get_stylesheet():
     
     /* Larger scrollbars for QTextBrowser */
     QTextBrowser {textbrowser_scrollbar_style}
+    
+    /* === Frameless Window Styles === */
+    QMainWindow {{
+        background-color: transparent;
+    }}
+    #MainFrame {{
+        background-color: {BACKGROUND_COLOR};
+        border: {BORDER_THICKNESS}px solid {PRIMARY_COLOR};
+        border-radius: {BORDER_RADIUS}px;
+    }}
+    CustomTitleBar {{
+        background-color: #f0f0f0;
+        border-top-left-radius: {BORDER_RADIUS - BORDER_THICKNESS}px;
+        border-top-right-radius: {BORDER_RADIUS - BORDER_THICKNESS}px;
+        border-bottom-left-radius: 0px;
+        border-bottom-right-radius: 0px;
+    }}
+    #MainContentWidget {{
+        background-color: transparent; 
+        border-bottom-left-radius: {BORDER_RADIUS - BORDER_THICKNESS}px;
+        border-bottom-right-radius: {BORDER_RADIUS - BORDER_THICKNESS}px;
+        border-top-left-radius: 0px; 
+        border-top-right-radius: 0px;
+    }}
+    StatusBar {{
+        background-color: #f5f5f5;
+        border-top: none;
+        padding: 2px;
+        min-height: 22px;
+        border-bottom-left-radius: {BORDER_RADIUS - BORDER_THICKNESS}px;
+        border-bottom-right-radius: {BORDER_RADIUS - BORDER_THICKNESS}px;
+    }}
+    StatusBar QLabel {{ 
+        padding: 3px 10px; 
+        border-radius: 4px;
+        font-size: 11pt; 
+        min-height: 22px; 
+        alignment: 'AlignVCenter'; 
+    }}
+    StatusBar QLabel[status="ready"] {{
+        background-color: #E7F3FF; color: #005A9C; font-weight: bold;
+    }}
+    StatusBar QLabel[status="error"] {{
+        background-color: #FAE3E2; color: #C04A44; font-weight: bold;
+    }}
+    StatusBar QLabel[status="warning"] {{
+        background-color: #FDF2E8; color: #E5B17A; font-weight: bold;
+    }}
+    StatusBar QLabel[status="info"] {{
+        background-color: #E7F3FF; color: #005A9C;
+    }}
+    StatusBar QLabel[status="busy"] {{
+        font-style: bold; background-color: #f0f0f0; color: #333333;
+    }}
+    StatusBar QLabel[status="success"] {{
+        background-color: #F1F8E8; color: #73A942; font-weight: bold;
+    }}
+    StatusBar QLabel[status="failed"] {{
+        background-color: #FAE3E2; color: #C04A44; font-weight: bold;
+    }}
+    /* === End Frameless Window Styles === */
+    
     """
 
 def apply_theme(app):

@@ -9,7 +9,11 @@ from typing import Dict, Any, Optional
 
 from ..widgets.task_list_widget import TaskListWidget, TaskStatus
 from ..utils import get_resource_path
-from ..styles import SECONDARY_BUTTON_STYLE, PROGRESS_BAR_STYLE, LOG_TEXT_AREA_STYLE, TITLE_LABEL_STYLE, STATUS_LABEL_STYLE, PRIMARY_BUTTON_STYLE
+from ..styles import (
+    SECONDARY_BUTTON_STYLE, PROGRESS_BAR_STYLE, LOG_TEXT_AREA_STYLE, 
+    TITLE_LABEL_STYLE, STATUS_LABEL_STYLE, PRIMARY_BUTTON_STYLE,
+    COMPACT_SECONDARY_BUTTON_STYLE
+)
 
 class ProgressViewWidget(QWidget):
     """Widget for displaying progress during setup stages."""
@@ -110,8 +114,10 @@ class ProgressViewWidget(QWidget):
         
         # --- Details Toggle Button ---
         self._details_button = QPushButton("Show Details")
-        self._details_button.setStyleSheet(PRIMARY_BUTTON_STYLE)
-        self._details_button.setMaximumWidth(120)
+        # Use compact secondary style for less emphasis
+        self._details_button.setStyleSheet(COMPACT_SECONDARY_BUTTON_STYLE)
+        # Keep max width or adjust if needed for compact style
+        # self._details_button.setMaximumWidth(120) 
         self._details_button.clicked.connect(self._toggle_details)
         
         details_button_layout = QHBoxLayout()
