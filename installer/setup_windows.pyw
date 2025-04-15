@@ -2,6 +2,8 @@ import sys
 import subprocess
 import os # Added for shortcut/launch paths
 import platform # Added for platform-specific checks
+import shutil
+import winreg  # For Windows registry operations
 from PyQt6.QtWidgets import QApplication, QMainWindow, QStackedWidget, QWidget, QMessageBox, QVBoxLayout, QFrame
 from PyQt6.QtCore import Qt, QThread # Added QThread
 from PyQt6.QtGui import QPalette, QColor # Added for background
@@ -305,36 +307,15 @@ class SetupMainWindow(QMainWindow):
         # --- Define Shortcut Parameters & Paths ---
         shortcut_name = "ANPE"
         app_dir_abs = os.path.abspath(os.path.join(self._install_path, "anpe_gui"))
-        # target_script = "run.py" # Relative script name
         python_exe_abs = os.path.abspath(self._python_exe_path)
 
-        # --- Determine Python(w).exe for batch script --- 
+        # --- Determine Python(w).exe for direct execution --- 
         pythonw_exe_abs = python_exe_abs.replace("python.exe", "pythonw.exe")
         if not os.path.exists(pythonw_exe_abs):
             pythonw_exe_abs = python_exe_abs # Fallback
-        target_script_in_app = "run.py"
-
-        # --- RE-IMPLEMENT BATCH SCRIPT (Final Version) --- 
-        # Batch script just runs the target script using pythonw/python
-        # Working directory is set by make_shortcut below
-        batch_script_path = os.path.join(app_dir_abs, "ANPE_launch.bat") # Place IN app dir?
-        # Let's place it in the main install dir for simplicity
-        batch_script_path = os.path.join(self._install_path, "ANPE_launch.bat") 
         
-        batch_content = f'''@echo off
-REM This script starts ANPE. Working directory MUST be set to the anpe_gui folder.
-start "ANPE" "{pythonw_exe_abs}" {target_script_in_app}
-'''
-        
-        try:
-            print(f"Creating final launcher script: {batch_script_path}")
-            with open(batch_script_path, "w", encoding='utf-8') as f:
-                f.write(batch_content)
-            print("Launcher script created.")
-        except Exception as e:
-            QMessageBox.critical(self, "Shortcut Failed", f"Could not create launcher batch file: {batch_script_path}\nError: {e}")
-            return
-        # --- END BATCH SCRIPT CREATION ---
+        # Use absolute path for script instead of relative
+        target_script_abs = os.path.join(app_dir_abs, "run.py")
         
         # --- Resolve Icon Path --- 
         icon_path = None
@@ -350,24 +331,113 @@ start "ANPE" "{pythonw_exe_abs}" {target_script_in_app}
         # -------------------------
 
         try:
-            # Point shortcut to the batch script, SETTING THE WORKING DIR for the batch script
-            print(f"Calling make_shortcut: name='{shortcut_name}', script='{batch_script_path}', icon='{icon_path}', terminal=False, working_dir='{app_dir_abs}'")
+            # Create shortcut directly to pythonw.exe with script as argument
+            # This avoids the batch file and window icon issues
+            print(f"Calling make_shortcut: name='{shortcut_name}', script='{target_script_abs}', icon='{icon_path}', terminal=False, working_dir='{app_dir_abs}'")
             make_shortcut(
-                script=batch_script_path, # Target the batch script
+                script=target_script_abs,  # Use absolute path to the Python script
                 name=shortcut_name,
-                icon=icon_path, 
-                # executable=python_exe_abs, # Not needed, batch file calls python
+                icon=icon_path,
+                executable=pythonw_exe_abs,  # Use pythonw.exe directly
                 terminal=False, 
                 desktop=True,  
                 startmenu=True, 
-                working_dir=app_dir_abs # CRUCIAL: Set working dir for the BATCH script
+                working_dir=app_dir_abs  # Set working directory to app directory
             )
+            
+            # Register application in Windows and create uninstaller
+            self._register_app_and_create_uninstaller(app_dir_abs, pythonw_exe_abs, icon_path)
+            
             QMessageBox.information(self, "Shortcut Created", "Desktop and Start Menu shortcuts created successfully.")
         except Exception as e:
             print(f"make_shortcut failed: {e}")
             import traceback
             traceback.print_exc()
             QMessageBox.critical(self, "Shortcut Failed", f"Failed to create shortcuts using make_shortcut.\nError: {e}")
+
+    def _register_app_and_create_uninstaller(self, app_dir_abs, pythonw_exe_abs, icon_path):
+        """Register the application in Windows Add/Remove Programs and create uninstaller."""
+        try:
+            # 1. Create installation log file to track installed files
+            install_log_path = os.path.join(self._install_path, "install_log.txt")
+            with open(install_log_path, "w") as log_file:
+                # Record installation path and other important info
+                log_file.write(f"INSTALL_PATH={self._install_path}\n")
+                log_file.write(f"APP_DIR={app_dir_abs}\n")
+                log_file.write(f"PYTHON_PATH={self._python_exe_path}\n")
+                log_file.write(f"PYTHONW_PATH={pythonw_exe_abs}\n")
+                log_file.write(f"INSTALL_DATE={subprocess.check_output('date /t', shell=True).decode().strip()}\n")
+                
+                # Log the directories and their contents
+                for root, dirs, files in os.walk(self._install_path):
+                    for file in files:
+                        file_path = os.path.join(root, file)
+                        log_file.write(f"FILE={file_path}\n")
+                    for dir in dirs:
+                        dir_path = os.path.join(root, dir)
+                        log_file.write(f"DIR={dir_path}\n")
+            
+            # 2. Copy the uninstaller module to the installation directory
+            uninstaller_source = get_resource_path("uninstaller")
+            uninstaller_dest = os.path.join(self._install_path, "uninstaller")
+            if os.path.exists(uninstaller_source):
+                if not os.path.exists(uninstaller_dest):
+                    os.makedirs(uninstaller_dest, exist_ok=True)
+                shutil.copytree(uninstaller_source, uninstaller_dest, dirs_exist_ok=True)
+                print(f"Copied uninstaller from {uninstaller_source} to {uninstaller_dest}")
+            else:
+                print(f"Warning: Uninstaller source not found at {uninstaller_source}")
+                
+            # 3. Create uninstaller script
+            uninstaller_script = os.path.join(self._install_path, "uninstall_ANPE.pyw")
+            with open(uninstaller_script, "w") as f:
+                f.write(f'''import os
+import sys
+import subprocess
+
+# Launch the uninstaller GUI
+def main():
+    uninstaller_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "uninstaller", "uninstall.pyw")
+    pythonw_exe = "{pythonw_exe_abs}"
+    
+    # Launch uninstaller GUI
+    subprocess.Popen([pythonw_exe, uninstaller_path], 
+                    cwd=os.path.dirname(uninstaller_path))
+
+if __name__ == "__main__":
+    main()
+''')
+
+            # 4. Create registry entries to add the application to Add/Remove Programs
+            app_name = "ANPE"
+            app_version = "1.0.0"  # You might want to parameterize this
+            
+            # HKEY_CURRENT_USER\Software\Microsoft\Windows\CurrentVersion\Uninstall\ANPE
+            reg_path = r"Software\Microsoft\Windows\CurrentVersion\Uninstall\ANPE"
+            
+            # Create/open the key
+            reg_key = winreg.CreateKeyEx(winreg.HKEY_CURRENT_USER, reg_path, 0, winreg.KEY_WRITE)
+            
+            # Set values for the key
+            winreg.SetValueEx(reg_key, "DisplayName", 0, winreg.REG_SZ, app_name)
+            winreg.SetValueEx(reg_key, "DisplayVersion", 0, winreg.REG_SZ, app_version)
+            winreg.SetValueEx(reg_key, "Publisher", 0, winreg.REG_SZ, "ANPE Developer")
+            winreg.SetValueEx(reg_key, "InstallLocation", 0, winreg.REG_SZ, self._install_path)
+            winreg.SetValueEx(reg_key, "UninstallString", 0, winreg.REG_SZ, 
+                             f'"{pythonw_exe_abs}" "{uninstaller_script}"')
+            winreg.SetValueEx(reg_key, "DisplayIcon", 0, winreg.REG_SZ, icon_path if icon_path else "")
+            winreg.SetValueEx(reg_key, "NoModify", 0, winreg.REG_DWORD, 1)
+            winreg.SetValueEx(reg_key, "NoRepair", 0, winreg.REG_DWORD, 1)
+            
+            winreg.CloseKey(reg_key)
+            
+            print("Application registered in Windows Add/Remove Programs")
+            
+        except Exception as e:
+            print(f"Error registering application: {e}")
+            import traceback
+            traceback.print_exc()
+            # Continue without failing - this is an optional part of the installation
 
     def _launch_anpe(self, launch: bool):
         """Handle the request to launch ANPE (using subprocess.Popen)."""
@@ -382,17 +452,16 @@ start "ANPE" "{pythonw_exe_abs}" {target_script_in_app}
         print("Launching ANPE...")
         # --- Set the working directory and launch command --- 
         app_dir = os.path.join(self._install_path, "anpe_gui")
-        # target_script = os.path.join(app_dir, "run.py") # Incorrect path concatenation
         python_exe_abs = os.path.abspath(self._python_exe_path)
         
-        # --- Use python.exe consistently for launch (like the working debug batch) ---
-        # pythonw_exe_abs = python_exe_abs.replace("python.exe", "pythonw.exe")
-        # if not os.path.exists(pythonw_exe_abs):
-        #     pythonw_exe_abs = python_exe_abs 
+        # Use pythonw.exe to hide command window
+        pythonw_exe_abs = python_exe_abs.replace("python.exe", "pythonw.exe")
+        if not os.path.exists(pythonw_exe_abs):
+            pythonw_exe_abs = python_exe_abs 
 
-        # Launch run.py from the app_dir using python.exe
+        # Launch run.py from the app_dir using pythonw.exe
         target_script_relative = "run.py"
-        launch_command = [python_exe_abs, target_script_relative]
+        launch_command = [pythonw_exe_abs, target_script_relative]
 
         print(f"Setting working directory for launch: {app_dir}")
         print(f"Running launch command: {' '.join(launch_command)}")

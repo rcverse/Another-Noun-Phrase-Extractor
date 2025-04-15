@@ -1,8 +1,9 @@
 import sys
 import os
+import ctypes
 from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QLabel, QLineEdit, QPushButton, QCheckBox, QHBoxLayout,
-    QSizePolicy, QFileDialog, QSpacerItem
+    QSizePolicy, QFileDialog, QSpacerItem, QRadioButton, QButtonGroup
 )
 from PyQt6.QtCore import Qt, pyqtSignal
 from PyQt6.QtGui import QPixmap, QMouseEvent
@@ -82,13 +83,21 @@ class WelcomeViewWidget(QWidget):
         layout.addSpacerItem(QSpacerItem(20, 20, QSizePolicy.Policy.Minimum, QSizePolicy.Policy.Expanding))
 
         # --- Installation Path (Windows Specific) ---
-        path_label = QLabel("Select Installation Location:")
+        path_label = QLabel("Installation Location:")
         layout.addWidget(path_label)
 
         path_layout = QHBoxLayout()
         self.path_edit = QLineEdit()
-        # Suggest a default path
-        default_path = os.path.join(os.path.expanduser("~"), "ANPE")
+        
+        # Automatically determine appropriate installation path based on admin privileges
+        is_admin = self._is_admin()
+        if is_admin:
+            default_path = os.path.join(os.environ.get('ProgramFiles', 'C:\\Program Files'), "ANPE")
+            path_info = QLabel("(Standard installation in Program Files)")
+        else:
+            default_path = os.path.join(os.environ.get('LOCALAPPDATA', os.path.expanduser("~\\AppData\\Local")), "ANPE")
+            path_info = QLabel("(User installation in local AppData)")
+        
         self.path_edit.setText(default_path)
         self.path_edit.textChanged.connect(self._validate_inputs) # Validate on change
         path_layout.addWidget(self.path_edit)
@@ -97,6 +106,10 @@ class WelcomeViewWidget(QWidget):
         browse_button.clicked.connect(self._browse_directory)
         path_layout.addWidget(browse_button)
         layout.addLayout(path_layout)
+        
+        # Add explanation about installation location
+        path_info.setStyleSheet("color: #666666; font-style: italic;")
+        layout.addWidget(path_info)
 
         # --- License Agreement ---
         license_layout = QHBoxLayout()
@@ -157,6 +170,13 @@ class WelcomeViewWidget(QWidget):
         if self._license_dialog is None:
             self._license_dialog = LicenseDialog(self) # Pass self as parent
         self._license_dialog.exec()
+
+    def _is_admin(self):
+        """Check if the current user has administrator privileges on Windows."""
+        try:
+            return ctypes.windll.shell32.IsUserAnAdmin() != 0
+        except Exception:
+            return False
 
 # Example usage (for testing the view directly)
 if __name__ == '__main__':
