@@ -15,7 +15,7 @@ from anpe_gui.splash_screen import SplashScreen
 from anpe_gui.theme import apply_theme
 from anpe_gui.resource_manager import ResourceManager
 from anpe.utils.setup_models import check_all_models_present # Assuming this function exists
-from anpe_gui.setup_wizard import SetupWizard # Assuming this class will be created
+# from anpe_gui.setup_wizard import SetupWizard # REMOVED: Assuming this class will be created
 
 # Import resource module
 import anpe_gui.resources_rc
@@ -54,7 +54,7 @@ def main():
     apply_theme(app)
 
     main_window = None
-    setup_wizard = None # Keep track of the wizard instance
+    # setup_wizard = None # REMOVED: Keep track of the wizard instance
 
     # --- SplashScreen Setup ---
     splash = SplashScreen()
@@ -74,7 +74,7 @@ def main():
 
     # --- Function called after splash screen (or directly if setup needed) ---
     def proceed_after_splash_or_setup():
-        nonlocal setup_wizard # Reference the wizard instance
+        nonlocal main_window # Reference the main_window instance
 
         print("APP: Checking if models are present...")
         models_present = check_all_models_present() # Check for models
@@ -97,32 +97,57 @@ def main():
                 launch_main_window()
         else:
             print("APP: Models not found. Launching Setup Wizard.")
+            # --- MODIFIED: Instead of wizard, show message and launch main window in disabled state ---
+            print("APP: Models not found. Will show message and launch main window (partially disabled).")
+            # Ensure splash is closed before showing message/main window
+            def show_message_and_main_window():
+                # Message box is now handled inside MainWindow's init error handler
+                # QMessageBox.warning(None, "Models Missing", 
+                #                     "Required ANPE models (spaCy, Benepar, NLTK) are missing.\n" 
+                #                     "Please use 'Manage Models' (gear icon) in the main window to install them.")
+                # Launch the main window directly, it will handle its own state
+                launch_main_window() 
+            
             if splash:
-                # Ensure splash is closed *before* showing wizard. 
-                # Since fade_out handles close, connect fade_out_complete to showing wizard.
-                # We need a small helper function or lambda to show the wizard
-                def show_wizard_after_splash():
-                    nonlocal setup_wizard
-                    if setup_wizard is None: # Create wizard only once
-                        setup_wizard = SetupWizard()
-                        setup_wizard.setup_complete.connect(launch_main_window) # Wizard success launches main window (with fade-in)
-                        setup_wizard.setup_cancelled.connect(app.quit)
-                    setup_wizard.show()
-                
                 try:
-                    splash.fade_out_complete.disconnect() # Disconnect any previous connections
+                    splash.fade_out_complete.disconnect() # Disconnect previous connections
                 except TypeError:
                     pass
-                splash.fade_out_complete.connect(show_wizard_after_splash)
-                # Splash fade_out is triggered internally when loading finishes
-                print("APP: Waiting for splash fade out before showing wizard...")
+                splash.fade_out_complete.connect(show_message_and_main_window)
+                print("APP: Waiting for splash fade out before showing message/main window...")
+                # Splash fade_out is triggered internally
+            else:
+                # No splash, show message and launch main window directly
+                show_message_and_main_window()
+            # -------------------------------------------------------------------------------------
 
-            else: # No splash, show wizard directly
-                if setup_wizard is None: 
-                    setup_wizard = SetupWizard()
-                    setup_wizard.setup_complete.connect(launch_main_window)
-                    setup_wizard.setup_cancelled.connect(app.quit)
-                setup_wizard.show()
+            # --- OLD WIZARD LOGIC (REMOVED) --- 
+            # if splash:
+            #     # Ensure splash is closed *before* showing wizard. 
+            #     # Since fade_out handles close, connect fade_out_complete to showing wizard.
+            #     # We need a small helper function or lambda to show the wizard
+            #     def show_wizard_after_splash():
+            #         nonlocal setup_wizard
+            #         if setup_wizard is None: # Create wizard only once
+            #             setup_wizard = SetupWizard()
+            #             setup_wizard.setup_complete.connect(launch_main_window) # Wizard success launches main window (with fade-in)
+            #             setup_wizard.setup_cancelled.connect(app.quit)
+            #         setup_wizard.show()
+            #     
+            #     try:
+            #         splash.fade_out_complete.disconnect() # Disconnect any previous connections
+            #     except TypeError:
+            #         pass
+            #     splash.fade_out_complete.connect(show_wizard_after_splash)
+            #     # Splash fade_out is triggered internally when loading finishes
+            #     print("APP: Waiting for splash fade out before showing wizard...")
+            # 
+            # else: # No splash, show wizard directly
+            #     if setup_wizard is None: 
+            #         setup_wizard = SetupWizard()
+            #         setup_wizard.setup_complete.connect(launch_main_window)
+            #         setup_wizard.setup_cancelled.connect(app.quit)
+            #     setup_wizard.show()
 
     # --- Connect Splash Signal ---
     # Splash loading finished triggers the check/proceed logic

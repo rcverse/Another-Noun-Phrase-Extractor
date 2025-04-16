@@ -16,7 +16,7 @@ import subprocess # Added subprocess
 from anpe_gui.version import __version__ as GUI_VERSION
 
 # Corrected imports: QCoreApplication moved to QtCore
-from PyQt6.QtCore import Qt, QThreadPool, pyqtSignal, QSize, QTimer, QObject, QThread, pyqtSlot, QPropertyAnimation, QEasingCurve, pyqtProperty, QUrl, QCoreApplication 
+from PyQt6.QtCore import Qt, QThreadPool, pyqtSignal, QSize, QTimer, QObject, QThread, pyqtSlot, QPropertyAnimation, QEasingCurve, pyqtProperty, QUrl, QCoreApplication, QSettings # Added QSettings
 from PyQt6.QtWidgets import (
     QMainWindow, QStackedWidget, QWidget, QVBoxLayout, QHBoxLayout,
     QPushButton, QLabel, QTextEdit, QFileDialog, QSpinBox,
@@ -50,34 +50,71 @@ from anpe_gui.workers import ExtractionWorker, BatchWorker, QtLogHandler
 from anpe_gui.widgets import (FileListWidget, StructureFilterWidget, 
                               StatusBar, EnhancedLogPanel, ResultDisplayWidget) # Ensure StatusBar is imported from widgets
 from anpe_gui.theme import get_stylesheet # Import the function to get the stylesheet
-from anpe_gui.widgets.model_management_dialog import ModelManagementDialog # Import the new dialog
-from anpe_gui.setup_wizard import SetupWizard # Keep wizard import for initial setup
-
+from anpe_gui.widgets.settings_dialog import SettingsDialog # Import the new dialog
 
 # --- Worker for Background Initialization ---
 class ExtractorInitializer(QObject):
-    initialized = pyqtSignal(object)  # Emit the extractor instance
-    error = pyqtSignal(str)          # Emit error message
-    models_missing = pyqtSignal()    # New signal to indicate models need setup
+    # Emit dictionary with detailed status on success, or None if check fails before completion
+    initialized = pyqtSignal(object) 
+    error = pyqtSignal(str)          # Emit error message string
 
     def run(self):
-        """Initialize the ANPEExtractor in the background."""
-        logging.info("Initializing ANPEExtractor...")
+        """Checks specific model availability and emits status or error."""
+        logging.info("Performing initial detailed model status check...")
+        MISSING_MODELS_PREFIX = "Missing required models: "
+        status_dict = {
+            'spacy_models': [],
+            'benepar_models': [],
+            'nltk_present': False,
+            'error': None # Add error field to status dict
+        }
         try:
-            from anpe.utils import setup_models
-            # First check if models are present
-            if not setup_models.check_all_models_present():
-                logging.info("Required models not found, setup needed.")
-                self.models_missing.emit()
-                return
+            # Always try to import, even if models might be missing
+            from anpe.utils.setup_models import check_nltk_models
+            from anpe.utils.model_finder import find_installed_spacy_models, find_installed_benepar_models
+            
+            # Perform the checks
+            status_dict['spacy_models'] = find_installed_spacy_models()
+            status_dict['benepar_models'] = find_installed_benepar_models()
+            status_dict['nltk_present'] = check_nltk_models(['punkt', 'punkt_tab'])
+
+            logging.info(f"Initial detailed model status: {status_dict}")
+
+            # Check if *minimum* requirements are met (any spacy, any benepar, nltk)
+            has_spacy = len(status_dict['spacy_models']) > 0
+            has_benepar = len(status_dict['benepar_models']) > 0
+            has_nltk = status_dict['nltk_present']
+
+            if has_spacy and has_benepar and has_nltk:
+                logging.info("Required model types found. Initialization check successful.")
+                self.initialized.emit(status_dict) # Emit detailed status
+            else:
+                # Minimum requirements not met, construct error message
+                missing = []
+                if not has_spacy: missing.append("spaCy model(s)")
+                if not has_benepar: missing.append("Benepar model(s)")
+                if not has_nltk: missing.append("NLTK data")
+                error_msg = MISSING_MODELS_PREFIX + ", ".join(missing)
+                logging.warning(error_msg + ". Setup needed.")
+                status_dict['error'] = error_msg # Store error in status dict as well
+                self.error.emit(error_msg) # Emit specific error message
+                # Do NOT emit initialized signal here
                 
-            # Models are present, initialize extractor
-            extractor = ANPEExtractor()
-            logging.info("ANPEExtractor initialized successfully.")
-            self.initialized.emit(extractor)
+        except ImportError as ie:
+             error_msg = f"Initialization check failed: Could not import ANPE utilities ({ie}). Is ANPE installed?"
+             logging.error(error_msg, exc_info=True)
+             status_dict['error'] = error_msg
+             # Emit None on initialized if check fails this way?
+             # Let's stick to only emitting error signal for consistency
+             # self.initialized.emit(None)
+             self.error.emit(error_msg)
         except Exception as e:
-            logging.error(f"Error initializing ANPEExtractor: {e}", exc_info=True)
-            self.error.emit(str(e))
+            error_msg = f"Error during initialization check: {e}"
+            logging.error(error_msg, exc_info=True)
+            status_dict['error'] = error_msg
+            # self.initialized.emit(None) 
+            self.error.emit(error_msg)
+
 # --- End Worker --- 
 
 # Helper function to get the base path
@@ -166,9 +203,9 @@ class MainWindow(QMainWindow):
         super().__init__()
         
         self.setWindowTitle(f"ANPE GUI v{GUI_VERSION}")
-        # Set default size first
-        self.initial_width = 1200
-        self.initial_height = 900
+        # Set default size first (Enlarged)
+        self.initial_width = 1300
+        self.initial_height = 950
         self.setGeometry(0, 0, self.initial_width, self.initial_height)  
         
         # Center the window
@@ -191,6 +228,14 @@ class MainWindow(QMainWindow):
         # Animation setup
         self._fade_animation = None
         self.setWindowOpacity(0.0) # Start transparent for fade-in
+
+        # Store initial model status details
+        self.initial_model_status = {
+            'spacy_models': [],
+            'benepar_models': [],
+            'nltk_present': False,
+            'error': None # Store potential init error
+        } 
 
         self.setup_ui()
         
@@ -261,121 +306,70 @@ class MainWindow(QMainWindow):
 
     def start_background_initialization(self):
         """Starts the background thread for ANPEExtractor initialization."""
+        # Clear previous status before starting check
+        self.initial_model_status = {
+            'spacy_models': [], 'benepar_models': [], 'nltk_present': False, 'error': None
+        }
+        self.extractor_ready = False # Reset ready state
+        if hasattr(self, 'process_button'): self.process_button.setEnabled(False)
+        
         self.init_thread = QThread()
         self.init_worker = ExtractorInitializer()
         self.init_worker.moveToThread(self.init_thread)
         
         self.init_worker.initialized.connect(self.on_extractor_initialized)
         self.init_worker.error.connect(self.on_extractor_init_error)
-        self.init_worker.models_missing.connect(self.on_models_missing)  # Connect new signal
         self.init_thread.started.connect(self.init_worker.run)
         
         # Clean up thread when worker finishes
         self.init_worker.initialized.connect(self.init_thread.quit)
         self.init_worker.error.connect(self.init_thread.quit)
-        self.init_worker.models_missing.connect(self.init_thread.quit)  # Add quit for new signal
 
         status_type = 'busy'
         message = "Checking ANPE models..."
         self.status_bar.showMessage(message, status_type=status_type)
         self.init_thread.start()
     
-    @pyqtSlot(object)
-    def on_extractor_initialized(self, extractor_instance):
-        """Slot to receive the initialized extractor (though not directly used anymore)."""
-        # We don't store the instance globally anymore, config is applied per run.
-        # Just mark as ready.
-        logging.debug("MAIN: Extractor initialized signal received.")
-        self.extractor_ready = True
+    @pyqtSlot(object) # Receives the status dictionary 
+    def on_extractor_initialized(self, status_dict):
+        """Slot called when the background initialization check completes successfully."""
+        logging.debug(f"MAIN: Initialization check successful. Status received: {status_dict}")
+        self.initial_model_status = status_dict # Store detailed status
+        self.extractor_ready = True # Mark as ready
         status_type = 'ready'
         message = "ANPE Ready"
         self.status_bar.showMessage(message, 3000, status_type=status_type)
-        if hasattr(self, 'process_button'): # Check if button exists
-             self.process_button.setEnabled(True) # Enable processing now
+        if hasattr(self, 'process_button'):
+             self.process_button.setEnabled(True)
 
     @pyqtSlot(str)
     def on_extractor_init_error(self, error_message):
-        """Slot to handle initialization errors."""
+        """Slot to handle initialization errors, including missing models."""
         logging.error(f"MAIN: Extractor init error signal received: {error_message}")
-        QMessageBox.critical(self, "Initialization Error", 
-                             f"Failed to initialize ANPE Extractor: {error_message}")
-        status_type = 'error'
-        message = "ANPE Initialization Failed! Processing disabled."
-        self.status_bar.showMessage(message, 0, status_type=status_type) # Persistent
-        if hasattr(self, 'process_button'): # Check if button exists
-            self.process_button.setEnabled(False) # Disable processing
+        self.extractor_ready = False 
+        # Store default/error state in status dict
+        self.initial_model_status = {
+            'spacy_models': [],
+            'benepar_models': [],
+            'nltk_present': False,
+            'error': error_message 
+        }
+        if hasattr(self, 'process_button'): 
+            self.process_button.setEnabled(False)
 
-    @pyqtSlot()
-    def on_models_missing(self):
-        """Handle case where models are missing during initialization."""
-        logging.debug("MAIN: Models missing, launching setup wizard...")
-        status_type = 'warning'
-        message = "Required models not found. Opening setup wizard..."
-        self.status_bar.showMessage(message, status_type=status_type)
-        
-        # Create and show setup wizard
-        wizard = SetupWizard(self)
-        wizard.setup_complete.connect(self.on_setup_wizard_complete)
-        wizard.setup_cancelled.connect(self.on_setup_wizard_cancelled)
-        wizard.show()
-
-    def on_setup_wizard_complete(self):
-        """Handle successful completion of the setup wizard."""
-        try:
-            # Log the completion
-            logging.info("Model setup completed successfully. Preparing to reinitialize ANPE...")
-            
-            # Clear any existing results
-            self.results = None
-            if hasattr(self, 'results_display_widget'):
-                self.results_display_widget.clear_display()
-                
-            # Clear file list widget (custom implementation may not have clear method)
-            if hasattr(self, 'file_list_widget'):
-                # Different ways to clear based on implementation
-                if hasattr(self.file_list_widget, 'clear'):
-                    self.file_list_widget.clear()
-                elif hasattr(self.file_list_widget, 'clear_files'):
-                    self.file_list_widget.clear_files()  
-                elif hasattr(self.file_list_widget, 'setFiles'):
-                    self.file_list_widget.setFiles([])
-                else:
-                    logging.debug("Could not clear file_list_widget - no suitable method found")
-            
-            # Reset GUI state
-            if hasattr(self, 'process_button'):
-                self.process_button.setEnabled(False)  # Disable until reinitialization
-            self.extractor_ready = False
-            
-            # Show informative status
-            status_type = 'info'
-            message = "Model setup completed successfully. Reinitializing ANPE..."
-            self.status_bar.showMessage(message, 5000, status_type=status_type)
-            
-            # Use a longer delay timer to ensure the wizard is fully closed before reinitializing
-            # This mitigates race conditions in signal processing
-            logging.debug("Scheduling reinitialization after delay...")
-            QTimer.singleShot(500, self._delayed_initialization)
-            
-        except Exception as e:
-            logging.error(f"Error handling setup completion: {e}", exc_info=True)
-            self.status_bar.showMessage(f"Error after setup: {e}", 5000, status_type='error')
-    
-    def _delayed_initialization(self):
-        """Separate method for delayed initialization to avoid signal race conditions."""
-        try:
-            logging.debug("Starting delayed reinitialization...")
-            self.start_background_initialization()
-        except Exception as e:
-            logging.error(f"Error in delayed initialization: {e}", exc_info=True)
-            self.status_bar.showMessage(f"Failed to reinitialize: {e}", 5000, status_type='error')
-
-    def on_setup_wizard_cancelled(self):
-        """Handle cancellation of the setup wizard."""
-        status_type = 'warning'
-        message = "Model setup cancelled. ANPE functionality limited."
-        self.status_bar.showMessage(message, 5000, status_type=status_type)
-        self.process_button.setEnabled(False)  # Disable processing since models aren't ready
+        MISSING_MODELS_PREFIX = "Missing required models: "
+        if error_message.startswith(MISSING_MODELS_PREFIX):
+            status_type = 'warning'
+            status_message = f"{error_message}. Use 'Manage Models' (gear icon) to install." 
+            self.status_bar.showMessage(status_message, 0, status_type=status_type) 
+            QMessageBox.warning(self, "Models Missing", 
+                             f"{status_message}\n\nProcessing functionality will be disabled until models are installed.")
+        else:
+            status_type = 'error'
+            status_message = f"ANPE Initialization Failed! {error_message}"
+            self.status_bar.showMessage(status_message, 0, status_type=status_type) 
+            QMessageBox.critical(self, "Initialization Error", 
+                                 f"Failed to initialize ANPE: {error_message}")
 
     def setup_ui(self):
         """Set up the main UI components: Header, Splitter (Tabs | Log), Status Bar."""
@@ -528,7 +522,7 @@ class MainWindow(QMainWindow):
         self.model_manage_button = settings_button
         self.model_manage_button.setToolTip("Open Model Management (Setup/Clean)")
         icon_layout.addWidget(self.model_manage_button)
-        self.model_manage_button.clicked.connect(self.open_model_management)
+        self.model_manage_button.clicked.connect(self.open_settings)
         
         # Add the icon container to the header layout
         header_layout.addWidget(icon_container)
@@ -951,6 +945,18 @@ class MainWindow(QMainWindow):
             else:
                 logging.warning("Structure filter widget not found/ready during config gathering.")
 
+            # --- Read Model Usage Preferences from QSettings ---
+            settings = QSettings("rcverse", "ANPE_GUI") # Use the same org/app name as in ModelsPage
+            spacy_pref = settings.value("modelUsage/spacyModel", "(Auto-detect)")
+            benepar_pref = settings.value("modelUsage/beneparModel", "(Auto-detect)")
+            
+            # Add preferences to config, handle "(Auto-detect)" by passing None (or the string itself if core handles it)
+            # Assuming core ANPEExtractor interprets None as auto-detect for model selection
+            config["spacy_model_preference"] = None if spacy_pref == "(Auto-detect)" else spacy_pref
+            config["benepar_model_preference"] = None if benepar_pref == "(Auto-detect)" else benepar_pref
+            logging.debug(f"Read model usage preferences: spaCy='{spacy_pref}', Benepar='{benepar_pref}'")
+            # -----------------------------------------------------
+
             # Config gathering is important, keep INFO level for success
             logging.info(f"Configuration gathered successfully: {config}")
             return config
@@ -991,7 +997,11 @@ class MainWindow(QMainWindow):
             status_type = 'busy'
             status_message = f"Processing {len(files)} files..."
             # Pass message directly to run_batch_processing which will call status_bar.update_progress
-            self.run_batch_processing(files, config, initial_status_message=status_message)
+            # Get preferences from the config dict (apply_configuration already handled None for Auto-detect)
+            spacy_pref = config.pop('spacy_model_preference', None)
+            benepar_pref = config.pop('benepar_model_preference', None)
+            
+            self.run_batch_processing(files, config, spacy_pref, benepar_pref, initial_status_message=status_message)
 
         elif input_mode_index == 1: # Text Input Mode
             text_content = self.direct_text_input.toPlainText().strip()
@@ -1004,9 +1014,14 @@ class MainWindow(QMainWindow):
             status_type = 'busy'
             status_message = "Processing text..."
             # Pass message directly to run_single_processing which will call status_bar.start_progress
-            self.run_single_processing(text_content, config, initial_status_message=status_message)
+            # Get preferences from the config dict
+            spacy_pref = config.pop('spacy_model_preference', None)
+            benepar_pref = config.pop('benepar_model_preference', None)
+            self.run_single_processing(text_content, config, spacy_pref, benepar_pref, initial_status_message=status_message)
 
-    def run_single_processing(self, text_content: str, config: Dict[str, Any], initial_status_message: str):
+    def run_single_processing(self, text_content: str, config: Dict[str, Any], 
+                              spacy_pref: Optional[str], benepar_pref: Optional[str], # Added prefs
+                              initial_status_message: str):
         """Starts the background worker for processing a single text input."""
         if hasattr(self, 'single_thread') and self.single_thread is not None and self.single_thread.isRunning():
              QMessageBox.warning(self, "Processing Busy", 
@@ -1027,7 +1042,9 @@ class MainWindow(QMainWindow):
             config=config, 
             anpe_version=self.anpe_version,
             include_nested=self.include_nested.isChecked(),
-            include_metadata=self.include_metadata.isChecked()
+            include_metadata=self.include_metadata.isChecked(),
+            spacy_model_preference=spacy_pref, # Pass preference
+            benepar_model_preference=benepar_pref # Pass preference
         ) 
         
         # 2. Create Thread and Move Worker
@@ -1052,7 +1069,9 @@ class MainWindow(QMainWindow):
         logging.debug("MAIN: Starting single processing thread.")
         self.single_thread.start()
 
-    def run_batch_processing(self, file_paths: List[str], config: Dict[str, Any], initial_status_message: str):
+    def run_batch_processing(self, file_paths: List[str], config: Dict[str, Any], 
+                             spacy_pref: Optional[str], benepar_pref: Optional[str], # Added prefs
+                             initial_status_message: str):
         """Starts the background worker for processing multiple files."""
         if hasattr(self, 'batch_thread') and self.batch_thread is not None and self.batch_thread.isRunning():
              QMessageBox.warning(self, "Processing Busy", 
@@ -1076,7 +1095,9 @@ class MainWindow(QMainWindow):
             config=config, 
             anpe_version=self.anpe_version,
             include_nested=self.include_nested.isChecked(),
-            include_metadata=self.include_metadata.isChecked()
+            include_metadata=self.include_metadata.isChecked(),
+            spacy_model_preference=spacy_pref, # Pass preference
+            benepar_model_preference=benepar_pref # Pass preference
         )
         
         # 2. Create Thread and Move Worker
@@ -1494,54 +1515,44 @@ class MainWindow(QMainWindow):
          """Switch focus to the Output tab."""
          self.main_tabs.setCurrentIndex(1)
 
-    def open_model_management(self):
-        """Opens the Model Management dialog."""
-        dialog = ModelManagementDialog(self)
-        # Connect the signal from the dialog to potentially update the main window's state
+    def open_settings(self):
+        """Opens the settings dialog, passing the initial model status."""
+        logging.debug(f"Opening Settings Dialog. Passing initial status: {self.initial_model_status}") # LOGGING
+        # Pass the stored initial status to the dialog
+        dialog = SettingsDialog(self, initial_model_status=self.initial_model_status) 
         dialog.models_changed.connect(self.on_models_changed)
-        dialog.exec() # Show modally
+        dialog.model_usage_changed.connect(self.on_model_usage_preference_changed)
+        dialog.exec()
 
+    @pyqtSlot()
     def on_models_changed(self):
         """Slot called when models might have changed via the management dialog."""
-        logging.info("MAIN: Models may have changed via dialog. Re-checking status...")
-        self.status_bar.showMessage("Models possibly changed. Re-checking readiness...", 3000)
-        
-        # Use a timer to delay the check to avoid race conditions
-        QTimer.singleShot(200, self._delayed_model_check)
-    
-    def _delayed_model_check(self):
-        """Perform the actual model check after a short delay."""
-        try:
-            from anpe.utils.setup_models import check_all_models_present
-            if check_all_models_present():
-                # If models are now present, we might need to re-initialize
-                if not self.extractor_ready:
-                     logging.info("MAIN: Models now present, restarting initialization.")
-                     self.start_background_initialization() # This will set its own status message
-                else:
-                     logging.info("MAIN: Models checked, extractor was already ready.")
-                     if hasattr(self, 'process_button'):
-                         self.process_button.setEnabled(True) # Ensure enabled
-                     status_type = 'ready'
-                     message = "Model status re-checked. ANPE Ready."
-                     self.status_bar.showMessage(message, 3000, status_type=status_type)
+        logging.info("MAIN: Models may have changed via dialog. Re-evaluating state...")
+        self.status_bar.showMessage("Settings updated. Re-evaluating readiness...", 3000, status_type='info')
 
-            else:
-                 # Models are missing (e.g., after cleaning)
-                 logging.warning("MAIN: Models missing after check. Disabling processing.")
-                 self.extractor_ready = False
-                 if hasattr(self, 'process_button'):
-                     self.process_button.setEnabled(False)
-                 status_type = 'warning'
-                 message = "Models missing. Run setup via 'Manage Models'."
-                 self.status_bar.showMessage(message, 0, status_type=status_type) # Persistent message
-        except Exception as e:
-             logging.error(f"MAIN: Error re-checking models after dialog: {e}", exc_info=True)
-             status_type = 'error'
-             message = "Error re-checking models."
-             self.status_bar.showMessage(message, 5000, status_type=status_type)
-             if hasattr(self, 'process_button'):
-                 self.process_button.setEnabled(False) # Disable on error
+        # If the extractor wasn't ready before (e.g., models were missing),
+        # try re-initializing now. The initialization process itself will
+        # check model availability and update extractor_ready and button state.
+        if not self.extractor_ready:
+            logging.info("MAIN: Extractor was not ready. Triggering background initialization check...")
+            # Use a timer to avoid potential race conditions with dialog closing
+            QTimer.singleShot(200, self.start_background_initialization)
+        else:
+            # Extractor was already ready. Assume it still is unless initialization fails.
+            # The process button enablement is tied to self.extractor_ready,
+            # which is managed by the initialization process.
+            logging.info("MAIN: Extractor was already ready. Status remains ready unless initialization fails upon next processing attempt.")
+            # Ensure process button reflects current state (should be enabled if extractor_ready is True)
+            if hasattr(self, 'process_button'):
+                self.process_button.setEnabled(self.extractor_ready)
+            # Optionally update status bar message if needed, but init handles most states.
+            # self.status_bar.showMessage("Model status re-checked. ANPE Ready.", 3000, status_type='ready')
+
+    @pyqtSlot()
+    def on_model_usage_preference_changed(self):
+        """Slot called when the model usage preference is changed in the SettingsDialog."""
+        # For now, just log this event. The actual preference is read during apply_configuration.
+        logging.info("MAIN: Model usage preference changed signal received.")
 
     def closeEvent(self, event):
         """Handle the main window closing."""

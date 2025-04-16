@@ -217,6 +217,26 @@ def get_stylesheet():
         border: 1px solid #DDDDDD; /* Lighter border */
     }}
 
+    /* Danger Button Style (for Uninstall/Clean) */
+    QPushButton[danger="true"] {{
+        background-color: {ERROR_COLOR}; /* Red background */
+        color: white; /* White text */
+        border: 1px solid #C04A44; /* Slightly darker red border */
+    }}
+    QPushButton[danger="true"]:hover {{
+        background-color: #C82333; /* Darker red hover */
+        border-color: #B02A37;
+    }}
+    QPushButton[danger="true"]:pressed {{
+        background-color: #A51F2D; /* Even darker red pressed */
+        border-color: #8E1B26;
+    }}
+    QPushButton[danger="true"]:disabled {{
+        background-color: #F8D7DA; /* Very light red disabled */
+        color: #721C24; /* Dark red text disabled */
+        border-color: #F5C6CB;
+    }}
+
     /* Specific Buttons (e.g., for Add/Remove) */
     FileListWidget QPushButton,
     StructureFilterWidget QPushButton {{

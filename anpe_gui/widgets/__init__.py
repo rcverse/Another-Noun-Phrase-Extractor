@@ -16,5 +16,5 @@ from anpe_gui.widgets.enhanced_log_panel import EnhancedLogPanel
 from anpe_gui.widgets.result_display import ResultDisplayWidget 
 from anpe_gui.widgets.help_dialog import HelpDialog
 from anpe_gui.widgets.license_dialog import LicenseDialog
-from anpe_gui.widgets.model_management_dialog import ModelManagementDialog
+from anpe_gui.widgets.settings_dialog import SettingsDialog
 from anpe_gui.widgets.result_display import DetachedResultWindow

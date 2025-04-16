@@ -21,7 +21,9 @@ class BatchWorker(QObject):
     """Performs ANPE extraction on multiple files using provided config."""
     
     def __init__(self, file_paths: List[str], config: Dict[str, Any], anpe_version: str,
-                 include_metadata: bool, include_nested: bool):
+                 include_metadata: bool, include_nested: bool,
+                 spacy_model_preference: Optional[str] = None, # Added preference
+                 benepar_model_preference: Optional[str] = None): # Added preference
         super().__init__()
         # Store config and input data
         self.file_paths = file_paths
@@ -29,6 +31,8 @@ class BatchWorker(QObject):
         self.anpe_version = anpe_version # May not be needed by worker, but passed from main
         self.include_metadata = include_metadata # For output formatting
         self.include_nested = include_nested   # For output formatting
+        self.spacy_model_preference = spacy_model_preference # Store preference
+        self.benepar_model_preference = benepar_model_preference # Store preference
         self.signals = BatchSignals()
         self._is_cancelled = False
 
@@ -43,8 +47,20 @@ class BatchWorker(QObject):
         
         try:
             # Create extractor instance ONCE with the specific config for this batch run
-            logging.debug(f"Creating ANPEExtractor with config: {self.config}")
-            extractor = ANPEExtractor(config=self.config)
+            # Prepare the config, adding model preferences if they exist
+            run_config = self.config.copy() # Start with base config
+            if self.spacy_model_preference:
+                run_config['spacy_model'] = self.spacy_model_preference
+            if self.benepar_model_preference:
+                run_config['benepar_model'] = self.benepar_model_preference
+                
+            logging.debug(f"WORKER (Batch): Creating ANPEExtractor with effective config: {run_config}")
+            # logging.debug(f"WORKER (Batch): Model Prefs: spaCy='{self.spacy_model_preference}', Benepar='{self.benepar_model_preference}'") # Commented out old log
+            extractor = ANPEExtractor(
+                config=run_config # Pass the updated config
+                # spacy_model=self.spacy_model_preference, # Removed direct argument
+                # benepar_model=self.benepar_model_preference # Removed direct argument
+            )
 
             for i, file_path in enumerate(self.file_paths):
                 if self._is_cancelled:
