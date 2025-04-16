@@ -48,9 +48,9 @@ else:
 
 from anpe_gui.workers import ExtractionWorker, BatchWorker, QtLogHandler
 from anpe_gui.widgets import (FileListWidget, StructureFilterWidget, 
-                              StatusBar, EnhancedLogPanel, ResultDisplayWidget,
-                              ModelManagementDialog, HelpDialog, CustomTitleBar) # Added CustomTitleBar
+                              StatusBar, EnhancedLogPanel, ResultDisplayWidget) # Ensure StatusBar is imported from widgets
 from anpe_gui.theme import get_stylesheet # Import the function to get the stylesheet
+from anpe_gui.widgets.model_management_dialog import ModelManagementDialog # Import the new dialog
 from anpe_gui.setup_wizard import SetupWizard # Keep wizard import for initial setup
 
 
@@ -94,101 +94,112 @@ def get_base_path():
 class MainWindow(QMainWindow):
     """Main window for the ANPE GUI application."""
     
-    # Status bar styles moved to theme.py
-
+    # Status bar styles (remains here for now, could be moved to theme.py later)
+    STATUS_BAR_STYLE = f"""
+        StatusBar {{
+            background-color: #f5f5f5;
+            border-top: 1px solid #e0e0e0;
+            padding: 2px;
+            min-height: 22px; /* Ensure minimum height */
+        }}
+        StatusBar QLabel {{ /* Base style for labels in custom StatusBar widget */
+            padding: 3px 10px; /* Increased padding */
+            border-radius: 4px;
+            font-size: 11pt; /* Increased font size */
+            min-height: 22px; /* Increased min height */
+            alignment: 'AlignVCenter'; /* Vertically center text */
+        }}
+        /* Specific styles based on 'status' property */
+        StatusBar QLabel[status="ready"] {{
+            /* background-color: {SUCCESS_COLOR}20; Lighter green background */
+            /* color: {SUCCESS_COLOR}; */
+            background-color: #E7F3FF; /* Morandi Light Blue background */
+            color: #005A9C; /* Primary Blue text */
+            font-weight: bold;
+        }}
+        StatusBar QLabel[status="error"] {{
+            /* background-color: {ERROR_COLOR}20; Lighter red background */
+            /* color: {ERROR_COLOR}; */
+            background-color: #FAE3E2; /* Morandi Light Red background */
+            color: #C04A44; /* Morandi Red text */
+            font-weight: bold;
+        }}
+        StatusBar QLabel[status="warning"] {{
+            /* background-color: {WARNING_COLOR}20; Lighter amber background */
+            /* color: {WARNING_COLOR}; */
+            background-color: #FDF2E8; /* Morandi Light Ochre background */
+            color: #E5B17A; /* Morandi Ochre text */
+            font-weight: bold;
+        }}
+        StatusBar QLabel[status="info"] {{
+            /* background-color: {INFO_COLOR}20; Lighter info background */
+            /* color: {INFO_COLOR}; */
+            background-color: #E7F3FF; /* Morandi Light Blue background */
+            color: #005A9C; /* Primary Blue text */
+        }}
+        StatusBar QLabel[status="busy"] {{
+            /* background-color: {PRIMARY_COLOR}20; Lighter busy background */
+            /* color: {PRIMARY_COLOR}; */
+            font-style: bold; /* Keep bold as per user edit */
+            background-color: #f0f0f0; /* Light grey background */
+            color: #333333; /* Dark grey text */
+        }}
+        StatusBar QLabel[status="success"] {{
+            /* background-color: {SUCCESS_COLOR}20; */
+            /* color: {SUCCESS_COLOR}; */
+            /* background-color: #e6f9e6; Light Green background */
+            /* color: #1e7e34; Deeper Green text */
+            background-color: #F1F8E8; /* Morandi Light Green background */
+            color: #73A942; /* Morandi Green text */
+            font-weight: bold;
+        }}
+         StatusBar QLabel[status="failed"] {{
+            /* background-color: {ERROR_COLOR}20; Lighter red background */
+            /* color: {ERROR_COLOR}; */
+            background-color: #FAE3E2; /* Morandi Light Red background */
+            color: #C04A44; /* Morandi Red text */
+            font-weight: bold;
+        }}
+    """
+    
     def __init__(self):
         super().__init__()
-
-        window_title = f"ANPE GUI v{GUI_VERSION}"
-
-        # --- Frameless Window Setup --- 
-        self.setWindowFlags(Qt.WindowType.FramelessWindowHint)
-        self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
-
+        
+        self.setWindowTitle(f"ANPE GUI v{GUI_VERSION}")
         # Set default size first
         self.initial_width = 1200
         self.initial_height = 900
-        self.setGeometry(0, 0, self.initial_width, self.initial_height)
-
-        # Main container widget (needed for transparency and layout)
-        self._main_container = QWidget(self)
-        self.setCentralWidget(self._main_container)
-        # Explicitly make the container transparent using stylesheet
-        # self._main_container.setAutoFillBackground(False) # Remove this line
-        self._main_container.setStyleSheet("background: transparent;") # Add this line
-
-        # Layout for the main container (to create space for border)
-        self._container_layout = QVBoxLayout(self._main_container)
-        from .theme import BORDER_THICKNESS, BORDER_RADIUS # Import theme constants
-        self._container_layout.setContentsMargins(BORDER_THICKNESS, BORDER_THICKNESS, BORDER_THICKNESS, BORDER_THICKNESS)
-        self._container_layout.setSpacing(0)
-
-        # Frame for content (background, border radius)
-        self._main_frame = QFrame(self._main_container)
-        self._main_frame.setObjectName("MainFrame") # For styling from theme.py
-        self._main_frame.setAutoFillBackground(True) # Ensure it paints its background
-        # Force background color directly on the instance as a fallback
-        from .theme import BACKGROUND_COLOR
-        self._main_frame.setStyleSheet(f"QFrame#MainFrame {{ background-color: {BACKGROUND_COLOR}; }}")
-        self._container_layout.addWidget(self._main_frame)
-
-        # Layout *inside* the main frame
-        self._frame_layout = QVBoxLayout(self._main_frame)
-        self._frame_layout.setContentsMargins(0, 0, 0, 0) # Frame handles padding via border
-        self._frame_layout.setSpacing(0)
-
-        # Custom Title Bar (Add to frame layout)
-        self._title_bar = CustomTitleBar(window_title, self._main_frame)
-        self._frame_layout.addWidget(self._title_bar)
-
-        # Placeholder for the main content (will be populated in setup_ui)
-        self._content_widget = QWidget(self._main_frame)
-        self._content_widget.setObjectName("MainContentWidget") # For styling
-        self._frame_layout.addWidget(self._content_widget)
-        # Apply layout to the content widget where original UI will go
-        self._content_layout = QVBoxLayout(self._content_widget)
-        self._content_layout.setContentsMargins(10, 5, 10, 10) # Add padding inside content area (L, T, R, B)
-        self._content_layout.setSpacing(10) # Restore spacing for content elements
-
-        # --- End Frameless Window Setup ---
-
+        self.setGeometry(0, 0, self.initial_width, self.initial_height)  
+        
         # Center the window
         self._center_on_screen()
-
+        
         # Set window icon
         from anpe_gui.resource_manager import ResourceManager
         self.setWindowIcon(ResourceManager.get_icon("app_icon.png"))
-
-        # Apply theme stylesheet (contains styles for MainFrame, CustomTitleBar, StatusBar etc.)
+        
+        # Apply theme stylesheet
         self.setStyleSheet(get_stylesheet())
-
-        # Core application state variables
-        self.extractor_ready = False 
-        self.anpe_version = anpe_version_str 
-        self.worker: Optional[ExtractionWorker] = None
-        self.batch_worker: Optional[BatchWorker] = None
-        self.results: Optional[Dict[str, Any]] = None
+        
+        # self.thread_pool = QThreadPool() # Removed unused thread pool
+        self.extractor_ready = False # Flag to indicate if core extractor is ready
+        self.anpe_version = anpe_version_str # Store version string
+        self.worker: Optional[ExtractionWorker] = None # For single processing
+        self.batch_worker: Optional[BatchWorker] = None # For batch processing
+        self.results: Optional[Dict[str, Any]] = None # To store last processing results for export
 
         # Animation setup
         self._fade_animation = None
         self.setWindowOpacity(0.0) # Start transparent for fade-in
 
-        # Build the UI inside self._content_layout
         self.setup_ui()
-
-        # Connect title bar signals AFTER setup_ui (closeEvent is defined)
-        self._title_bar.minimize_requested.connect(self.showMinimized)
-        self._title_bar.close_requested.connect(self.close) # Connects to overridden closeEvent
-
+        
         # Start Background Extractor Initialization only if ANPEExtractor is real
-        if 'ANPEExtractor' in globals() and ANPEExtractor.__module__ != 'builtins':
+        if 'ANPEExtractor' in globals() and ANPEExtractor.__module__ != 'builtins': # Check it's not the dummy
              self.start_background_initialization()
         else:
-             # Check if status_bar and process_button exist before using them
-             if hasattr(self, 'status_bar'):
-                 self.status_bar.showMessage("ANPE Library Error! Processing disabled.", 0) 
-             if hasattr(self, 'process_button'):
-                 self.process_button.setEnabled(False)
+             self.status_bar.showMessage("ANPE Library Error! Processing disabled.", 0) # Persistent message
+             self.process_button.setEnabled(False) # Disable processing
              logging.error("ANPE library not found or dummy class used. Initialization skipped.")
 
     def _center_on_screen(self):
@@ -367,27 +378,17 @@ class MainWindow(QMainWindow):
         self.process_button.setEnabled(False)  # Disable processing since models aren't ready
 
     def setup_ui(self):
-        """Set up the main UI components within the content layout."""
-        # self.central_widget = QWidget() # REMOVED
-        # self.setCentralWidget(self.central_widget) # REMOVED
-        # self.main_layout = QVBoxLayout(self.central_widget) # REMOVED - Use self._content_layout now
-        # self.main_layout.setContentsMargins(10, 10, 10, 12) # REMOVED
-        # self.main_layout.setSpacing(10) # REMOVED
+        """Set up the main UI components: Header, Splitter (Tabs | Log), Status Bar."""
+        self.central_widget = QWidget()
+        self.setCentralWidget(self.central_widget)
+        self.main_layout = QVBoxLayout(self.central_widget)
+        self.main_layout.setContentsMargins(10, 10, 10, 12) # Increased bottom margin
+        self.main_layout.setSpacing(10)
         
-        # --- 1. Header ---
-        header_widget = self.setup_header() # Get the header widget
-        self._content_layout.addWidget(header_widget) # Add to content layout
-
-        # Add aesthetic separator line between header and content
-        separator = QFrame()
-        separator.setFrameShape(QFrame.Shape.HLine)
-        separator.setFrameShadow(QFrame.Shadow.Sunken)
-        # Import BORDER_COLOR if not already imported locally
-        from .theme import BORDER_COLOR
-        separator.setStyleSheet(f"background-color: {BORDER_COLOR}; max-height: 1px;")
-        self._content_layout.addWidget(separator) # Add separator after header
+        # 1. Header
+        self.setup_header()
         
-        # --- 2. Main Content Splitter ---
+        # 2. Main Content Splitter
         self.main_splitter = QSplitter(Qt.Orientation.Horizontal)
         
         # 2a. Tab Widget (Left Pane)
@@ -399,7 +400,7 @@ class MainWindow(QMainWindow):
             }
         """)
         self.input_tab = QWidget() # Create tab page widget
-        self.setup_input_tab()     # Populate it (including Process/Reset buttons)
+        self.setup_input_tab()     # Populate it
         self.main_tabs.addTab(self.input_tab, "Input")
         
         self.output_tab = QWidget() # Create tab page widget
@@ -415,29 +416,20 @@ class MainWindow(QMainWindow):
         self.main_splitter.setSizes([700, 300]) # Initial size ratio
         self.main_splitter.setStretchFactor(0, 7)  # Allow tabs to take more space
         self.main_splitter.setStretchFactor(1, 3)  # Log panel less space
-        self.main_splitter.setContentsMargins(0,0,0,0)
-        self.main_splitter.setStyleSheet("QSplitter::handle { background-color: #e0e0e0; } QSplitter::handle:horizontal { width: 2px; } QSplitter::handle:vertical { height: 2px; }")
-
-        # Add splitter to content layout
-        self._content_layout.addWidget(self.main_splitter, 1) # Make splitter stretch
+        self.main_layout.addWidget(self.main_splitter, 1) # Add splitter to main layout (stretch)
         
-        # --- 3. Status Bar ---
-        self.status_bar = StatusBar() # REMOVED parent=self
-        # Apply the specific status bar styles directly # REMOVED - Styles are in theme.py now
-        # self.status_bar.setStyleSheet(self.STATUS_BAR_STYLE) # REMOVED
-        self._content_layout.addWidget(self.status_bar) # Add status bar at the bottom
+        # 3. Status Bar
+        self.status_bar = StatusBar(self)
+        # Apply the specific status bar styles directly
+        self.status_bar.setStyleSheet(self.STATUS_BAR_STYLE)
+        self.main_layout.addWidget(self.status_bar) # Add status bar at the bottom
 
-        # Set initial status message (can be done after initialization check too)
-        # self.status_bar.showMessage("Initializing...", status_type='info')
-        # Note: Initial message might be better set during/after background init check
-        
         # Set flag after all essential UI elements are created
-        # self.ui_setup_complete = True # REMOVED - Not needed if initialization checks attributes
+        self.ui_setup_complete = True
 
     def setup_header(self):
-        """Set up and return the application header widget.""" # Changed docstring
+        """Set up the application header with text title and version."""
         from anpe_gui.resource_manager import ResourceManager
-        from .theme import PRIMARY_COLOR # Import PRIMARY_COLOR
         
         header_container = QWidget()
         header_layout = QHBoxLayout(header_container)
@@ -494,9 +486,18 @@ class MainWindow(QMainWindow):
         help_button.setToolTip("Show application help")
         help_button.setIconSize(QSize(20, 20))
         help_button.setStyleSheet("""
-            QToolButton { background-color: transparent; border: none; padding: 0px; }
-            QToolButton:hover { background-color: #e0e0e0; border-radius: 3px; }
-            QToolButton:pressed { background-color: #cccccc; }
+            QToolButton {
+                background-color: transparent;
+                border: none;
+                padding: 0px;
+            }
+            QToolButton:hover {
+                background-color: #e0e0e0;
+                border-radius: 3px;
+            }
+            QToolButton:pressed {
+                background-color: #cccccc;
+            }
         """)
         help_button.setCursor(Qt.CursorShape.PointingHandCursor)
         help_button.setFixedSize(30, 30)
@@ -509,9 +510,18 @@ class MainWindow(QMainWindow):
         settings_button.setIcon(ResourceManager.get_icon("setting.svg"))
         settings_button.setIconSize(QSize(20, 20))
         settings_button.setStyleSheet("""
-             QToolButton { background-color: transparent; border: none; padding: 0px; }
-             QToolButton:hover { background-color: #e0e0e0; border-radius: 3px; }
-             QToolButton:pressed { background-color: #cccccc; }
+            QToolButton {
+                background-color: transparent;
+                border: none;
+                padding: 0px;
+            }
+            QToolButton:hover {
+                background-color: #e0e0e0;
+                border-radius: 3px;
+            }
+            QToolButton:pressed {
+                background-color: #cccccc;
+            }
         """)
         settings_button.setCursor(Qt.CursorShape.PointingHandCursor)
         settings_button.setFixedSize(30, 30)
@@ -523,15 +533,15 @@ class MainWindow(QMainWindow):
         # Add the icon container to the header layout
         header_layout.addWidget(icon_container)
         
-        # Add header to main layout # REMOVED
-        # self.main_layout.addWidget(header_container)
+        # Add header to main layout
+        self.main_layout.addWidget(header_container)
         
-        # Add aesthetic separator line between header and content # REMOVED
-        # separator = QFrame() 
-        # ...
-        # self.main_layout.addWidget(separator)
-
-        return header_container # Return the assembled header widget
+        # Add aesthetic separator line between header and content
+        separator = QFrame()
+        separator.setFrameShape(QFrame.Shape.HLine)
+        separator.setFrameShadow(QFrame.Shadow.Sunken)
+        separator.setStyleSheet(f"background-color: {BORDER_COLOR}; max-height: 1px;")
+        self.main_layout.addWidget(separator)
 
     def setup_input_tab(self):
         """Set up the Input tab: Mode buttons, Stacked Input Area, Config, Process Button."""
