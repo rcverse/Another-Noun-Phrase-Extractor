@@ -48,10 +48,12 @@ class EnhancedLogPanel(QWidget):
         self.clear_button = QPushButton("Clear")
         self.clear_button.setToolTip("Clear the log display")
         self.clear_button.clicked.connect(self.clear_log)
+        self.clear_button.setProperty("secondary", True)
         
         self.copy_button = QPushButton("Copy")
         self.copy_button.setToolTip("Copy log content to clipboard")
         self.copy_button.clicked.connect(self.copy_to_clipboard)
+        self.copy_button.setProperty("secondary", True)
         
         self.header_layout.addWidget(self.title_label)
         self.header_layout.addStretch()

@@ -194,6 +194,29 @@ def get_stylesheet():
         border: 1px solid {SECONDARY_COLOR};
     }}
 
+    /* Secondary Button Style */
+    QPushButton[secondary="true"] {{
+        background-color: {BACKGROUND_COLOR}; /* White background */
+        color: {PRIMARY_COLOR}; /* Blue text */
+        border: 1px solid {BORDER_COLOR}; /* Standard grey border */
+        padding: 5px 10px; /* Match standard button padding */
+        border-radius: 3px; /* Match standard button radius */
+        min-width: 70px; /* Match standard button min width */
+    }}
+    QPushButton[secondary="true"]:hover {{
+        background-color: #F0F0F0; /* Light grey hover */
+        border: 1px solid {SECONDARY_COLOR}; /* Blue border on hover */
+    }}
+    QPushButton[secondary="true"]:pressed {{
+        background-color: #E0E0E0; /* Darker grey when pressed */
+        border: 1px solid {PRESSED_COLOR}; /* Darker blue border when pressed */
+    }}
+    QPushButton[secondary="true"]:disabled {{
+        background-color: #F5F5F5; /* Slightly lighter disabled background */
+        color: #AAAAAA; /* Lighter grey text */
+        border: 1px solid #DDDDDD; /* Lighter border */
+    }}
+
     /* Specific Buttons (e.g., for Add/Remove) */
     FileListWidget QPushButton,
     StructureFilterWidget QPushButton {{

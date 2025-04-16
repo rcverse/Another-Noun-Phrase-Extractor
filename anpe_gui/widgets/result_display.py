@@ -316,8 +316,11 @@ class DetachedResultWindow(QMainWindow):
         
         # Sorting buttons
         self.sort_order_button = QPushButton("Sort by Order")
+        self.sort_order_button.setProperty("secondary", True)
         self.sort_length_button = QPushButton("Sort by Length ↑")  # Default arrow
+        self.sort_length_button.setProperty("secondary", True)
         self.sort_structure_button = QPushButton("Sort by Structure")
+        self.sort_structure_button.setProperty("secondary", True)
         
         buttons_layout.addWidget(self.sort_order_button)
         buttons_layout.addWidget(self.sort_length_button)
@@ -458,18 +461,21 @@ class ResultDisplayWidget(QWidget):
         self.sort_order_button.setToolTip("Reset sorting to the original order of appearance.")
         self.sort_order_button.clicked.connect(self._sort_by_order)
         self.sort_order_button.setVisible(False) # Initially hidden
+        self.sort_order_button.setProperty("secondary", True)
         top_layout.addWidget(self.sort_order_button) # Add to top layout
 
         self.sort_length_button = QPushButton("Sort by Length ↑")  # Default arrow
         self.sort_length_button.setToolTip("Sort results by noun phrase length (click again to reverse order).")
         self.sort_length_button.clicked.connect(self._sort_by_length)
         self.sort_length_button.setVisible(False) # Initially hidden
+        self.sort_length_button.setProperty("secondary", True)
         top_layout.addWidget(self.sort_length_button) # Add to top layout
 
         self.sort_structure_button = QPushButton("Sort by Structure")
         self.sort_structure_button.setToolTip("Sort results alphabetically by structure type (click again to reverse order).")
         self.sort_structure_button.clicked.connect(self._sort_by_structure)
         self.sort_structure_button.setVisible(False) # Initially hidden
+        self.sort_structure_button.setProperty("secondary", True)
         top_layout.addWidget(self.sort_structure_button) # Add to top layout
         
         # --- Eject Button ---

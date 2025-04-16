@@ -595,7 +595,9 @@ class MainWindow(QMainWindow):
         # Text action buttons (Paste, Clear)
         text_button_layout = QHBoxLayout()
         paste_button = QPushButton("Paste")
+        paste_button.setProperty("secondary", True)
         clear_button = QPushButton("Clear Text")
+        clear_button.setProperty("secondary", True)
         paste_button.clicked.connect(self.direct_text_input.paste) # Use built-in paste
         clear_button.clicked.connect(self.direct_text_input.clear) # Use built-in clear
         text_button_layout.addStretch()
@@ -1458,7 +1460,7 @@ class MainWindow(QMainWindow):
         self.qt_log_handler_instance.log_signal.connect(log_widget.add_log_entry)
 
         # Define a simpler log format without duplicate level names
-        log_format = '%(levelname)s: %(message)s'
+        log_format = '%(message)s'
         formatter = logging.Formatter(log_format)
         self.qt_log_handler_instance.setFormatter(formatter)
 

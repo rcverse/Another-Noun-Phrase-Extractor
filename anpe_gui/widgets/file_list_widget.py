@@ -88,9 +88,13 @@ class FileListWidget(QWidget):
         # --- File Action Buttons ---
         self.file_button_layout = QHBoxLayout() 
         self.add_files_button = QPushButton("Add Files")
+        self.add_files_button.setProperty("secondary", True)
         self.add_dir_button = QPushButton("Add Dir")
+        self.add_dir_button.setProperty("secondary", True)
         self.remove_button = QPushButton("Remove Selected") # Be more specific
+        self.remove_button.setProperty("secondary", True)
         self.clear_files_button = QPushButton("Clear All Files")
+        self.clear_files_button.setProperty("secondary", True)
         self.file_button_layout.addWidget(self.add_files_button)
         self.file_button_layout.addWidget(self.add_dir_button)
         self.file_button_layout.addStretch()
