@@ -9,6 +9,9 @@ from anpe.utils.export import ANPEExporter
 from anpe.utils.anpe_logger import ANPELogger, get_logger
 from anpe.utils.analyzer import ANPEAnalyzer
 
+# Import functions to test
+from anpe.utils.model_finder import select_best_spacy_model, select_best_benepar_model
+
 class TestExporter(unittest.TestCase):
     """Test cases for ANPEExporter."""
     
@@ -182,6 +185,86 @@ class TestAnalyzer(unittest.TestCase):
         structures = self.analyzer.analyze_single_np("the team of scientists")
         self.assertIn("determiner", structures)
         self.assertIn("prepositional_modifier", structures)
+
+class TestModelFinder(unittest.TestCase):
+    """Test cases for model finding and selection utilities."""
+
+    # --- Test select_best_spacy_model --- 
+
+    def test_select_spacy_prioritizes_default_md(self):
+        """Test that 'md' is selected if present, regardless of preference list."""
+        installed = ["en_core_web_sm", "en_core_web_md", "en_core_web_lg"]
+        selected = select_best_spacy_model(installed)
+        self.assertEqual(selected, "en_core_web_md")
+
+    def test_select_spacy_falls_back_to_preference_if_md_missing(self):
+        """Test that the preference list is used when 'md' is not installed."""
+        installed = ["en_core_web_sm", "en_core_web_lg", "en_core_web_trf"]
+        # Expect 'trf' based on preference list, as 'md' is missing
+        selected = select_best_spacy_model(installed)
+        self.assertEqual(selected, "en_core_web_trf")
+
+    def test_select_spacy_falls_back_to_lower_preference(self):
+        """Test selection works correctly when only lower preference models are installed."""
+        installed = ["en_core_web_sm"] # 'md', 'lg', 'trf' are missing
+        selected = select_best_spacy_model(installed)
+        self.assertEqual(selected, "en_core_web_sm")
+
+    def test_select_spacy_falls_back_to_first_if_non_preferred(self):
+        """Test that the first installed model is returned if none are in preference list."""
+        installed = ["some_other_model", "en_core_web_sm"] 
+        # Assume "some_other_model" is not in SPACY_PREFERENCE
+        # Default 'md' is also missing. 
+        # It should select 'sm' as it's the first preferred one found
+        selected = select_best_spacy_model(installed)
+        self.assertEqual(selected, "en_core_web_sm")
+        
+        installed_only_unknown = ["some_other_model", "another_unknown_model"]
+        # Default 'md' missing, none from preference list are present.
+        # Should fall back to the *first* one in the list.
+        selected_unknown = select_best_spacy_model(installed_only_unknown)
+        self.assertEqual(selected_unknown, "some_other_model")
+
+    def test_select_spacy_returns_none_for_empty_list(self):
+        """Test that None is returned if the list of installed models is empty."""
+        installed = []
+        selected = select_best_spacy_model(installed)
+        self.assertIsNone(selected)
+
+    # --- Test select_best_benepar_model --- 
+
+    def test_select_benepar_prioritizes_default_en3(self):
+        """Test that 'benepar_en3' is selected if present."""
+        installed = ["benepar_en3", "benepar_en3_large"]
+        selected = select_best_benepar_model(installed)
+        self.assertEqual(selected, "benepar_en3")
+
+    def test_select_benepar_falls_back_to_preference_if_en3_missing(self):
+        """Test that 'large' is selected when 'en3' is not installed."""
+        installed = ["benepar_en3_large"] # Default 'en3' is missing
+        selected = select_best_benepar_model(installed)
+        self.assertEqual(selected, "benepar_en3_large")
+
+    def test_select_benepar_falls_back_to_first_if_non_preferred(self):
+        """Test that the first installed model is returned if none are in preference list."""
+        installed = ["some_other_benepar", "benepar_en3_large"] 
+        # Assume "some_other_benepar" is not in BENEPAR_PREFERENCE
+        # Default 'en3' is also missing.
+        # It should select 'large' as it's the first preferred one found
+        selected = select_best_benepar_model(installed)
+        self.assertEqual(selected, "benepar_en3_large")
+
+        installed_only_unknown = ["some_other_benepar", "another_unknown_benepar"]
+        # Default 'en3' missing, none from preference list are present.
+        # Should fall back to the *first* one in the list.
+        selected_unknown = select_best_benepar_model(installed_only_unknown)
+        self.assertEqual(selected_unknown, "some_other_benepar")
+
+    def test_select_benepar_returns_none_for_empty_list(self):
+        """Test that None is returned if the list of installed models is empty."""
+        installed = []
+        selected = select_best_benepar_model(installed)
+        self.assertIsNone(selected)
 
 if __name__ == "__main__":
     unittest.main() 
