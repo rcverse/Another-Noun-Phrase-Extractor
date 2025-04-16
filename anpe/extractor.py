@@ -15,6 +15,13 @@ from anpe.config import DEFAULT_CONFIG
 from anpe.utils.anpe_logger import get_logger, ANPELogger
 from anpe.utils.setup_models import setup_models
 from anpe.utils.export import ANPEExporter
+from anpe.utils.model_finder import (
+    find_installed_spacy_models,
+    find_installed_benepar_models,
+    select_best_spacy_model,
+    select_best_benepar_model
+)
+from anpe.utils.setup_models import SPACY_MODEL_MAP, BENEPAR_MODEL_MAP
 
 
 class ANPEExtractor:
@@ -81,12 +88,78 @@ class ANPEExtractor:
 
         self.logger.info("Initializing ANPEExtractor")
 
-        # Initialize models
+        # --- Determine and Load Models ---
         try:
-            # Initialize spaCy model - loading the model
-            self.logger.info("Loading spaCy model: en_core_web_md")
-            self.nlp = spacy.load("en_core_web_md")
-            self.logger.info("spaCy model loaded successfully.")
+            # Determine spaCy model to use
+            spacy_model_to_use = self.config.get("spacy_model")
+            if spacy_model_to_use:
+                # Validate if the user provided a known model name/alias
+                if spacy_model_to_use not in SPACY_MODEL_MAP:
+                     self.logger.warning(f"Specified spaCy model '{spacy_model_to_use}' is not a recognized alias/name. Attempting to use it anyway.")
+                     # Map might not be exhaustive, let spacy.load handle unknown models later
+                else:
+                     # If it's an alias, map it to the actual name
+                     spacy_model_to_use = SPACY_MODEL_MAP.get(spacy_model_to_use, spacy_model_to_use)
+                self.logger.info(f"Using specified spaCy model: {spacy_model_to_use}")
+            else:
+                self.logger.debug("No spaCy model specified in config, attempting auto-detection...")
+                installed_spacy = find_installed_spacy_models()
+                spacy_model_to_use = select_best_spacy_model(installed_spacy)
+                if spacy_model_to_use:
+                    self.logger.info(f"Auto-detected best available spaCy model: {spacy_model_to_use}")
+                else:
+                    # Fallback to default if none detected
+                    spacy_model_to_use = SPACY_MODEL_MAP['md'] # Default: en_core_web_md
+                    self.logger.warning(f"Could not auto-detect any installed spaCy models. Falling back to default: {spacy_model_to_use}")
+            # Store the decided model back in config for reference
+            self.config["spacy_model"] = spacy_model_to_use
+
+            # Determine Benepar model to use
+            benepar_model_to_use = self.config.get("benepar_model")
+            if benepar_model_to_use:
+                 # Validate if the user provided a known model name/alias
+                if benepar_model_to_use not in BENEPAR_MODEL_MAP:
+                     self.logger.warning(f"Specified Benepar model '{benepar_model_to_use}' is not a recognized alias/name. Attempting to use it anyway.")
+                else:
+                     # Map alias if necessary
+                     benepar_model_to_use = BENEPAR_MODEL_MAP.get(benepar_model_to_use, benepar_model_to_use)
+                self.logger.info(f"Using specified Benepar model: {benepar_model_to_use}")
+            else:
+                self.logger.debug("No Benepar model specified in config, attempting auto-detection...")
+                installed_benepar = find_installed_benepar_models()
+                benepar_model_to_use = select_best_benepar_model(installed_benepar)
+                if benepar_model_to_use:
+                    self.logger.info(f"Auto-detected best available Benepar model: {benepar_model_to_use}")
+                else:
+                    # Fallback to default
+                    benepar_model_to_use = BENEPAR_MODEL_MAP['default'] # Default: benepar_en3
+                    self.logger.warning(f"Could not auto-detect any installed Benepar models. Falling back to default: {benepar_model_to_use}")
+            # Store the decided model back in config
+            self.config["benepar_model"] = benepar_model_to_use
+            
+            # --- Load Models --- 
+            # Load the determined spaCy model
+            self.logger.info(f"Loading spaCy model: {self.config['spacy_model']}")
+            try:
+                self.nlp = spacy.load(self.config['spacy_model'])
+                self.logger.info("spaCy model loaded successfully.")
+            except OSError as e:
+                 self.logger.error(f"Failed to load spaCy model '{self.config['spacy_model']}'. Is it installed? Error: {e}")
+                 # Attempt setup *only* if auto-detection failed and we used the default fallback
+                 if not self.config.get("spacy_model") and self.config["spacy_model"] == SPACY_MODEL_MAP['md']:
+                     self.logger.info("Attempting to install default spaCy model...")
+                     if setup_models(spacy_model_alias='md', benepar_model_alias='default'): # Attempt default setup
+                          self.logger.info("Default models installed. Re-initializing extractor...")
+                          self.__init__(config) # Re-run init
+                          return # Exit current init call
+                     else:
+                          self.logger.critical("Failed to install default models after loading error. Cannot proceed.")
+                          raise RuntimeError(f"Failed to load or install required spaCy model '{self.config['spacy_model']}'") from e
+                 else:
+                      # If user specified a model or auto-detect found something else that failed to load
+                      self.logger.critical(f"Specified/detected spaCy model '{self.config['spacy_model']}' could not be loaded. Please ensure it is installed correctly.")
+                      raise RuntimeError(f"Failed to load required spaCy model '{self.config['spacy_model']}'") from e
+
 
             # Initialize spaCy configuration - adding the sentencizer to the pipeline
             if "sentencizer" not in self.nlp.pipe_names:
@@ -103,28 +176,43 @@ class ANPEExtractor:
                 if '\n' in sentencizer.punct_chars:
                     sentencizer.punct_chars.remove('\n')
 
-            # Initialize Benepar model
-            self.logger.info("Loading Benepar model: benepar_en3")
-            self.parser = benepar.Parser("benepar_en3")
-            self.logger.info("Benepar model loaded successfully.")
+            # Load the determined Benepar model
+            self.logger.info(f"Loading Benepar model: {self.config['benepar_model']}")
+            try:
+                self.parser = benepar.Parser(self.config['benepar_model'])
+                self.logger.info("Benepar model loaded successfully.")
+            except Exception as e: # Benepar doesn't raise OSError typically, use broad Exception
+                 self.logger.error(f"Failed to load Benepar model '{self.config['benepar_model']}'. Is it installed? Error: {e}")
+                 # Attempt setup *only* if auto-detection failed and we used the default fallback
+                 if not self.config.get("benepar_model") and self.config["benepar_model"] == BENEPAR_MODEL_MAP['default']:
+                     self.logger.info("Attempting to install default Benepar model...")
+                     if setup_models(spacy_model_alias='md', benepar_model_alias='default'): # Attempt default setup
+                          self.logger.info("Default models installed. Re-initializing extractor...")
+                          self.__init__(config) # Re-run init
+                          return # Exit current init call
+                     else:
+                          self.logger.critical("Failed to install default models after loading error. Cannot proceed.")
+                          raise RuntimeError(f"Failed to load or install required Benepar model '{self.config['benepar_model']}'") from e
+                 else:
+                      # If user specified a model or auto-detect found something else that failed to load
+                      self.logger.critical(f"Specified/detected Benepar model '{self.config['benepar_model']}' could not be loaded. Please ensure it is installed correctly.")
+                      raise RuntimeError(f"Failed to load required Benepar model '{self.config['benepar_model']}'") from e
 
             # Initialize NLTK Punkt tokenizer
             self.logger.info("Loading NLTK Punkt tokenizer")
             nltk.data.find('tokenizers/punkt')
             self.logger.info("NLTK Punkt tokenizer loaded successfully.")
 
+        except (RuntimeError, OSError) as e:
+             # Catch errors raised from our specific model loading logic
+             self.logger.critical(f"Model loading failed: {e}")
+             raise # Re-raise the critical error
+             
         except Exception as e:
-            self.logger.error(f"Initialization failed: {str(e)}")
-            self.logger.info("Attempting to download required models...")
-            if not setup_models():
-                self.logger.error(
-                    "Failed to download required models. "
-                    "Please run 'python -m anpe.utils.setup_models' manually."
-                )
-                raise
-            else:
-                # Retry initialization after downloading models
-                self.__init__(config)
+            # Catch other unexpected initialization errors
+            self.logger.error(f"Unexpected error during model initialization: {str(e)}", exc_info=True)
+            # Avoid the old recursive setup attempt here, as specific load errors are handled above
+            raise RuntimeError(f"Unexpected error during extractor initialization: {e}") from e
 
         # Initialize analyzer
         try:

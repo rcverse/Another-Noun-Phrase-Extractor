@@ -14,7 +14,12 @@ from anpe.utils.setup_models import (  # Import specific functions
     check_all_models_present,
     check_spacy_model,
     check_benepar_model,
-    check_nltk_models
+    check_nltk_models,
+    # Import maps and defaults for choices/validation
+    SPACY_MODEL_MAP,
+    BENEPAR_MODEL_MAP,
+    DEFAULT_SPACY_ALIAS,
+    DEFAULT_BENEPAR_ALIAS
 )
 
 # Initialize logger at module level
@@ -57,6 +62,18 @@ def parse_args(args: Optional[List[str]] = None) -> argparse.Namespace:
                         help="Don't treat newlines as sentence boundaries")
     process_group.add_argument("--structures", type=str,
                         help="Comma-separated list of structure patterns to include")
+    process_group.add_argument(
+        "--spacy-model", 
+        choices=list(SPACY_MODEL_MAP.keys()), # Use keys from the map as choices
+        default=None, # Let extractor handle default/auto-detection
+        help="Specify spaCy model alias to USE for extraction (e.g., md, lg). Overrides auto-detection."
+    )
+    process_group.add_argument(
+        "--benepar-model",
+        choices=list(BENEPAR_MODEL_MAP.keys()), # Use keys from the map as choices
+        default=None, # Let extractor handle default/auto-detection
+        help="Specify Benepar model alias to USE for extraction (e.g., default, large). Overrides auto-detection."
+    )
     
     # Output options
     output_group = extract_parser.add_argument_group("Output Options")
@@ -77,6 +94,18 @@ def parse_args(args: Optional[List[str]] = None) -> argparse.Namespace:
     
     # Setup command
     setup_parser = subparsers.add_parser('setup', help='Setup required models')
+    setup_parser.add_argument(
+        "--spacy-model", 
+        choices=list(SPACY_MODEL_MAP.keys()), # Use keys from the map as choices
+        default=DEFAULT_SPACY_ALIAS, 
+        help="Specify the spaCy model to install (e.g., sm, md, lg, trf)"
+    )
+    setup_parser.add_argument(
+        "--benepar-model",
+        choices=list(BENEPAR_MODEL_MAP.keys()), # Use keys from the map as choices
+        default=DEFAULT_BENEPAR_ALIAS,
+        help="Specify the Benepar model to install (e.g., default, large)"
+    )
     setup_parser.add_argument("--log-level", choices=["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"],
                         default="INFO", help="Logging level")
     setup_parser.add_argument("--log-dir",
@@ -118,6 +147,19 @@ def create_extractor(args: argparse.Namespace) -> ANPEExtractor:
     # Add log directory to config if specified
     if args.log_dir:
         config["log_dir"] = args.log_dir
+    
+    # Add model overrides if specified via CLI for extract command
+    if hasattr(args, 'spacy_model') and args.spacy_model:
+        # Map alias to actual name if needed (though extractor also does this)
+        actual_spacy_model = SPACY_MODEL_MAP.get(args.spacy_model, args.spacy_model)
+        config["spacy_model"] = actual_spacy_model
+        logger.debug(f"CLI overriding spaCy model for extraction: {actual_spacy_model}")
+        
+    if hasattr(args, 'benepar_model') and args.benepar_model:
+        # Map alias to actual name if needed
+        actual_benepar_model = BENEPAR_MODEL_MAP.get(args.benepar_model, args.benepar_model)
+        config["benepar_model"] = actual_benepar_model
+        logger.debug(f"CLI overriding Benepar model for extraction: {actual_benepar_model}")
     
     # Add other configurations
     if args.min_length is not None:
@@ -307,27 +349,35 @@ def main(args: Optional[List[str]] = None) -> int:
         
         elif parsed_args.command == "setup":
             # First check if models are already present
-            if check_all_models_present():
-                logger.info("All required models are already present. No installation needed.")
+            spacy_alias = parsed_args.spacy_model
+            benepar_alias = parsed_args.benepar_model
+            logger.info(f"Checking status for specified models: spaCy='{spacy_alias}', benepar='{benepar_alias}'")
+
+            if check_all_models_present(spacy_model_alias=spacy_alias, benepar_model_alias=benepar_alias):
+                logger.info(f"All specified models (spaCy='{spacy_alias}', benepar='{benepar_alias}') are already present. No installation needed.")
                 return 0
                 
-            # If not all models are present, show current status
+            # If not all models are present, show current status for the requested models
             logger.info("Checking current model status...")
+            # Map aliases to actual names for detailed check logging
+            actual_spacy_model = SPACY_MODEL_MAP.get(spacy_alias.lower(), SPACY_MODEL_MAP[DEFAULT_SPACY_ALIAS])
+            actual_benepar_model = BENEPAR_MODEL_MAP.get(benepar_alias.lower(), BENEPAR_MODEL_MAP[DEFAULT_BENEPAR_ALIAS])
             results = {
-                "spacy": check_spacy_model(),
-                "benepar": check_benepar_model(),
-                "nltk": check_nltk_models()
+                "spacy": check_spacy_model(model_name=actual_spacy_model),
+                "benepar": check_benepar_model(model_name=actual_benepar_model),
+                "nltk": check_nltk_models() # NLTK check remains the same
             }
-            for model, status in results.items():
-                logger.info(f"{model}: {'Present' if status else 'Missing'}")
+            logger.info(f"Status for spaCy ('{actual_spacy_model}'): {'Present' if results['spacy'] else 'Missing'}")
+            logger.info(f"Status for Benepar ('{actual_benepar_model}'): {'Present' if results['benepar'] else 'Missing'}")
+            logger.info(f"Status for NLTK (punkt/punkt_tab): {'Present' if results['nltk'] else 'Missing'}")
             
-            # Run the setup process
-            logger.info("Starting model installation process...")
-            if setup_models():
-                logger.info("All models installed successfully")
+            # Run the setup process with the specified models
+            logger.info(f"Starting model installation process for spaCy='{spacy_alias}', benepar='{benepar_alias}'...")
+            if setup_models(spacy_model_alias=spacy_alias, benepar_model_alias=benepar_alias):
+                logger.info(f"Installation successful for specified models (spaCy='{spacy_alias}', benepar='{benepar_alias}').")
                 return 0
             else:
-                logger.error("Failed to install some models")
+                logger.error(f"Failed to install one or more specified models (spaCy='{spacy_alias}', benepar='{benepar_alias}'). Check logs.")
                 return 1
         
         else:

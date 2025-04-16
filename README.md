@@ -75,18 +75,20 @@ pip install anpe
 ### Prerequisites
 
 #### **Required Models**
-ANPE relies on several pre-trained models for its functionality.
+ANPE relies on several pre-trained models for its functionality. The default setup uses the following:
 
-1. **spaCy Model**: `en_core_web_md` (English language model for tokenization and sentence segmentation).
-2. **Benepar Model**: `benepar_en3` (English constituency parser for syntactic analysis).
-3. **NLTK Models**:
-   - `punkt` (Punkt tokenizer for sentence splitting).
-   - `punkt_tab` (Language-specific tab-delimited tokenizer data required by Benepar).
+1.  **spaCy Model**: `en_core_web_md` (English language model for tokenization and sentence segmentation).
+2.  **Benepar Model**: `benepar_en3` (English constituency parser for syntactic analysis).
+3.  **NLTK Models**:
+    *   `punkt` (Punkt tokenizer for sentence splitting).
+    *   `punkt_tab` (Language-specific tab-delimited tokenizer data required by Benepar).
+
+ANPE also supports using alternative spaCy models (`en_core_web_sm`, `en_core_web_lg`, `en_core_web_trf`) and a larger Benepar model (`benepar_en3_large`) for different performance/accuracy trade-offs. These can be selected and managed via the GUI application or potentially future updates to the CLI/library API.
 
 #### **Automatic Setup**
 
-ANPE provides a built-in tool to setup the necessary models. When you run the extractor, the package will automatically check if the models are installed and install them if they're not. However, it is **recommended** to run the setup utility before you start using the extractor for the first time.
-To setup models, simply run the following command in terminal (Please refer to [CLI usage](#command-line-interface) for more options.):
+ANPE provides a built-in tool to setup the necessary **default** models (`en_core_web_md` and `benepar_en3`, plus NLTK data). When you run the extractor, the package will automatically check if the default models are installed and install them if they're not. However, it is **recommended** to run the setup utility before you start using the extractor for the first time.
+To setup the **default** models, simply run the following command in terminal (Please refer to [CLI usage](#command-line-interface) for more options.):
 ```bash
 anpe setup
 ```
@@ -97,16 +99,20 @@ python -m anpe.utils.setup_models
 ```
 
 #### **Manual Setup**
-If automatic setup fails or you prefer to manually download the models, you can run install the three models manually:
+If automatic setup fails or you prefer to manually download the models, you can run install the models manually. Below are examples for the **default** models:
 
 Install spaCy English Model:
 ```bash
+# Default model
 python -m spacy download en_core_web_md
+# Other options: en_core_web_sm, en_core_web_lg, en_core_web_trf
 ```
 
 Install Benepar Parser Model:
 ```bash
+# Default model
 python -m benepar.download benepar_en3
+# Other option: benepar_en3_large
 ```
 
 Install NLTK Punkt Tokenizer (via python console):
@@ -152,7 +158,12 @@ extractor = ANPEExtractor({
     "min_length": 2,
     "max_length": 5,
     "accept_pronouns": False,
-    "structure_filters": ["compound", "appositive"]
+    "structure_filters": ["compound", "appositive"],
+    "log_level": "DEBUG",
+    "log_dir": "dir/to/your/log",
+    "newline_breaks": False,
+    "spacy_model": "lg",
+    "benepar_model": "default"
 })
 
 # Sample text
@@ -206,6 +217,8 @@ ANPE provides a flexible configuration system to further customize the extractio
 | `log_level` | String | `"INFO"` | Logging level. Options: `"DEBUG"`, `"INFO"`, `"WARNING"`, `"ERROR"`, `"CRITICAL"`. |
 | `log_dir` | Optional[str] | `None` | Directory to store log files. If None, logs will be printed to console. |
 | `newline_breaks` | Boolean | `True` | Whether to treat newlines as sentence boundaries. This can be helpful if you are processing text resources with inconsistent line breaking. |
+| `spacy_model` | Optional[str] | `None` | Specify the spaCy model alias/name to use. Accepts aliases (`"sm"`, `"md"`, `"lg"`, `"trf"`) or full names. If `None`, ANPE attempts to auto-detect the best installed model. |
+| `benepar_model` | Optional[str] | `None` | Specify the Benepar model alias/name to use (e.g., "large", "benepar_en3"). Accepts aliases (`"default"`, `large"`) or full names. If `None`, ANPE attempts to auto-detect the best installed model. |
 
 
 Example:
@@ -218,8 +231,10 @@ custom_extractor = ANPEExtractor({
     "accept_pronouns": False,       # Exclude single-word pronouns
     "structure_filters": ["determiner"],  # Only include NPs with these structures
     "log_level": "DEBUG",           # Detailed logging
-    "log_dir": "dir/to/your/log"    # Enable log file by providing a dir to save the file
-    "newline_breaks": False         # Don't treat newlines as sentence boundaries
+    "log_dir": "dir/to/your/log",    # Enable log file by providing a dir to save the file
+    "newline_breaks": False,         # Don't treat newlines as sentence boundaries
+    "spacy_model": "lg",             # Explicitly use the large spaCy model
+    "benepar_model": "default"        # Explicitly use the default Benepar model
 })
 ```
 **Minimum Length Filtering**  
@@ -238,13 +253,25 @@ Structure filtering allows you to target specific types of noun phrases in your 
 > 📌 **Note on Structure Filtering:**
 > Note that structure filtering requires analyzing the structure of each NP, which is done automatically even if `metadata=False` in the extract call. However, the structure information will only be included in the results if `metadata=True`.
 
-
 **Logging Control**  
 The `log_level` option controls the verbosity of the extraction process. Use `DEBUG` for detailed logging during development or troubleshooting, and `ERROR` for production environments where you only want to see critical issues. 
 The `log_dir` option controls whether to output log into a file. If provided with a directory, ANPE will output the log into a log file stored in the designated directory. If None, ANPE will by default output log into console.
 
 **Newline Handling**  
 The `newline_breaks` option determines whether newlines should be treated as sentence boundaries. When set to `True` (default), newlines are treated as sentence boundaries. You may want to disable this option if you want to treat the text as a continuous paragraph, ignoring line breaks, which can be useful when processing text with irregular formatting.
+
+
+**Model Selection**
+
+ANPE aims for a balance between ease of use and flexibility when loading spaCy and Benepar models:
+
+1.  **Explicit Configuration (Highest Priority):** If you provide the `spacy_model` or `benepar_model` keys in the configuration dictionary when creating `ANPEExtractor` (or via the corresponding CLI flags for the `extract` command), ANPE will use the specified model(s).
+2.  **Automatic Detection:** If a model is *not* explicitly specified in the configuration, ANPE will attempt to find all relevant installed models (e.g., `en_core_web_sm`, `en_core_web_md`, `en_core_web_lg` for spaCy). It will select the model based on the following priority:
+    *   **Default Model Priority:** If the default model (`en_core_web_md` for spaCy or `benepar_en3` for Benepar) is installed, it will be selected.
+    *   **Preference List Fallback:** If the default model is *not* installed, ANPE will use a predefined preference order (e.g., `trf` > `lg` > `sm` for spaCy; `large` for Benepar) and select the highest-priority model from that list that *is* installed.
+3.  **Initialization Failure:** If no relevant model is specified and no suitable model can be auto-detected or loaded (e.g., none are installed, not even the defaults), the extractor initialization will fail.
+
+ANPE will log which models are being loaded at the INFO level.
 
 ### Convenient Method
 For quick, one-off extractions, you may use the `anpe.extract()` function directly. This method is simpler and avoids the need to explicitly create an extractor instance. 
@@ -498,6 +525,8 @@ anpe [command] [options]
 
 | Option | Description | Example |
 |--------|-------------|---------|
+| `--spacy-model` | Specify the spaCy model alias (sm, md, lg, trf). Defaults to `md`. | `anpe setup --spacy-model lg` |
+| `--benepar-model` | Specify the Benepar model alias (default, large). Defaults to `default`. | `anpe setup --benepar-model large` |
 | `--log-level` | Set the logging level (DEBUG, INFO, WARNING, ERROR, CRITICAL) | `anpe setup --log-level DEBUG` |
 | `--log-dir` | Directory path for log files | `anpe setup --log-dir logs` |
 
@@ -520,221 +549,5 @@ anpe [command] [options]
 | `--no-pronouns` | Exclude pronouns from results | `anpe extract --no-pronouns` |
 | `--no-newline-breaks` | Don't treat newlines as sentence boundaries | `anpe extract --no-newline-breaks` |
 | `--structures` | Comma-separated list of structure patterns to include | `anpe extract --structures "determiner,named_entity"` |
-
-#### Output Options (for extract command)
-
-| Option | Description | Example |
-|--------|-------------|---------|
-| `-o, --output` | Output file path or directory | `anpe extract -o output_dir` or `anpe extract -o results.json` |
-| `-t, --type` | Output format (txt, csv, json) | `anpe extract -t json` |
-
-#### Logging Options (for all commands)
-
-| Option | Description | Example |
-|--------|-------------|---------|
-| `--log-level` | Logging level (DEBUG, INFO, WARNING, ERROR, CRITICAL) | `anpe extract --log-level DEBUG` |
-| `--log-dir` | Directory path for log files (automatically generates timestamped log files) | `anpe extract --log-dir ./logs` |
-
-### Example Commands
-
-**Setup models with logging:**
-```bash
-anpe setup --log-level DEBUG --log-dir logs
-```
-
-**Extract and output to JSON:**
-```bash
-anpe extract -f input.txt -o output_dir -t json
-```
-
-**Batch processing (Outputting to a directory):**
-```bash
-anpe extract -d input_directory --output output_directory -t json --metadata
-```
-
-**Advanced extraction with filters (Outputting to a specific file):**
-```bash
-anpe extract -f input.txt --min-length 2 --max-length 10 --no-pronouns --structures "determiner,named_entity" -o results.csv -t csv
-```
-
-**With logging:**
-```bash
-anpe extract -f input.txt --log-dir ./logs --log-level DEBUG
-```
-
-**Check version:**
-```bash
-anpe version
-```
-
-
-## Hierarchical ID System
-
-ANPE uses a hierarchical ID system to represent parent-child relationships between noun phrases when nested NP are captured:
-
-- **Top-level NPs** are assigned sequential numeric IDs: "1", "2", "3", etc.
-- **Child NPs** are assigned IDs that reflect their parent: "1.1", "1.2", "2.1", etc.
-- **Deeper nested NPs** continue this pattern: "1.1.1", "1.1.2", etc.
-
-This makes it easy to identify related noun phrases across different output formats.
-
-## Structural Analysis
-
-ANPE's structural labeling system analyzes noun phrases to identify their syntactic patterns. This is achieved through:
-1. **Constituency Parsing**: Using the Berkeley Neural Parser to identify phrase structures
-2. **Pattern Matching**: Applying rules to detect specific syntactic constructions
-3. **Feature Extraction**: Identifying determiners, modifiers, and other grammatical features
-
-The system categorizes patterns into fundamental types, organized from simple to complex. For a comprehensive explanation of all structure patterns and their detection logic, please refer to the [structure_patterns.md](structure_patterns.md) file included in the repository.
-
-| Type | Description | Example |
-|------|-------------|---------|
-| **Determiner** | Contains determiners (the, a, an, this, that, these, those) | "the summer" |
-| **Adjectival Modifier** | Contains adjective modifiers | "unrealised love" | 
-| **Prepositional Modifier** | Prepositional phrase modifiers | "butler at Darlington Hall" | 
-| **Compound** | Compound nouns forming a single conceptual unit | "Darlington Hall" | 
-| **Possessive** | Possessive constructions with markers or pronouns | "his housekeeper" | 
-| **Quantified** | Quantified NPs with numbers or quantity words | "two world wars" | 
-| **Coordinated** | Coordinated elements joined by conjunctions | "Stevens and England" | 
-| **Appositive** | One NP renames or explains another | "Stevens, a long-serving butler" |
-| **Relative Clause** | Clause that modifies a noun | "a past that takes in fascism" |
-| **others** | Other NP structures that are not identifed | N/A |  
-
-For a comprehensive explanation of all structure patterns and their detection logic, please refer to the [structure_patterns.md](/docs/structure_patterns.md) file included in the repository. This system enables precise identification of noun phrase structures while maintaining high processing efficiency.
-
-## GUI Application
->*❗[Still in development, being tortured by dependency hell]*
->
-> Please note that the gui app is now still being developed, no release is provided at the moment.
-
-》***"Oh no, code again! I just want a quick tool, kill me already!😵"***
-
-No worries, ANPE provides a graphical user interface (GUI) for easier interaction with the library. Best part of all - it is a standalone app and requires no environment setup. Supports Mac and Windows.
-
-**Disclaimer:**
-As I do not have any knowledge of the Qt framework, this app is almost developed COMPLETELY with AI. Contributions are most weclomed to enhance this app.
-
-
-![ANPE GUI Screenshot](/pics/anpe_gui_app_windows.png) 
-
-
-### GUI Features
-
-- **User-friendly interface** with distinct Input and Output tabs.
-- **Input Modes**: Process text via Direct Text Input or File Input.
-- **File Handling**: Add single files or entire directories; view and manage the list.
-- **Batch Processing**: Automatically handles multiple files from selected directories.
-- **Visual Configuration**: Easily configure all ANPE settings:
-    - General: Include Nested Phrases, Include Metadata, Treat Newlines as Boundaries.
-    - Filtering: Min/Max NP length, Accept Pronouns.
-    - Structure Filtering: Master toggle switch and individual selection for specific NP structures (Determiner, Compound, Relative Clause, etc.).
-    - Tooltips: Hover over options for detailed explanations based on documentation.
-- **Real-time Log Viewer**: Track operations and potential issues with log level filtering.
-- **Results Visualization**: View formatted extraction results in the Output tab.
-- **Batch Result Navigation**: Use a dropdown to view results for specific files when processing batches.
-- **Export Options**: Export results to TXT, CSV, or JSON formats to a selected directory.
-- **Status Bar**: Provides feedback on application readiness, processing progress, and completion status.
-- **Workflow Control**: Process button initiates extraction, Reset button clears inputs/outputs for a new task.
-
-### Starting the GUI
-
-You can launch the GUI application in several ways:
-
-1.  **Using the provided script (Recommended for source install)**:
-    Navigate to the project root directory and run:
-    ```bash
-    python run_anpe_gui.py
-    ```
-
-2.  **From the command line (If ANPE is installed as a package)**:
-    ```bash
-    python -m anpe_gui
-    ```
-
-3.  **Using the standalone executable** (if built/downloaded):
-    Download the executable for your platform (e.g., from GitHub Releases) and run it directly.
-
-For more details on the GUI structure or building it from source, see the [ANPE GUI README](anpe_gui/README.md).
-
-
-
-## Contributing
-
-Contributions are welcome! Here are some ways you can contribute:
-
-1. **Report bugs**: Submit issues for any bugs you find
-2. **Suggest features**: Submit issues for feature requests
-3. **Submit pull requests**: Implement new features or fix bugs
-
-### Testing
-
-ANPE uses `pytest` for testing. The test suite includes unit tests, integration tests, and CLI tests that verify the functionality of the package.
-
-#### Running Tests
-
-To run the tests, you need to have pytest installed:
-
-```bash
-pip install pytest
-```
-
-Then, you can run the tests with:
-
-```bash
-python -m pytest
-```
-
-#### Test Structure
-
-The test suite is organized into several files that test different aspects of the package:
-
-- **test_extractor.py**: Tests the core functionality of the `ANPEExtractor` class, including basic extraction, metadata, nested structures, and custom configurations.
-- **test_cli.py**: Tests the command-line interface functionality.
-- **test_integration.py**: Tests the integration between different components of the package.
-- **test_utils.py**: Tests utility functions like exporting, logging, and structural analysis.
-
-#### Adding New Tests
-
-When contributing to ANPE, please consider adding tests for your changes. Tests should be added to the appropriate file based on what component they are testing.
-
-For example, if you are adding a new feature to the extractor, you should add tests to `test_extractor.py`:
-
-```python
-def test_my_new_feature(self):
-    """Test the new feature."""
-    extractor = ANPEExtractor()
-    # Test setup and assertions
-```
-
-If you are adding a new utility function, you should add tests to `test_utils.py`:
-
-```python
-def test_my_utility_function(self):
-    """Test the utility function."""
-    # Test setup and assertions
-```
-
-## **Troubleshooting**
-If you encounter issues with model setup:
-1. Ensure you have an active internet connection.
-2. Run the `setup_models` utility manually and check the logs for errors.
-3. If the issue persists, delete the model directories and retry the setup.
-4. For specific model installation issues, refer to the documentation for [spaCy](https://spacy.io/), [Benepar](https://github.com/nikitakit/self-attentive-parser), and [NLTK](https://www.nltk.org/).
-
-## Citation
-
-If you use ANPE in your research or projects, please cite it as follows:
-
-### BibTeX
-```bibtex
-@software{Chen_ANPE_2024,
-  author = {Chen, Nuo},
-  title = {{ANPE: Another Noun Phrase Extractor}},
-  url = {https://github.com/rcverse/anpe},
-  version = {0.1.0},
-  year = {2025}
-}
-```
-
-### Plain Text (APA style)
-Chen, N. (2025). *ANPE: Another Noun Phrase Extractor* (Version 0.1.0) [Computer software]. Retrieved from https://github.com/rcverse/anpe
+| `--spacy-model` | Specify spaCy model alias/name to USE (e.g., "md", "en_core_web_lg"). Accepts aliases or full names. Overrides auto-detect. | `anpe extract --spacy-model lg` |
+| `--benepar-model` | Specify Benepar model alias/name to USE (e.g., "default", "benepar_en3_large"). Accepts aliases or full names. Overrides auto-detect. | `
