@@ -13,6 +13,9 @@ import logging
 import site
 import spacy
 
+# Import model maps to know all variants
+from anpe.utils.setup_models import SPACY_MODEL_MAP, BENEPAR_MODEL_MAP
+
 def setup_logging(verbose: bool = False) -> logging.Logger:
     """Set up logging configuration."""
     logger = logging.getLogger('clean_models')
@@ -56,90 +59,168 @@ def find_model_locations() -> Dict[str, List[str]]:
     for nltk_path in locations["nltk"]:
         locations["benepar"].append(os.path.join(nltk_path, "models"))
     
+    # Remove duplicates
+    for key in locations:
+        locations[key] = sorted(list(set(locations[key])))
+        
     return locations
 
-def remove_spacy_model(model_name: str = "en_core_web_md", logger: logging.Logger = None) -> bool:
-    """Remove spaCy model."""
+def uninstall_spacy_model(model_name: str, logger: logging.Logger) -> bool:
+    """Attempt to uninstall a specific spaCy model.
+    
+    Args:
+        model_name (str): The full name of the spaCy model (e.g., 'en_core_web_md').
+        logger (logging.Logger): Logger instance.
+
+    Returns:
+        bool: True if removal was successful or model wasn't found, False if an error occurred during removal.
+    """
+    if not model_name:
+        logger.error("[Uninstall spaCy] No model name provided.")
+        return False
+        
+    logger.info(f"[Uninstall spaCy] Attempting uninstall for: {model_name}")
+    overall_success = True
+    found_via_pip = False
+    found_in_data = False
+
+    # 1. Try pip uninstall
     try:
-        logger.info("Removing spaCy model...")
-        # First try pip uninstall
+        logger.debug(f"[Uninstall spaCy {model_name}] Running pip uninstall...")
         result = subprocess.run(
             [sys.executable, "-m", "pip", "uninstall", "-y", model_name],
             check=False,
             capture_output=True,
             text=True
         )
-        
-        # Also try to remove from spacy data directory
-        try:
-            data_path = spacy.util.get_data_path()
-            model_path = os.path.join(data_path, model_name)
-            if os.path.exists(model_path):
-                if os.path.isdir(model_path):
-                    shutil.rmtree(model_path)
-                else:
-                    os.remove(model_path)
-                logger.info(f"Removed spaCy model from data directory: {model_path}")
-        except Exception as e:
-            logger.debug(f"Could not remove from spaCy data directory: {e}")
-        
         if result.returncode == 0:
-            logger.info("✓ Successfully removed spaCy model")
-            return True
+            logger.info(f"[Uninstall spaCy {model_name}] ✓ Successfully uninstalled via pip.")
+            found_via_pip = True # It was installed via pip
+        elif "not installed" in result.stderr.lower():
+             logger.info(f"[Uninstall spaCy {model_name}] - Model not installed via pip.")
         else:
-            logger.warning(f"! spaCy model removal returned: {result.stderr}")
-            return False
+             # Log actual pip error
+             logger.warning(f"[Uninstall spaCy {model_name}] ! pip uninstall command failed. Stderr: {result.stderr.strip()}")
+             # This is a failure in the process, even if the model might not exist
+             overall_success = False 
     except Exception as e:
-        logger.error(f"! Error removing spaCy model: {e}")
-        return False
+        logger.error(f"[Uninstall spaCy {model_name}] ! Error running pip uninstall: {e}")
+        overall_success = False
 
-def remove_benepar_model(model_name: str = "benepar_en3", logger: logging.Logger = None) -> bool:
-    """Remove Benepar model from all possible locations."""
+    # 2. Try removing from spaCy data directory
     try:
-        logger.info("Removing Benepar model...")
-        locations = find_model_locations()
-        removed_something = False
-        potential_failures = False
+        data_path = spacy.util.get_data_path()
+        if data_path and os.path.exists(data_path):
+             model_path = os.path.join(data_path, model_name)
+             logger.debug(f"[Uninstall spaCy {model_name}] Checking data path: {model_path}")
+             if os.path.exists(model_path):
+                 found_in_data = True
+                 logger.info(f"[Uninstall spaCy {model_name}] Found in data path. Attempting removal...")
+                 try:
+                     if os.path.isdir(model_path):
+                         shutil.rmtree(model_path)
+                     else:
+                         os.remove(model_path)
+                     logger.info(f"[Uninstall spaCy {model_name}] ✓ Removed from data directory: {model_path}")
+                 except Exception as e:
+                     logger.error(f"[Uninstall spaCy {model_name}] ! Failed to remove from data directory {model_path}: {e}")
+                     overall_success = False
+             else:
+                 logger.debug(f"[Uninstall spaCy {model_name}] - Not found in data path.")
+        else:
+             logger.debug("[Uninstall spaCy] - SpaCy data path not found or inaccessible for removal check.")
+             
+    except Exception as e:
+        logger.warning(f"[Uninstall spaCy {model_name}] ! Could not access or process spaCy data directory: {e}")
+        # Don't necessarily mark as overall failure if we just couldn't check
+
+    # Final status log for this specific model
+    if overall_success and (found_via_pip or found_in_data):
+        logger.info(f"[Uninstall spaCy {model_name}] Completed removal attempts successfully.")
+    elif overall_success and not (found_via_pip or found_in_data):
+        logger.info(f"[Uninstall spaCy {model_name}] Model was not found via pip or in data path.")
+    elif not overall_success:
+         logger.error(f"[Uninstall spaCy {model_name}] Finished removal attempts with errors.")
+         
+    return overall_success
+
+def uninstall_benepar_model(model_name: str, logger: logging.Logger) -> bool:
+    """Attempt to uninstall a specific Benepar model.
+
+    Args:
+        model_name (str): The full name of the Benepar model (e.g., 'benepar_en3').
+        logger (logging.Logger): Logger instance.
         
-        for base_path in locations["benepar"]:
+    Returns:
+        bool: True if removal was successful or model wasn't found, False if an error occurred during removal.
+    """
+    if not model_name:
+        logger.error("[Uninstall Benepar] No model name provided.")
+        return False
+        
+    logger.info(f"[Uninstall Benepar] Attempting uninstall for: {model_name}")
+    overall_success = True
+    found_something = False
+
+    try:
+        locations = find_model_locations()
+        checked_paths = set()
+        
+        for base_nltk_path in locations["nltk"]:
+            if base_nltk_path in checked_paths:
+                 continue
+            checked_paths.add(base_nltk_path)
+            
+            base_path = os.path.join(base_nltk_path, "models") # Benepar models are in 'models' subdir
+            if not os.path.isdir(base_path):
+                logger.debug(f"[Uninstall Benepar {model_name}] NLTK models path not found or not a directory: {base_path}")
+                continue
+                 
+            logger.debug(f"[Uninstall Benepar {model_name}] Checking in: {base_path}")
             # Remove directory
             model_path = os.path.join(base_path, model_name)
             if os.path.exists(model_path):
-                removed_something = True
+                found_something = True
+                logger.info(f"[Uninstall Benepar {model_name}] Found directory. Removing: {model_path}")
                 try:
                     if os.path.isdir(model_path):
                         shutil.rmtree(model_path)
                     else:
                         os.remove(model_path)
-                    logger.info(f"✓ Removed Benepar directory/file: {model_path}")
+                    logger.info(f"[Uninstall Benepar {model_name}] ✓ Removed: {model_path}")
                 except Exception as e:
-                    logger.warning(f"! Could not remove {model_path}: {e}")
-                    potential_failures = True
+                    logger.error(f"[Uninstall Benepar {model_name}] ! Failed to remove {model_path}: {e}")
+                    overall_success = False
+            else:
+                 logger.debug(f"[Uninstall Benepar {model_name}] - Directory not found: {model_path}")
             
             # Remove corresponding zip file
             zip_path = model_path + ".zip"
             if os.path.exists(zip_path):
-                removed_something = True
+                found_something = True
+                logger.info(f"[Uninstall Benepar {model_name}] Found zip file. Removing: {zip_path}")
                 try:
                     os.remove(zip_path)
-                    logger.info(f"✓ Removed Benepar zip file: {zip_path}")
+                    logger.info(f"[Uninstall Benepar {model_name}] ✓ Removed zip: {zip_path}")
                 except Exception as e:
-                    logger.warning(f"! Could not remove zip file {zip_path}: {e}")
-                    potential_failures = True
-        
-        if removed_something and not potential_failures:
-            logger.info("✓ Successfully removed Benepar model (dir and zip).")
-            return True
-        elif removed_something and potential_failures:
-             logger.warning("! Partially removed Benepar model (some components failed).")
-             return False
-        else:
-            logger.info("! Benepar model not found in any known location (dir or zip).")
-            return True  # Return True as the model is effectively "removed"
-            
+                    logger.error(f"[Uninstall Benepar {model_name}] ! Failed to remove zip file {zip_path}: {e}")
+                    overall_success = False
+            else:
+                 logger.debug(f"[Uninstall Benepar {model_name}] - Zip file not found: {zip_path}")
+
+        # Final status log
+        if overall_success and found_something:
+            logger.info(f"[Uninstall Benepar {model_name}] Completed removal attempts successfully.")
+        elif overall_success and not found_something:
+            logger.info(f"[Uninstall Benepar {model_name}] Model directory/zip not found in checked locations.")
+        elif not overall_success:
+            logger.error(f"[Uninstall Benepar {model_name}] Finished removal attempts with errors.")
+
     except Exception as e:
-        logger.error(f"! Error removing Benepar model: {e}")
-        return False
+        logger.error(f"[Uninstall Benepar {model_name}] ! An unexpected error occurred: {e}")
+        overall_success = False
+        
+    return overall_success
 
 def remove_nltk_data(resources: List[str] = None, logger: logging.Logger = None) -> bool:
     """Remove NLTK resources (directories and zips) from all possible locations."""
@@ -149,55 +230,64 @@ def remove_nltk_data(resources: List[str] = None, logger: logging.Logger = None)
     overall_success = True
     removed_something = False
     try:
-        logger.info(f"Removing NLTK resources: {resources}...")
+        logger.info(f"[Remove NLTK] Removing resources: {resources}...") # Added prefix
         locations = find_model_locations()
         
         for nltk_path in locations["nltk"]:
             tokenizers_base = os.path.join(nltk_path, "tokenizers")
             if not os.path.isdir(tokenizers_base):
+                logger.debug(f"[Remove NLTK] Path not found or not dir: {tokenizers_base}")
                 continue # Skip if tokenizers subdir doesn't exist in this nltk path
                 
             for resource in resources:
+                logger.debug(f"[Remove NLTK] Checking for '{resource}' in {tokenizers_base}")
                 # Remove directory
                 resource_path = os.path.join(tokenizers_base, resource)
                 if os.path.exists(resource_path):
                     removed_something = True
+                    logger.info(f"[Remove NLTK] Found resource. Removing: {resource_path}")
                     try:
                         if os.path.isdir(resource_path):
                             shutil.rmtree(resource_path)
                         else:
                             os.remove(resource_path)
-                        logger.info(f"✓ Removed NLTK resource dir/file: {resource_path}")
+                        logger.info(f"[Remove NLTK] ✓ Removed resource dir/file: {resource_path}")
                     except Exception as e:
-                        logger.warning(f"! Could not remove {resource} from {resource_path}: {e}")
+                        logger.warning(f"[Remove NLTK] ! Could not remove {resource} from {resource_path}: {e}")
                         overall_success = False
+                else:
+                     logger.debug(f"[Remove NLTK] - Resource dir/file not found: {resource_path}")
                 
                 # Remove corresponding zip file
                 zip_path = resource_path + ".zip"
                 if os.path.exists(zip_path):
                     removed_something = True
+                    logger.info(f"[Remove NLTK] Found resource zip. Removing: {zip_path}")
                     try:
                         os.remove(zip_path)
-                        logger.info(f"✓ Removed NLTK resource zip: {zip_path}")
+                        logger.info(f"[Remove NLTK] ✓ Removed resource zip: {zip_path}")
                     except Exception as e:
-                        logger.warning(f"! Could not remove zip file {zip_path}: {e}")
+                        logger.warning(f"[Remove NLTK] ! Could not remove zip file {zip_path}: {e}")
                         overall_success = False
+                else:
+                     logger.debug(f"[Remove NLTK] - Resource zip not found: {zip_path}")
         
+        # Final log
         if removed_something and overall_success:
-            logger.info("✓ Successfully removed specified NLTK resources (dirs and zips).")
+            logger.info(f"[Remove NLTK] ✓ Successfully removed specified resources ({', '.join(resources)}). ")
         elif removed_something and not overall_success:
-            logger.warning("! Partially removed NLTK resources (some components failed).")
+            logger.warning(f"[Remove NLTK] ! Partially removed specified NLTK resources ({', '.join(resources)}). Some errors occurred.")
         elif not removed_something:
-             logger.info("! Specified NLTK resources not found in any known location (dirs or zips).")
+             logger.info(f"[Remove NLTK] ! Specified resources ({', '.join(resources)}) not found in any known location.")
             
     except Exception as e:
-        logger.error(f"! Error removing NLTK resources: {e}")
+        logger.error(f"[Remove NLTK] ! Error removing NLTK resources: {e}")
         overall_success = False
     
     return overall_success
 
 def find_resources() -> Dict[str, List[str]]:
-    """Find all existing resources (dirs and zips) in known locations."""
+    """Find all existing ANPE-related resources (dirs and zips) in known locations."""
     locations = find_model_locations()
     found_resources = {
         "spacy": [],
@@ -205,30 +295,35 @@ def find_resources() -> Dict[str, List[str]]:
         "nltk": []
     }
     
-    # Find spaCy models (assuming pip uninstall is primary, checking data dir is secondary)
+    # Find spaCy models
+    spacy_model_names = set(SPACY_MODEL_MAP.values())
     try:
         data_path = spacy.util.get_data_path()
         if data_path and os.path.exists(data_path):
             for item in os.listdir(data_path):
                 item_path = os.path.join(data_path, item)
-                # Check for standard model naming convention
-                if item.startswith("en_core_web") and os.path.isdir(item_path):
+                # Check if it matches known model names and is a directory
+                if item in spacy_model_names and os.path.isdir(item_path):
                     found_resources["spacy"].append(item_path)
-    except Exception: # Ignore errors if spacy or data path is missing
-        pass
+    except Exception as e: # Ignore errors if spacy or data path is missing
+         logging.getLogger('clean_models').debug(f"Could not scan spacy data path: {e}")
+        
     
     # Find Benepar models (dir and zip)
-    benepar_model_name = "benepar_en3" # Assuming standard name
+    benepar_model_names = set(BENEPAR_MODEL_MAP.values())
     for base_path in locations["benepar"]:
         if os.path.exists(base_path):
-            # Check for directory
-            dir_path = os.path.join(base_path, benepar_model_name)
-            if os.path.exists(dir_path):
-                 found_resources["benepar"].append(dir_path)
-            # Check for zip file
-            zip_path = dir_path + ".zip"
-            if os.path.exists(zip_path) and zip_path not in found_resources["benepar"]:
-                 found_resources["benepar"].append(zip_path)
+            for model_name in benepar_model_names:
+                 # Check for directory
+                 dir_path = os.path.join(base_path, model_name)
+                 if os.path.exists(dir_path):
+                      if dir_path not in found_resources["benepar"]:
+                          found_resources["benepar"].append(dir_path)
+                 # Check for zip file
+                 zip_path = dir_path + ".zip"
+                 if os.path.exists(zip_path):
+                     if zip_path not in found_resources["benepar"]:
+                          found_resources["benepar"].append(zip_path)
     
     # Find NLTK resources (dirs and zips)
     nltk_resources_to_find = ['punkt', 'punkt_tab']
@@ -248,44 +343,60 @@ def find_resources() -> Dict[str, List[str]]:
     return found_resources
 
 def clean_all(verbose: bool = False, logger: logging.Logger = None) -> Dict[str, bool]:
-    """Remove all ANPE-related models and return status of each operation."""
+    """Remove ALL known ANPE-related models using granular uninstall functions.
+       Returns status summary for each category (spaCy, Benepar, NLTK).
+    """
     if logger is None:
         logger = setup_logging(verbose)
     
-    logger.info("Starting ANPE model cleanup...")
-    logger.info("-" * 50)
+    logger.info("[Clean All] Starting ANPE model cleanup...")
+    logger.info("[Clean All] " + "-" * 50)
     
-    # First show all found resources
-    logger.info("Scanning for existing resources...")
+    # Optional: Keep the resource scan for user info, though clean will try all anyway
+    logger.info("[Clean All] Scanning for existing ANPE-related resources...")
     resources = find_resources()
-    
     if any(resources.values()):
-        logger.info("Found the following resources:")
+        logger.info("[Clean All] Found the following potential resources (will attempt removal regardless):")
         for model_type, paths in resources.items():
             if paths:
-                logger.info(f"{model_type}:")
+                logger.info(f"  {model_type}:")
                 for path in paths:
-                    logger.info(f"  - {path}")
+                    logger.info(f"    - {path}")
     else:
-        logger.info("No ANPE-related resources found.")
+        logger.info("[Clean All] No ANPE-related resources initially found (still attempting removal)." )
     
-    logger.info("-" * 50)
+    logger.info("[Clean All] " + "-" * 50)
+    logger.info("[Clean All] Attempting removal of all known models...")
     
-    if not any(resources.values()):
-        return {
-            "spacy": True,
-            "benepar": True,
-            "nltk": True
-        }
+    # Track overall success for each category
+    spacy_success = True
+    benepar_success = True
     
+    # Uninstall all known spaCy models
+    logger.info("[Clean All] --- spaCy Cleanup --- ")
+    for model_name in set(SPACY_MODEL_MAP.values()): # Use set to avoid duplicates if map contains them
+        if not uninstall_spacy_model(model_name, logger):
+             spacy_success = False # Mark category as failed if any sub-task fails
+             
+    # Uninstall all known Benepar models
+    logger.info("[Clean All] --- Benepar Cleanup --- ")
+    for model_name in set(BENEPAR_MODEL_MAP.values()):
+         if not uninstall_benepar_model(model_name, logger):
+              benepar_success = False
+              
+    # Remove NLTK data (uses existing function)
+    logger.info("[Clean All] --- NLTK Cleanup --- ")
+    nltk_success = remove_nltk_data(logger=logger)
+    
+    # Compile results summary
     results = {
-        "spacy": remove_spacy_model(logger=logger),
-        "benepar": remove_benepar_model(logger=logger),
-        "nltk": remove_nltk_data(logger=logger)
+        "spacy": spacy_success,
+        "benepar": benepar_success,
+        "nltk": nltk_success
     }
     
-    logger.info("-" * 50)
-    logger.info("Cleanup Summary:")
+    logger.info("[Clean All] " + "-" * 50)
+    logger.info("[Clean All] Cleanup Summary:")
     for model, success in results.items():
         status = "✓ Success" if success else "✗ Failed"
         logger.info(f"{model}: {status}")
@@ -307,7 +418,11 @@ def main():
     logger = setup_logging(args.verbose)
     
     if not args.yes:
-        logger.warning("This will remove all ANPE-related models from your system.")
+        logger.warning("This will attempt to remove all known ANPE-related models")
+        logger.warning(f" (spaCy: {', '.join(set(SPACY_MODEL_MAP.values()))},")
+        logger.warning(f"  Benepar: {', '.join(set(BENEPAR_MODEL_MAP.values()))},")
+        logger.warning(f"  NLTK: punkt, punkt_tab)")
+        logger.warning("from all known locations on your system.")
         logger.warning("Models will need to be re-downloaded when you next use ANPE.")
         response = input("Do you want to continue? [y/N] ").lower()
         if response != 'y':

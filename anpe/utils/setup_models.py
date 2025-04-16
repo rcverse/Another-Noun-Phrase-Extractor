@@ -12,6 +12,31 @@ import zipfile
 logger = get_logger('setup_models')
 logger.setLevel(logging.DEBUG)
 
+# --- Model Name Mappings ---
+# Map user-friendly aliases to actual spaCy model names
+SPACY_MODEL_MAP = {
+    "sm": "en_core_web_sm",
+    "md": "en_core_web_md",
+    "lg": "en_core_web_lg",
+    "trf": "en_core_web_trf",
+    # Also allow direct full names for flexibility
+    "en_core_web_sm": "en_core_web_sm",
+    "en_core_web_md": "en_core_web_md",
+    "en_core_web_lg": "en_core_web_lg",
+    "en_core_web_trf": "en_core_web_trf",
+}
+DEFAULT_SPACY_ALIAS = "md"
+
+# Map user-friendly aliases to actual Benepar model names
+BENEPAR_MODEL_MAP = {
+    "default": "benepar_en3",
+    "large": "benepar_en3_large",
+    # Also allow direct full names
+    "benepar_en3": "benepar_en3",
+    "benepar_en3_large": "benepar_en3_large",
+}
+DEFAULT_BENEPAR_ALIAS = "default"
+
 # Set up NLTK data path focusing on user's directory
 def setup_nltk_data_dir() -> str:
     """Ensures user's NLTK data directory exists and is preferred.
@@ -101,19 +126,28 @@ def check_nltk_models(models: list[str] = ['punkt', 'punkt_tab']) -> bool:
     
     return all_present
 
-def check_all_models_present() -> bool:
-    """Check if all required models (spaCy, Benepar, NLTK) are present."""
-    logger.info("Checking for presence of all required models...")
+def check_all_models_present(
+    spacy_model_alias: str = DEFAULT_SPACY_ALIAS,
+    benepar_model_alias: str = DEFAULT_BENEPAR_ALIAS
+) -> bool:
+    """Check if all required models (specified spaCy/Benepar, NLTK) are present."""
+    # Map aliases to actual names for checking
+    spacy_model_name = SPACY_MODEL_MAP.get(spacy_model_alias.lower(), SPACY_MODEL_MAP[DEFAULT_SPACY_ALIAS])
+    benepar_model_name = BENEPAR_MODEL_MAP.get(benepar_model_alias.lower(), BENEPAR_MODEL_MAP[DEFAULT_BENEPAR_ALIAS])
+
+    logger.info(f"Checking for presence of specified models (spaCy: {spacy_model_name}, Benepar: {benepar_model_name}, NLTK)...")
     results = {
-        "spacy": check_spacy_model(),
-        "benepar": check_benepar_model(),
-        "nltk": check_nltk_models()
+        "spacy": check_spacy_model(model_name=spacy_model_name),
+        "benepar": check_benepar_model(model_name=benepar_model_name),
+        "nltk": check_nltk_models() # NLTK models are usually fixed (punkt, punkt_tab)
     }
     all_present = all(results.values())
     if all_present:
-        logger.info("All required models are present.")
+        logger.info(f"All specified models ({spacy_model_name}, {benepar_model_name}, NLTK) are present.")
     else:
-        logger.warning(f"One or more models are missing: {results}")
+        # Log which specific model is missing
+        missing = [name for name, present in results.items() if not present]
+        logger.warning(f"One or more specified models are missing: {', '.join(missing)}. Status: {results}")
     return all_present
 
 # --- Model Installation Functions ---
@@ -158,23 +192,39 @@ def _extract_zip_archive(zip_path: str, destination_dir: str, archive_name: str)
 
 def install_spacy_model(model_name: str = "en_core_web_md") -> bool:
     """Install the specified spaCy model."""
+    if not model_name: # Basic validation
+        logger.error("No spaCy model name provided to install.")
+        return False
     try:
-        logger.info(f"Downloading spaCy model: {model_name}")
+        logger.info(f"Attempting to download and install spaCy model: {model_name}")
         result = subprocess.run(
             [sys.executable, '-m', 'spacy', 'download', model_name],
             check=True,
             capture_output=True,
             text=True
         )
-        logger.info(f"spaCy model '{model_name}' installed successfully")
-        logger.debug(result.stdout)
-        return True
+        logger.info(f"spaCy model '{model_name}' download command finished successfully.")
+        logger.debug(f"spaCy download stdout:\n{result.stdout}")
+        # Verify after download command
+        if check_spacy_model(model_name):
+            logger.info(f"Successfully installed and verified spaCy model: {model_name}")
+            return True
+        else:
+            logger.error(f"spaCy download command finished for '{model_name}', but model is still not loadable. Check logs and environment.")
+            return False
     except subprocess.CalledProcessError as e:
-        logger.error(f"Failed to install spaCy model: {e.stderr}")
+        logger.error(f"Failed to download spaCy model '{model_name}'. Subprocess error.")
+        logger.error(f"Stderr: {e.stderr}")
+        return False
+    except Exception as e:
+        logger.error(f"An unexpected error occurred during spaCy model installation for '{model_name}': {e}")
         return False
 
 def install_benepar_model(model_name: str = "benepar_en3") -> bool:
     """Install the specified Benepar model, with manual extraction fallback."""
+    if not model_name: # Basic validation
+        logger.error("No Benepar model name provided to install.")
+        return False
     models_dir = os.path.join(NLTK_DATA_DIR, "models")
     model_dir_path = os.path.join(models_dir, model_name)
     model_zip_path = os.path.join(models_dir, f"{model_name}.zip")
@@ -293,47 +343,69 @@ def install_nltk_models() -> bool:
                  logger.debug(f"Directory {model_dir_path_verify} not found during verification.")
         return False
 
-def setup_models() -> bool:
+def setup_models(
+    spacy_model_alias: str = DEFAULT_SPACY_ALIAS,
+    benepar_model_alias: str = DEFAULT_BENEPAR_ALIAS
+) -> bool:
     """
-    Checks for required models (spaCy, Benepar, NLTK) and attempts to
-    install any that are missing.
+    Checks for required models (specified spaCy/Benepar, NLTK) and attempts
+    to install any that are missing. Uses user-friendly aliases for models.
+
+    Args:
+        spacy_model_alias (str): Alias for spaCy model ('sm', 'md', 'lg', 'trf').
+                                 Defaults to 'md'.
+        benepar_model_alias (str): Alias for Benepar model ('default', 'large').
+                                   Defaults to 'default'.
 
     Returns:
-        bool: True if all required models are present after the check/install process,
-              False otherwise.
+        bool: True if all required models (based on selected aliases) are
+              present after the check/install process, False otherwise.
     """
-    logger.info("Starting model setup process...")
+    logger.info(f"Starting model setup process for spaCy='{spacy_model_alias}', benepar='{benepar_model_alias}'...")
     final_status = True  # Tracks if all models are OK by the end
 
+    # --- Map Aliases ---
+    actual_spacy_model = SPACY_MODEL_MAP.get(spacy_model_alias.lower())
+    if not actual_spacy_model:
+        logger.warning(f"Invalid spaCy model alias '{spacy_model_alias}'. Falling back to default '{DEFAULT_SPACY_ALIAS}'.")
+        actual_spacy_model = SPACY_MODEL_MAP[DEFAULT_SPACY_ALIAS]
+
+    actual_benepar_model = BENEPAR_MODEL_MAP.get(benepar_model_alias.lower())
+    if not actual_benepar_model:
+        logger.warning(f"Invalid Benepar model alias '{benepar_model_alias}'. Falling back to default '{DEFAULT_BENEPAR_ALIAS}'.")
+        actual_benepar_model = BENEPAR_MODEL_MAP[DEFAULT_BENEPAR_ALIAS]
+
     # --- 1. spaCy Model ---
-    logger.info("Checking spaCy model (en_core_web_md)...")
-    if not check_spacy_model():
-        logger.info("spaCy model not found. Attempting download...")
-        if not install_spacy_model():
-            logger.error("Failed to download spaCy model.")
+    logger.info(f"Checking spaCy model ({actual_spacy_model} from alias '{spacy_model_alias}')...")
+    if not check_spacy_model(model_name=actual_spacy_model):
+        logger.info(f"spaCy model '{actual_spacy_model}' not found. Attempting download...")
+        if not install_spacy_model(model_name=actual_spacy_model):
+            logger.error(f"Failed to download/install spaCy model '{actual_spacy_model}'.")
             final_status = False
-        elif not check_spacy_model():  # Verify installation
-            logger.error("spaCy model installed but still not loadable. Check environment/permissions.")
-            final_status = False
+        # Verification is now part of install_spacy_model
+        # elif not check_spacy_model(model_name=actual_spacy_model):
+        #     logger.error(f"spaCy model '{actual_spacy_model}' installed but still not loadable.")
+        #     final_status = False
         else:
-            logger.info("Successfully downloaded and verified spaCy model.")
+            logger.info(f"Successfully downloaded and verified spaCy model '{actual_spacy_model}'.")
     else:
-        logger.info("spaCy model is already present.")
+        logger.info(f"spaCy model '{actual_spacy_model}' is already present.")
 
     # --- 2. Benepar Model ---
-    logger.info("Checking Benepar model (benepar_en3)...")
-    if not check_benepar_model():
-        logger.info("Benepar model not found. Attempting download...")
-        if not install_benepar_model():
-            logger.error("Failed to download Benepar model.")
+    logger.info(f"Checking Benepar model ({actual_benepar_model} from alias '{benepar_model_alias}')...")
+    if not check_benepar_model(model_name=actual_benepar_model):
+        logger.info(f"Benepar model '{actual_benepar_model}' not found. Attempting download...")
+        if not install_benepar_model(model_name=actual_benepar_model):
+            logger.error(f"Failed to download/install Benepar model '{actual_benepar_model}'.")
             final_status = False
-        elif not check_benepar_model():  # Verify installation
-            logger.error("Benepar model downloaded but files not found where expected. Check environment/permissions.")
-            final_status = False
+        # Verification is now part of install_benepar_model
+        # elif not check_benepar_model(model_name=actual_benepar_model):
+        #     logger.error(f"Benepar model '{actual_benepar_model}' downloaded but not found.")
+        #     final_status = False
         else:
-            logger.info("Successfully downloaded and verified Benepar model.")
+            logger.info(f"Successfully downloaded and verified Benepar model '{actual_benepar_model}'.")
     else:
-        logger.info("Benepar model is already present.")
+        logger.info(f"Benepar model '{actual_benepar_model}' is already present.")
 
     # --- 3. NLTK Models ---
     logger.info("Checking NLTK models (punkt, punkt_tab)...")
@@ -361,19 +433,20 @@ def setup_models() -> bool:
 def main():
     # This main is primarily for direct CLI invocation: `python -m anpe.utils.setup_models`
     # It ensures required models are present, installing if needed.
-    print("--- Running ANPE Model Setup Utility ---")
+    # It will use the *default* models ('md', 'default')
+    print("--- Running ANPE Model Setup Utility (using default models) ---")
     
-    # First check if all models are already present
-    if check_all_models_present():
-        print("--- All required models are already present. No installation needed. ---")
+    # First check if the default models are already present
+    if check_all_models_present(): # Uses default arguments
+        print("--- All required default models are already present. No installation needed. ---")
         sys.exit(0)
     
-    # If not all models are present, run the setup process
-    if setup_models():
-        print("--- Setup Complete: All required models are now present. ---")
+    # If not all default models are present, run the setup process with defaults
+    if setup_models(): # Uses default arguments
+        print("--- Setup Complete: All required default models are now present. ---")
         sys.exit(0)
     else:
-        print("--- Setup Failed: One or more models could not be installed or verified. Please check logs above. ---")
+        print("--- Setup Failed: One or more default models could not be installed or verified. Please check logs above. ---")
         sys.exit(1)
 
 if __name__ == "__main__":
