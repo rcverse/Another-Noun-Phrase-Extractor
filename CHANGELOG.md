@@ -2,6 +2,17 @@
 
 All notable changes to the ANPE project will be documented in this file.
 
+## [0.3.0] - 2025-04-17
+### Changed
+- All tests updated to provide more comprehensive testing on code functions.
+
+### Added
+- Customization on model selection via config arguments `spacy_model` and `benepar_model`.
+- Automatic model selection logic if there are multiple models installed
+- Model cleanup utility script `anpe.utils.clean_models.py` to remove downloaded models and caches.
+- CLI `setup` command now accepts `--spacy-model` and `--benepar-model` arguments to install specific models individually or select non-default models; and accepts `--clean-models` flag to invoke the cleanup utility.
+
+
 ## [0.2.0] - 2025-04-05
 
 ### Changed
@@ -35,4 +46,3 @@ All notable changes to the ANPE project will be documented in this file.
 - Toggle newline treatment as sentence boundaries
 - Hierarchical output of nested noun phrases
 - Export directly to files or display in console
-

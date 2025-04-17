@@ -21,6 +21,8 @@ from anpe.utils.setup_models import (  # Import specific functions
     DEFAULT_SPACY_ALIAS,
     DEFAULT_BENEPAR_ALIAS
 )
+# Import cleaning utility
+from anpe.utils.clean_models import clean_all, SPACY_MODEL_MAP as CLEAN_SPACY_MAP, BENEPAR_MODEL_MAP as CLEAN_BENEPAR_MAP
 
 # Initialize logger at module level
 logger = get_logger("cli")
@@ -93,22 +95,39 @@ def parse_args(args: Optional[List[str]] = None) -> argparse.Namespace:
     version_parser = subparsers.add_parser("version", help="Display version information")
     
     # Setup command
-    setup_parser = subparsers.add_parser('setup', help='Setup required models')
-    setup_parser.add_argument(
-        "--spacy-model", 
+    setup_parser = subparsers.add_parser('setup', help='Setup required models or clean existing models')
+    setup_group = setup_parser.add_argument_group("Installation Options")
+    setup_group.add_argument(
+        "--spacy-model",
         choices=list(SPACY_MODEL_MAP.keys()), # Use keys from the map as choices
-        default=DEFAULT_SPACY_ALIAS, 
-        help="Specify the spaCy model to install (e.g., sm, md, lg, trf)"
+        default=None, # Make default None so we can check if user specified it
+        help="Specify the spaCy model alias to install (e.g., sm, md, lg, trf). If not specified, installs default."
     )
-    setup_parser.add_argument(
+    setup_group.add_argument(
         "--benepar-model",
         choices=list(BENEPAR_MODEL_MAP.keys()), # Use keys from the map as choices
-        default=DEFAULT_BENEPAR_ALIAS,
-        help="Specify the Benepar model to install (e.g., default, large)"
+        default=None, # Make default None
+        help="Specify the Benepar model alias to install (e.g., default, large). If not specified, installs default."
     )
-    setup_parser.add_argument("--log-level", choices=["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"],
+    
+    # Mutually exclusive group for clean vs. install
+    clean_group = setup_parser.add_argument_group("Cleanup Options")
+    clean_group.add_argument(
+        "--clean-models",
+        action="store_true",
+        help="Remove all known ANPE-related models (spaCy, Benepar, NLTK). Mutually exclusive with specific model installation."
+    )
+    clean_group.add_argument(
+        "-y", "--yes",
+        action="store_true",
+        help="Skip confirmation prompt when using --clean-models."
+    )
+    
+    # Logging options (apply to both setup and clean)
+    setup_log_group = setup_parser.add_argument_group("Logging Options")
+    setup_log_group.add_argument("--log-level", choices=["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"],
                         default="INFO", help="Logging level")
-    setup_parser.add_argument("--log-dir",
+    setup_log_group.add_argument("--log-dir",
                         help="Directory path for log files")
     
     return parser.parse_args(args)
@@ -348,37 +367,62 @@ def main(args: Optional[List[str]] = None) -> int:
             return 0
         
         elif parsed_args.command == "setup":
-            # First check if models are already present
-            spacy_alias = parsed_args.spacy_model
-            benepar_alias = parsed_args.benepar_model
-            logger.info(f"Checking status for specified models: spaCy='{spacy_alias}', benepar='{benepar_alias}'")
-
-            if check_all_models_present(spacy_model_alias=spacy_alias, benepar_model_alias=benepar_alias):
-                logger.info(f"All specified models (spaCy='{spacy_alias}', benepar='{benepar_alias}') are already present. No installation needed.")
-                return 0
-                
-            # If not all models are present, show current status for the requested models
-            logger.info("Checking current model status...")
-            # Map aliases to actual names for detailed check logging
-            actual_spacy_model = SPACY_MODEL_MAP.get(spacy_alias.lower(), SPACY_MODEL_MAP[DEFAULT_SPACY_ALIAS])
-            actual_benepar_model = BENEPAR_MODEL_MAP.get(benepar_alias.lower(), BENEPAR_MODEL_MAP[DEFAULT_BENEPAR_ALIAS])
-            results = {
-                "spacy": check_spacy_model(model_name=actual_spacy_model),
-                "benepar": check_benepar_model(model_name=actual_benepar_model),
-                "nltk": check_nltk_models() # NLTK check remains the same
-            }
-            logger.info(f"Status for spaCy ('{actual_spacy_model}'): {'Present' if results['spacy'] else 'Missing'}")
-            logger.info(f"Status for Benepar ('{actual_benepar_model}'): {'Present' if results['benepar'] else 'Missing'}")
-            logger.info(f"Status for NLTK (punkt/punkt_tab): {'Present' if results['nltk'] else 'Missing'}")
-            
-            # Run the setup process with the specified models
-            logger.info(f"Starting model installation process for spaCy='{spacy_alias}', benepar='{benepar_alias}'...")
-            if setup_models(spacy_model_alias=spacy_alias, benepar_model_alias=benepar_alias):
-                logger.info(f"Installation successful for specified models (spaCy='{spacy_alias}', benepar='{benepar_alias}').")
-                return 0
+            # Setup logger with CLI specified level/dir
+            if parsed_args.log_dir:
+                logger = ANPELogger.setup_logging(log_level=parsed_args.log_level, log_dir=parsed_args.log_dir)
             else:
-                logger.error(f"Failed to install one or more specified models (spaCy='{spacy_alias}', benepar='{benepar_alias}'). Check logs.")
-                return 1
+                logger = ANPELogger.setup_logging(log_level=parsed_args.log_level)
+            
+            if parsed_args.clean_models:
+                # Handle model cleaning
+                if parsed_args.spacy_model or parsed_args.benepar_model:
+                    logger.error("Cannot use --clean-models with specific model installation flags (--spacy-model, --benepar-model).")
+                    return 1
+
+                if not parsed_args.yes:
+                    logger.warning("This will attempt to remove all known ANPE-related models")
+                    logger.warning(f" (spaCy: {', '.join(set(CLEAN_SPACY_MAP.values()))},")
+                    logger.warning(f"  Benepar: {', '.join(set(CLEAN_BENEPAR_MAP.values()))},")
+                    logger.warning(f"  NLTK: punkt, punkt_tab)")
+                    logger.warning("from all known locations on your system.")
+                    logger.warning("Models will need to be re-downloaded when you next use ANPE.")
+                    try:
+                        response = input("Do you want to continue? [y/N] ").lower()
+                        if response != 'y':
+                            logger.info("Operation cancelled.")
+                            return 1
+                    except EOFError: # Handle non-interactive environments gracefully
+                        logger.error("Confirmation required, but no interactive terminal found. Use -y to bypass.")
+                        return 1
+
+                logger.info("Starting model cleanup...")
+                results = clean_all(verbose=(parsed_args.log_level == "DEBUG"), logger=logger)
+                if all(results.values()):
+                     logger.info("Model cleanup completed successfully.")
+                     return 0
+                else:
+                     logger.error("Model cleanup finished with errors.")
+                     return 1
+
+            else:
+                # Handle model installation
+                # Use defaults if user didn't specify
+                spacy_alias_to_install = parsed_args.spacy_model if parsed_args.spacy_model is not None else DEFAULT_SPACY_ALIAS
+                benepar_alias_to_install = parsed_args.benepar_model if parsed_args.benepar_model is not None else DEFAULT_BENEPAR_ALIAS
+                
+                logger.info("Starting model setup...")
+                try:
+                    # Pass logger instance to setup_models
+                    setup_models(
+                        spacy_model_alias=spacy_alias_to_install,
+                        benepar_model_alias=benepar_alias_to_install,
+                        logger=logger # Pass the configured logger
+                    )
+                    logger.info("Model setup finished.")
+                    return 0 # Indicate success
+                except Exception as e:
+                    logger.error(f"Model setup failed: {e}")
+                    return 1 # Indicate failure
         
         else:
             logger.error(f"Unknown command: {parsed_args.command}")

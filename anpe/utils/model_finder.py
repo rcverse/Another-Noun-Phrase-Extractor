@@ -17,37 +17,38 @@ SPACY_PREFERENCE = ["en_core_web_trf", "en_core_web_lg", "en_core_web_md", "en_c
 BENEPAR_PREFERENCE = ["benepar_en3_large", "benepar_en3"]
 
 def find_installed_spacy_models() -> List[str]:
-    """Find installed spaCy models relevant to ANPE.
+    """Find installed and loadable spaCy models relevant to ANPE.
+
+    This function iterates through known ANPE-relevant spaCy models and
+    attempts to load each one using `spacy.load()`. This is a more robust
+    check than relying on `spacy.util.get_installed_models` or path checks.
 
     Returns:
-        List[str]: A list of installed and loadable spaCy model names.
+        List[str]: A list of loadable spaCy model names relevant to ANPE.
     """
-    installed_models = []
-    try:
-        # Use spacy utility first
-        all_spacy_models = spacy.util.get_installed_models()
-        known_anpe_spacy_models = set(SPACY_MODEL_MAP.values())
-        
-        # Filter for models ANPE knows about
-        relevant_models = [m for m in all_spacy_models if m in known_anpe_spacy_models]
-        
-        # Additionally, verify they are loadable (optional but good practice)
-        for model_name in relevant_models:
-            try:
-                # Try loading briefly to confirm validity
-                spacy.load(model_name, disable=["parser", "ner"]) # Load minimally
-                installed_models.append(model_name)
-            except OSError:
-                logger.debug(f"Found spaCy model '{model_name}' via listing, but failed to load. Excluding.")
-            except Exception as e:
-                 logger.warning(f"Error verifying spaCy model '{model_name}': {e}. Excluding.")
-                 
-        logger.debug(f"Found loadable ANPE-relevant spaCy models: {installed_models}")
-        return installed_models
-        
-    except Exception as e:
-        logger.error(f"Error finding installed spaCy models: {e}")
-        return []
+    verified_models = []
+    known_anpe_spacy_models = set(SPACY_MODEL_MAP.values())
+    logger.debug(f"Checking for known ANPE spaCy models: {known_anpe_spacy_models}")
+
+    for model_name in known_anpe_spacy_models:
+        try:
+            # Attempt to load the model to verify it's actually installed and usable
+            spacy.load(model_name)
+            verified_models.append(model_name)
+            logger.debug(f"Successfully loaded and verified spaCy model: '{model_name}'")
+        except (OSError, ImportError):
+            # OSError is common if the model data isn't found
+            # ImportError can happen for various reasons related to model loading
+            logger.debug(f"SpaCy model '{model_name}' not found or could not be loaded. Skipping.")
+        except Exception as e: # Catch other unexpected errors during loading
+            logger.warning(f"An unexpected error occurred while trying to load spaCy model '{model_name}': {e}. Skipping.")
+
+    if not verified_models:
+        logger.warning("No loadable ANPE-relevant spaCy models found.")
+    else:
+        logger.info(f"Found loadable ANPE-relevant spaCy models: {verified_models}")
+
+    return verified_models
 
 def find_installed_benepar_models() -> List[str]:
     """Find installed Benepar models in NLTK data paths.
@@ -121,9 +122,14 @@ def select_best_spacy_model(models: List[str]) -> Optional[str]:
             return preferred_model
             
     # Fallback: return the first one found if no preferred model is present
-    fallback_model = models[0]
-    logger.debug(f"No specifically preferred spaCy model found, falling back to: {fallback_model}")
-    return fallback_model
+    # Ensure models list is not empty before accessing index 0
+    if models:
+        fallback_model = models[0]
+        logger.debug(f"No specifically preferred spaCy model found, falling back to: {fallback_model}")
+        return fallback_model
+    else:
+        logger.warning("No spaCy models available to select from.")
+        return None
 
 def select_best_benepar_model(models: List[str]) -> Optional[str]:
     """Selects the best Benepar model from a list based on preference order.

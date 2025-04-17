@@ -218,7 +218,7 @@ class ANPEExtractor:
         try:
             self.logger.info("Initializing structure analyzer")
             from anpe.utils.analyzer import ANPEAnalyzer
-            self.analyzer = ANPEAnalyzer()
+            self.analyzer = ANPEAnalyzer(nlp=self.nlp)
             self.logger.debug("Structure analyzer initialized successfully")
         except Exception as e:
             self.logger.error(f"Error initializing structure analyzer: {str(e)}")

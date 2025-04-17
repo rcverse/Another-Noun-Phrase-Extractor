@@ -5,6 +5,7 @@ import json
 from pathlib import Path
 from anpe.cli import main, parse_args
 import csv
+from unittest.mock import patch, MagicMock
 
 class TestCLI(unittest.TestCase):
     """Test cases for CLI functionality."""
@@ -137,6 +138,305 @@ class TestCLI(unittest.TestCase):
                 break
                 
         self.assertTrue(found_valid_content, "No output file contained the expected extraction results")
+
+    def test_extract_direct_text_input(self):
+        """Test extraction using direct text input."""
+        # Outputting to a specific file for easier verification
+        specific_output_file = self.output_dir / "direct_text_output.txt"
+        args = ["extract", self.test_text, "-o", str(specific_output_file), "-t", "txt"]
+        exit_code = main(args)
+        self.assertEqual(exit_code, 0)
+        self.assertTrue(specific_output_file.exists())
+        # Check if output contains expected NP (basic check)
+        with open(specific_output_file, 'r', encoding='utf-8') as f:
+            content = f.read()
+            self.assertIn("The team of scientists", content)
+
+    def test_extract_from_directory(self):
+        """Test extraction using directory input (-d)."""
+        # Create a subdirectory with another test file
+        input_subdir = Path(self.temp_dir.name) / "input_dir"
+        input_subdir.mkdir()
+        subdir_file = input_subdir / "subdir_input.txt"
+        with open(subdir_file, 'w', encoding='utf-8') as f:
+            f.write("Another test sentence with noun phrases.")
+        
+        # Output to a directory
+        output_subdir = self.output_dir / "dir_output"
+        args = ["extract", "-d", str(input_subdir), "-o", str(output_subdir), "-t", "json"]
+        exit_code = main(args)
+        self.assertEqual(exit_code, 0)
+        
+        # Check if the output directory was created
+        self.assertTrue(output_subdir.exists())
+        self.assertTrue(output_subdir.is_dir())
+        
+        # Check if an output file was created inside the output directory
+        output_files = list(output_subdir.glob("anpe_export_*.json"))
+        self.assertGreater(len(output_files), 0, "No JSON file created in output directory for directory input test")
+        
+        # Verify content of the created file
+        with open(output_files[0], 'r', encoding='utf-8') as f:
+            result = json.load(f)
+            self.assertIn("results", result)
+            found_np = any("noun phrases" in np["noun_phrase"].lower() for np in result["results"])
+            self.assertTrue(found_np, "Expected NP not found in directory input test output")
+
+    @patch('anpe.cli.create_extractor')
+    def test_extract_cli_flags_pass_to_config(self, mock_create_extractor):
+        """Test that CLI processing flags correctly modify extractor config."""
+        # Mock the actual extractor instance to prevent real processing
+        mock_extractor_instance = unittest.mock.MagicMock()
+        mock_extractor_instance.export.return_value = None # Mock export behaviour
+        mock_create_extractor.return_value = mock_extractor_instance
+        
+        # Test various flags
+        args = [
+            "extract", 
+            "-f", str(self.input_file),
+            "-o", str(self.output_dir), # Output dir needed for code path
+            "--min-length", "2", 
+            "--max-length", "5", 
+            "--no-pronouns", 
+            "--no-newline-breaks", 
+            "--structures", "determiner,compound",
+            "--spacy-model", "lg",
+            "--benepar-model", "large"
+        ]
+        exit_code = main(args)
+        self.assertEqual(exit_code, 0)
+        
+        # Assert create_extractor was called once
+        mock_create_extractor.assert_called_once()
+        
+        # Get the actual Namespace object passed to create_extractor
+        call_args, call_kwargs = mock_create_extractor.call_args
+        parsed_args_passed = call_args[0] # The Namespace is the first positional argument
+        
+        # Verify flags exist as attributes on the passed Namespace object
+        self.assertEqual(parsed_args_passed.min_length, 2)
+        self.assertEqual(parsed_args_passed.max_length, 5)
+        self.assertTrue(parsed_args_passed.no_pronouns) # Flag presence means True
+        self.assertTrue(parsed_args_passed.no_newline_breaks) # Flag presence means True
+        self.assertEqual(parsed_args_passed.structures, "determiner,compound")
+        self.assertEqual(parsed_args_passed.spacy_model, "lg") 
+        self.assertEqual(parsed_args_passed.benepar_model, "large")
+        
+        # Ensure extractor.export was called (or whatever method process_file calls)
+        # Since we test file input, process_file gets called, which calls extractor.export
+        mock_extractor_instance.export.assert_called_once()
+
+    # --- Tests for Setup Command ---
+
+    @patch('anpe.cli.check_all_models_present')
+    @patch('anpe.cli.setup_models')
+    @patch('anpe.cli.ANPELogger') # Mock logger setup too
+    def test_setup_command_models_present(self, mock_logger_cls, mock_setup_models, mock_check_all):
+        """Test setup command when all models are already present (installation path)."""
+        # Mock logger instance behavior
+        mock_logger_instance = MagicMock()
+        mock_logger_cls.setup_logging.return_value = mock_logger_instance
+        
+        mock_check_all.return_value = True # Simulate models are present
+        
+        # Use defaults by not providing model flags
+        args = ["setup"]
+        exit_code = main(args)
+        
+        self.assertEqual(exit_code, 0)
+        # Installation logic shouldn't run check_all_models_present anymore
+        # mock_check_all.assert_called_once_with(spacy_model_alias='md', benepar_model_alias='default')
+        mock_check_all.assert_not_called() # No check before install
+        # setup_models should NOT be called if check_all returns True (Old logic, removed)
+        # New logic: setup_models IS called regardless of pre-check
+        mock_setup_models.assert_called_once()
+
+    @patch('anpe.cli.setup_models')
+    @patch('anpe.cli.ANPELogger')
+    def test_setup_command_models_missing_success(self, mock_logger_cls, mock_setup_models):
+        """Test setup command when models are missing and installation succeeds."""
+        mock_logger_instance = MagicMock()
+        mock_logger_cls.setup_logging.return_value = mock_logger_instance
+        
+        # Simulate successful installation by not raising Exception
+        mock_setup_models.return_value = None 
+
+        args = ["setup"]
+        exit_code = main(args)
+        
+        self.assertEqual(exit_code, 0)
+        # setup_models should be called with default aliases and the logger
+        mock_setup_models.assert_called_once()
+        call_args, call_kwargs = mock_setup_models.call_args
+        self.assertEqual(call_kwargs.get('spacy_model_alias'), 'md')
+        self.assertEqual(call_kwargs.get('benepar_model_alias'), 'default')
+        self.assertIsNotNone(call_kwargs.get('logger')) # Check logger was passed
+
+    @patch('anpe.cli.setup_models')
+    @patch('anpe.cli.ANPELogger')
+    def test_setup_command_models_missing_fail(self, mock_logger_cls, mock_setup_models):
+        """Test setup command when models are missing and installation fails."""
+        mock_logger_instance = MagicMock()
+        mock_logger_cls.setup_logging.return_value = mock_logger_instance
+        
+        # Simulate failed installation
+        mock_setup_models.side_effect = Exception("Download failed") 
+
+        args = ["setup"]
+        exit_code = main(args)
+        
+        self.assertEqual(exit_code, 1) # Should exit with error code 1
+        mock_setup_models.assert_called_once() # Still called
+        # Check logger was called with error
+        mock_logger_instance.error.assert_called() 
+
+    @patch('anpe.cli.setup_models')
+    @patch('anpe.cli.ANPELogger')
+    def test_setup_command_specific_models(self, mock_logger_cls, mock_setup_models):
+        """Test setup command with specific model flags."""
+        mock_logger_instance = MagicMock()
+        mock_logger_cls.setup_logging.return_value = mock_logger_instance
+        mock_setup_models.return_value = None # Simulate success
+
+        args = ["setup", "--spacy-model", "lg", "--benepar-model", "large"]
+        exit_code = main(args)
+        
+        self.assertEqual(exit_code, 0)
+        # Check if setup_models was called with the correct specific aliases
+        mock_setup_models.assert_called_once()
+        call_args, call_kwargs = mock_setup_models.call_args
+        self.assertEqual(call_kwargs.get('spacy_model_alias'), 'lg')
+        self.assertEqual(call_kwargs.get('benepar_model_alias'), 'large')
+        self.assertIsNotNone(call_kwargs.get('logger'))
+
+    @patch('anpe.cli.setup_models')
+    @patch('anpe.cli.ANPELogger')
+    def test_setup_command_only_spacy(self, mock_logger_cls, mock_setup_models):
+        """Test setup command specifying only spaCy model."""
+        mock_logger_instance = MagicMock()
+        mock_logger_cls.setup_logging.return_value = mock_logger_instance
+        mock_setup_models.return_value = None
+
+        args = ["setup", "--spacy-model", "sm"]
+        exit_code = main(args)
+        
+        self.assertEqual(exit_code, 0)
+        # Should setup with specified spacy and default benepar
+        mock_setup_models.assert_called_once()
+        call_args, call_kwargs = mock_setup_models.call_args
+        self.assertEqual(call_kwargs.get('spacy_model_alias'), 'sm')
+        self.assertEqual(call_kwargs.get('benepar_model_alias'), 'default') # Default used
+        self.assertIsNotNone(call_kwargs.get('logger'))
+        
+    @patch('anpe.cli.setup_models')
+    @patch('anpe.cli.ANPELogger')
+    def test_setup_command_only_benepar(self, mock_logger_cls, mock_setup_models):
+        """Test setup command specifying only Benepar model."""
+        mock_logger_instance = MagicMock()
+        mock_logger_cls.setup_logging.return_value = mock_logger_instance
+        mock_setup_models.return_value = None
+
+        args = ["setup", "--benepar-model", "large"]
+        exit_code = main(args)
+        
+        self.assertEqual(exit_code, 0)
+        # Should setup with default spacy and specified benepar
+        mock_setup_models.assert_called_once()
+        call_args, call_kwargs = mock_setup_models.call_args
+        self.assertEqual(call_kwargs.get('spacy_model_alias'), 'md') # Default used
+        self.assertEqual(call_kwargs.get('benepar_model_alias'), 'large')
+        self.assertIsNotNone(call_kwargs.get('logger'))
+        
+    # --- Tests for Clean Models --- 
+    
+    @patch('builtins.input')
+    @patch('anpe.cli.clean_all')
+    @patch('anpe.cli.ANPELogger')
+    def test_setup_clean_confirm_yes_success(self, mock_logger_cls, mock_clean_all, mock_input):
+        """Test setup --clean-models with confirmation 'y' and success."""
+        mock_logger_instance = MagicMock()
+        mock_logger_cls.setup_logging.return_value = mock_logger_instance
+        mock_input.return_value = 'y' # Simulate user confirms
+        mock_clean_all.return_value = {"spacy": True, "benepar": True, "nltk": True} # Simulate success
+        
+        args = ["setup", "--clean-models"]
+        exit_code = main(args)
+        
+        self.assertEqual(exit_code, 0)
+        mock_input.assert_called_once() # Should ask for confirmation
+        mock_clean_all.assert_called_once() # Should call clean_all
+        call_args, call_kwargs = mock_clean_all.call_args
+        self.assertFalse(call_kwargs.get('verbose')) # Default log level INFO -> verbose=False
+        self.assertIsNotNone(call_kwargs.get('logger')) # Logger passed
+
+    @patch('builtins.input')
+    @patch('anpe.cli.clean_all')
+    @patch('anpe.cli.ANPELogger')
+    def test_setup_clean_confirm_no(self, mock_logger_cls, mock_clean_all, mock_input):
+        """Test setup --clean-models with confirmation 'n'."""
+        mock_logger_instance = MagicMock()
+        mock_logger_cls.setup_logging.return_value = mock_logger_instance
+        mock_input.return_value = 'n' # Simulate user cancels
+        
+        args = ["setup", "--clean-models"]
+        exit_code = main(args)
+        
+        self.assertEqual(exit_code, 1) # Operation cancelled
+        mock_input.assert_called_once() # Should ask for confirmation
+        mock_clean_all.assert_not_called() # Should NOT call clean_all
+
+    @patch('builtins.input')
+    @patch('anpe.cli.clean_all')
+    @patch('anpe.cli.ANPELogger')
+    def test_setup_clean_yes_flag_success(self, mock_logger_cls, mock_clean_all, mock_input):
+        """Test setup --clean-models -y (skip confirmation) with success."""
+        mock_logger_instance = MagicMock()
+        mock_logger_cls.setup_logging.return_value = mock_logger_instance
+        mock_clean_all.return_value = {"spacy": True, "benepar": True, "nltk": True}
+
+        args = ["setup", "--clean-models", "-y"]
+        exit_code = main(args)
+
+        self.assertEqual(exit_code, 0)
+        mock_input.assert_not_called() # Should NOT ask for confirmation
+        mock_clean_all.assert_called_once() # Should call clean_all
+        call_args, call_kwargs = mock_clean_all.call_args
+        self.assertFalse(call_kwargs.get('verbose'))
+        self.assertIsNotNone(call_kwargs.get('logger'))
+        
+    @patch('anpe.cli.clean_all')
+    @patch('anpe.cli.ANPELogger')
+    def test_setup_clean_yes_flag_failure(self, mock_logger_cls, mock_clean_all):
+        """Test setup --clean-models -y when clean_all fails."""
+        mock_logger_instance = MagicMock()
+        mock_logger_cls.setup_logging.return_value = mock_logger_instance
+        # Simulate partial failure
+        mock_clean_all.return_value = {"spacy": False, "benepar": True, "nltk": True} 
+
+        args = ["setup", "--clean-models", "-y"]
+        exit_code = main(args)
+
+        self.assertEqual(exit_code, 1) # Exit code 1 on failure
+        mock_clean_all.assert_called_once() # Should call clean_all
+        mock_logger_instance.error.assert_any_call("Model cleanup finished with errors.") # Check error log
+
+    @patch('anpe.cli.clean_all')
+    @patch('anpe.cli.ANPELogger')
+    def test_setup_clean_conflicting_flags(self, mock_logger_cls, mock_clean_all):
+        """Test setup --clean-models with conflicting installation flag."""
+        mock_logger_instance = MagicMock()
+        mock_logger_cls.setup_logging.return_value = mock_logger_instance
+        
+        args = ["setup", "--clean-models", "--spacy-model", "md"]
+        exit_code = main(args)
+
+        self.assertEqual(exit_code, 1) # Error due to conflict
+        mock_clean_all.assert_not_called() # clean_all should not be called
+        # Check specific error log
+        mock_logger_instance.error.assert_called_once_with(
+            "Cannot use --clean-models with specific model installation flags (--spacy-model, --benepar-model)."
+        )
+
 
 if __name__ == "__main__":
     unittest.main() 

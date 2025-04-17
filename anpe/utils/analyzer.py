@@ -13,19 +13,17 @@ from anpe.utils.anpe_logger import get_logger
 class ANPEAnalyzer:
     """Analyzes the structure of noun phrases with improved detection methods."""
     
-    def __init__(self):
+    def __init__(self, nlp):
         """Initialize the analyzer with improved detection methods and logging."""
         self.logger = get_logger('analyzer')
         self.logger.debug("Initializing ANPEAnalyzer")
         
-        # Load spaCy model
-        try:
-            self.logger.debug("Loading spaCy model for analysis")
-            self.nlp = spacy.load("en_core_web_md")
-            self.logger.debug("spaCy model loaded successfully")
-        except Exception as e:
-            self.logger.error(f"Error loading spaCy model: {str(e)}")
-            raise
+        # Use the provided nlp object
+        if nlp is None:
+             self.logger.error("ANPEAnalyzer initialized without a valid spaCy nlp object.")
+             raise ValueError("ANPEAnalyzer requires a valid spaCy nlp object.")
+        self.nlp = nlp
+        self.logger.debug("ANPEAnalyzer initialized with provided spaCy model.")
     
     def analyze(self, nps_with_length: List[tuple]) -> List[tuple]:
         """

@@ -93,10 +93,31 @@ To setup the **default** models, simply run the following command in terminal (P
 anpe setup
 ```
 
++You can also specify which models to install using the `--spacy-model` and `--benepar-model` flags. This allows for installation of non-default models or targeted installation if only one type of model is needed. For example, to install only the large spaCy model:
+```bash
+anpe setup --spacy-model lg
+```
+Refer to the [CLI documentation](#setup-command-options) for details.
+
 Alteratively, you can run the script with:
 ```bash
 python -m anpe.utils.setup_models
 ```
+
+#### **Model Cleanup**
+
+If you need to remove the downloaded models and caches (e.g., to free up space or resolve potential corruption), ANPE provides a cleanup utility.
+
+You can run
+```bash
+anpe setup --clean-models
+```
+Alternatively, 
+```bash
+python -m anpe.utils.clean_models
+```
+
+> **⚠️ Warning:** Running the cleanup script or command will remove *all* downloaded spaCy models known to ANPE, the Benepar models, and the NLTK data (`punkt`, `punkt_tab`) from their standard locations. You will need to run `anpe setup` or let the extractor auto-download them again before using ANPE.
 
 #### **Manual Setup**
 If automatic setup fails or you prefer to manually download the models, you can run install the models manually. Below are examples for the **default** models:
@@ -516,7 +537,7 @@ anpe [command] [options]
 | Command | Description | Example |
 |---------|-------------|---------|
 | `extract` | Extract noun phrases from text | `anpe extract "Sample text"` |
-| `setup` | Install required models | `anpe setup` |
+| `setup` | Install or clean required models | `anpe setup` or `anpe setup --clean-models` |
 | `version` | Display the ANPE version | `anpe version` |
 
 ### Available Options
@@ -525,8 +546,10 @@ anpe [command] [options]
 
 | Option | Description | Example |
 |--------|-------------|---------|
-| `--spacy-model` | Specify the spaCy model alias (sm, md, lg, trf). Defaults to `md`. | `anpe setup --spacy-model lg` |
-| `--benepar-model` | Specify the Benepar model alias (default, large). Defaults to `default`. | `anpe setup --benepar-model large` |
+| `--spacy-model <alias>` | Specify the spaCy model alias to *install* (`sm`, `md`, `lg`, `trf`). If omitted, installs default (`md`). | `anpe setup --spacy-model lg` |
+| `--benepar-model <alias>` | Specify the Benepar model alias to *install* (`default`, `large`). If omitted, installs default (`default`). | `anpe setup --benepar-model large` |
+| `--clean-models` | Remove all known ANPE-related models (spaCy, Benepar, NLTK). Cannot be used with model installation flags. | `anpe setup --clean-models` |
+| `-y`, `--yes` | Skip confirmation prompt when using `--clean-models`. | `anpe setup --clean-models -y` |
 | `--log-level` | Set the logging level (DEBUG, INFO, WARNING, ERROR, CRITICAL) | `anpe setup --log-level DEBUG` |
 | `--log-dir` | Directory path for log files | `anpe setup --log-dir logs` |
 
@@ -550,4 +573,215 @@ anpe [command] [options]
 | `--no-newline-breaks` | Don't treat newlines as sentence boundaries | `anpe extract --no-newline-breaks` |
 | `--structures` | Comma-separated list of structure patterns to include | `anpe extract --structures "determiner,named_entity"` |
 | `--spacy-model` | Specify spaCy model alias/name to USE (e.g., "md", "en_core_web_lg"). Accepts aliases or full names. Overrides auto-detect. | `anpe extract --spacy-model lg` |
-| `--benepar-model` | Specify Benepar model alias/name to USE (e.g., "default", "benepar_en3_large"). Accepts aliases or full names. Overrides auto-detect. | `
+| `--benepar-model` | Specify Benepar model alias/name to USE (e.g., "default", "benepar_en3_large"). Accepts aliases or full names. Overrides auto-detect. | `anpe extract --benepar-model large` |
+
+#### Output Options (for extract command)
+
+| Option | Description | Example |
+|--------|-------------|---------|
+| `-o, --output` | Output file path or directory | `anpe extract -o output_dir` or `anpe extract -o results.json` |
+| `-t, --type` | Output format (txt, csv, json) | `anpe extract -t json` |
+
+#### Logging Options (for all commands)
+
+| Option | Description | Example |
+|--------|-------------|---------|
+| `--log-level` | Logging level (DEBUG, INFO, WARNING, ERROR, CRITICAL) | `anpe extract --log-level DEBUG` |
+| `--log-dir` | Directory path for log files (automatically generates timestamped log files) | `anpe extract --log-dir ./logs` |
+
+### Example Commands
+
+**Setup models with logging:**
+```bash
+anpe setup --log-level DEBUG --log-dir logs
+```
+
+**Clean existing models (with confirmation):**
+```bash
+anpe setup --clean-models
+```
+
+**Clean existing models (without confirmation):**
+```bash
+anpe setup --clean-models -y
+```
+
+**Extract and output to JSON:**
+```bash
+anpe extract -f input.txt -o output_dir -t json
+```
+
+**Batch processing (Outputting to a directory):**
+```bash
+anpe extract -d input_directory --output output_directory -t json --metadata
+```
+
+**Advanced extraction with filters (Outputting to a specific file):**
+```bash
+anpe extract -f input.txt --min-length 2 --max-length 10 --no-pronouns --structures "determiner,named_entity" -o results.csv -t csv
+```
+
+**With logging:**
+```bash
+anpe extract -f input.txt --log-dir ./logs --log-level DEBUG
+```
+
+**Check version:**
+```bash
+anpe version
+```
+
+
+## Hierarchical ID System
+
+ANPE uses a hierarchical ID system to represent parent-child relationships between noun phrases when nested NP are captured:
+
+- **Top-level NPs** are assigned sequential numeric IDs: "1", "2", "3", etc.
+- **Child NPs** are assigned IDs that reflect their parent: "1.1", "1.2", "2.1", etc.
+- **Deeper nested NPs** continue this pattern: "1.1.1", "1.1.2", etc.
+
+This makes it easy to identify related noun phrases across different output formats.
+
+## Structural Analysis
+
+ANPE's structural labeling system analyzes noun phrases to identify their syntactic patterns. This is achieved through:
+1. **Constituency Parsing**: Using the Berkeley Neural Parser to identify phrase structures
+2. **Pattern Matching**: Applying rules to detect specific syntactic constructions
+3. **Feature Extraction**: Identifying determiners, modifiers, and other grammatical features
+
+The system categorizes patterns into fundamental types, organized from simple to complex. For a comprehensive explanation of all structure patterns and their detection logic, please refer to the [structure_patterns.md](structure_patterns.md) file included in the repository.
+
+| Type | Description | Example |
+|------|-------------|---------|
+| **Determiner** | Contains determiners (the, a, an, this, that, these, those) | "the summer" |
+| **Adjectival Modifier** | Contains adjective modifiers | "unrealised love" | 
+| **Prepositional Modifier** | Prepositional phrase modifiers | "butler at Darlington Hall" | 
+| **Compound** | Compound nouns forming a single conceptual unit | "Darlington Hall" | 
+| **Possessive** | Possessive constructions with markers or pronouns | "his housekeeper" | 
+| **Quantified** | Quantified NPs with numbers or quantity words | "two world wars" | 
+| **Coordinated** | Coordinated elements joined by conjunctions | "Stevens and England" | 
+| **Appositive** | One NP renames or explains another | "Stevens, a long-serving butler" |
+| **Relative Clause** | Clause that modifies a noun | "a past that takes in fascism" |
+| **others** | Other NP structures that are not identifed | N/A |  
+
+For a comprehensive explanation of all structure patterns and their detection logic, please refer to the [structure_patterns.md](structure_patterns.md) file included in the repository. This system enables precise identification of noun phrase structures while maintaining high processing efficiency.
+
+## GUI Application
+>*❗[Under development]*
+>
+> Please note that the gui app is now still being developed, no release is provided at the moment.
+
+》***"Oh no, code again! I just want a quick tool, kill me already!😵"***
+
+No worries, ANPE provides a graphical user interface (GUI) for easier interaction with the library. Best part of all - it is a standalone app and requires no environment setup. Supports Mac and Windows.
+
+**Disclaimer:**
+As I do not have any knowledge of the Qt framework, this app is almost developed COMPLETELY with AI. Contributions are most weclomed to enhance this app.
+
+
+![ANPE GUI Screenshot](/pics/anpe_gui_app_windows.png) 
+
+
+### GUI Features
+
+- **User-friendly interface** with distinct Input and Output tabs.
+- **Input Modes**: Process text via Direct Text Input or File Input.
+- **File Handling**: Add single files or entire directories; view and manage the list.
+- **Batch Processing**: Automatically handles multiple files from selected directories.
+- **Visual Configuration**: Easily configure all ANPE settings:
+    - General: Include Nested Phrases, Include Metadata, Treat Newlines as Boundaries.
+    - Filtering: Min/Max NP length, Accept Pronouns.
+    - Structure Filtering: Master toggle switch and individual selection for specific NP structures (Determiner, Compound, Relative Clause, etc.).
+    - Tooltips: Hover over options for detailed explanations based on documentation.
+- **Real-time Log Viewer**: Track operations and potential issues with log level filtering.
+- **Results Visualization**: View formatted extraction results in the Output tab.
+- **Batch Result Navigation**: Use a dropdown to view results for specific files when processing batches.
+- **Export Options**: Export results to TXT, CSV, or JSON formats to a selected directory.
+- **Status Bar**: Provides feedback on application readiness, processing progress, and completion status.
+- **Workflow Control**: Process button initiates extraction, Reset button clears inputs/outputs for a new task.
+
+For more details on the GUI structure or building it from source, see the ANPE GUI repo.
+
+
+
+## Contributing
+
+Contributions are welcome! Here are some ways you can contribute:
+
+1. **Report bugs**: Submit issues for any bugs you find
+2. **Suggest features**: Submit issues for feature requests
+3. **Submit pull requests**: Implement new features or fix bugs
+
+### Testing
+
+ANPE uses `pytest` for testing. The test suite includes unit tests, integration tests, and CLI tests that verify the functionality of the package.
+
+#### Running Tests
+
+To run the tests, you need to have pytest installed:
+
+```bash
+pip install pytest
+```
+
+Then, you can run the tests with:
+
+```bash
+python -m pytest
+```
+
+#### Test Structure
+
+The test suite is organized into several files that test different aspects of the package:
+
+- **test_extractor.py**: Tests the core functionality of the `ANPEExtractor` class, including basic extraction, metadata, nested structures, and custom configurations.
+- **test_cli.py**: Tests the command-line interface functionality.
+- **test_integration.py**: Tests the integration between different components of the package.
+- **test_utils.py**: Tests utility functions like exporting, logging, and structural analysis.
+
+#### Adding New Tests
+
+When contributing to ANPE, please consider adding tests for your changes. Tests should be added to the appropriate file based on what component they are testing.
+
+For example, if you are adding a new feature to the extractor, you should add tests to `test_extractor.py`:
+
+```python
+def test_my_new_feature(self):
+    """Test the new feature."""
+    extractor = ANPEExtractor()
+    # Test setup and assertions
+```
+
+If you are adding a new utility function, you should add tests to `test_utils.py`:
+
+```python
+def test_my_utility_function(self):
+    """Test the utility function."""
+    # Test setup and assertions
+```
+
+## **Troubleshooting**
+If you encounter issues with model setup:
+1. Ensure you have an active internet connection.
+2. Run `anpe setup` with `--log-level DEBUG` and check the logs for errors.
+3. If you suspect model corruption or want a clean slate, run `anpe setup --clean-models` (see [Model Cleanup](#model-cleanup) section) and then try the setup again.
+4. If the issue persists, check the logs generated by the cleanup script (`python -m anpe.utils.clean_models -v`) for specific file removal errors.
+5. For specific model installation issues, refer to the documentation for [spaCy](https://spacy.io/), [Benepar](https://github.com/nikitakit/self-attentive-parser), and [NLTK](https://www.nltk.org/).
+
+## Citation
+
+If you use ANPE in your research or projects, please cite it as follows:
+
+### BibTeX
+```bibtex
+@software{Chen_ANPE_2024,
+  author = {Chen, Nuo},
+  title = {{ANPE: Another Noun Phrase Extractor}},
+  url = {https://github.com/rcverse/anpe},
+  version = {0.3.0},
+  year = {2025}
+}
+```
+
+### Plain Text (APA style)
+Chen, N. (2025). *ANPE: Another Noun Phrase Extractor* (Version 0.3.0) [Computer software]. Retrieved from https://github.com/rcverse/anpe

@@ -6,6 +6,7 @@ import json
 import csv
 import time
 from anpe import ANPEExtractor
+from unittest.mock import patch, MagicMock
 
 class TestANPEExtractor(unittest.TestCase):
     """Test cases for ANPEExtractor class."""
@@ -14,6 +15,8 @@ class TestANPEExtractor(unittest.TestCase):
         """Set up test fixtures."""
         self.extractor = ANPEExtractor()
         self.test_text = "The team of scientists published their exciting research on climate change."
+        self.pronoun_text = "He saw it. They liked the big red car."
+        self.newline_text = "First sentence.\nSecond sentence with\n a line break."
         self.temp_dir = tempfile.TemporaryDirectory()
         self.output_dir = Path(self.temp_dir.name)
     
@@ -87,7 +90,7 @@ class TestANPEExtractor(unittest.TestCase):
                        "Expected parent-child relationship not found")
     
     def test_extraction_with_config(self):
-        """Test extraction with custom configuration."""
+        """Test extraction with custom length configuration."""
         custom_extractor = ANPEExtractor({
             "min_length": 2,
             "max_length": 4
@@ -110,6 +113,122 @@ class TestANPEExtractor(unittest.TestCase):
         self.assertFalse(any("their exciting research on climate change" in found_np 
                               for found_np in found_nps),
                          "Phrase 'their exciting research on climate change' should be excluded by max_length")
+
+    def test_config_no_pronouns(self):
+        """Test extraction with accept_pronouns=False configuration."""
+        no_pronoun_extractor = ANPEExtractor({"accept_pronouns": False})
+        result = no_pronoun_extractor.extract(self.pronoun_text)
+        found_nps = [np['noun_phrase'].lower() for np in result["results"]]
+        
+        # Ensure single-word pronouns are excluded
+        self.assertNotIn("he", found_nps)
+        self.assertNotIn("it", found_nps)
+        self.assertNotIn("they", found_nps)
+        # Ensure other NPs are still found
+        self.assertTrue(any("the big red car" in found_np for found_np in found_nps))
+
+    def test_config_structure_filters(self):
+        """Test extraction with structure_filters configuration."""
+        # Extract with metadata to check structures
+        # Filter for NPs that have a determiner
+        filter_extractor = ANPEExtractor({"structure_filters": ["determiner"]})
+        result = filter_extractor.extract(self.test_text, metadata=True)
+        
+        # All results should have 'determiner' in their structures
+        self.assertGreater(len(result["results"]), 0) # Ensure we got some results
+        for np in result["results"]:
+            self.assertIn("metadata", np)
+            self.assertIn("structures", np["metadata"])
+            self.assertIn("determiner", np["metadata"]["structures"],
+                          f"NP '{np['noun_phrase']}' missing 'determiner' structure despite filter")
+            
+        # Example check: 'the team of scientists' should be present
+        found_nps = [np['noun_phrase'].lower() for np in result["results"]]
+        self.assertTrue(any("the team of scientists" in found_np for found_np in found_nps))
+        
+        # Now filter for something not present in the top-level NPs 
+        # (e.g., 'appositive' which isn't in the main NPs of self.test_text)
+        filter_extractor_appos = ANPEExtractor({"structure_filters": ["appositive"]})
+        result_appos = filter_extractor_appos.extract(self.test_text, metadata=True)
+        # We expect no results based on the filter and the test text
+        self.assertEqual(len(result_appos["results"]), 0)
+
+    def test_config_no_newline_breaks(self):
+        """Test extraction with newline_breaks=False configuration."""
+        # Default behavior (newline_breaks=True)
+        result_default = self.extractor.extract(self.newline_text)
+        # Expected: Treats newline as boundary, finds "Second sentence with a line break"
+        found_nps_default = [np['noun_phrase'].lower() for np in result_default["results"]]
+        self.assertTrue(any("second sentence with a line break" in found_np for found_np in found_nps_default))
+        
+        # Custom behavior (newline_breaks=False)
+        no_break_extractor = ANPEExtractor({"newline_breaks": False})
+        result_no_break = no_break_extractor.extract(self.newline_text)
+        # Expected: Treats text continuously, might parse differently.
+        # We check if the previous NP is still found. If sentence boundaries change, it might not be.
+        # This test is a bit brittle, depends heavily on parser behavior with joined sentences.
+        # A better test might check the *number* of sentences spaCy finds. 
+        found_nps_no_break = [np['noun_phrase'].lower() for np in result_no_break["results"]]
+        # Let's assert that *something* is found, even if the specific phrases change
+        self.assertGreater(len(result_no_break["results"]), 0) 
+        # Optional: More robust check comparing sentence segmentation result? Requires mocking spacy. 
+
+    def test_config_explicit_model_selection(self):
+        """Test that explicitly providing models in config uses them."""
+        
+        # Use patch as a context manager
+        with patch('anpe.extractor.spacy.load') as mock_spacy_load, \
+             patch('anpe.extractor.benepar.Parser') as mock_benepar_parser:
+            
+            # Define a side effect function for spacy.load mock
+            def spacy_load_side_effect(model_name, *args, **kwargs):
+                print(f"--- MOCK spacy.load called with: {model_name} ---") # Debug print
+                if model_name == "en_core_web_md":
+                    # If called with the default model, raise error immediately
+                    raise OSError("Mock detected attempt to load default spaCy model!")
+                elif model_name == "en_core_web_lg":
+                    # If called with the intended model, return a MagicMock
+                    return MagicMock() 
+                else:
+                    # For any other unexpected call, maybe return default mock
+                    return MagicMock()
+
+            # Assign the side effect
+            mock_spacy_load.side_effect = spacy_load_side_effect
+            
+            # Mock benepar normally
+            mock_benepar_parser.return_value = MagicMock()
+
+            # Config under test
+            config = {
+                "spacy_model": "en_core_web_lg", # Explicitly use lg
+                "benepar_model": "benepar_en3_large" # Explicitly use large
+            }
+
+            # Action under test: Initialize extractor with specific config
+            # This should NOT raise the OSError defined in the side_effect
+            try:
+                explicit_extractor = ANPEExtractor(config)
+            except OSError as e:
+                # If the specific OSError we defined is raised, the test fails
+                if "Mock detected attempt to load default spaCy model!" in str(e):
+                    self.fail(f"ANPEExtractor incorrectly tried to load default spaCy model: {e}")
+                else:
+                    # Re-raise other OS errors if necessary
+                    raise e
+            
+            # Verification: Check calls *after* successful initialization
+            calls = mock_spacy_load.call_args_list
+            print(f"--- FINAL MOCK CALLS: {calls} ---") # Debug print
+            
+            # Assert that the intended model was called
+            intended_call = unittest.mock.call("en_core_web_lg")
+            self.assertIn(intended_call, calls)
+            
+            # The side effect already prevents the unwanted call, so no need for assertNotIn
+            
+            # Verify benepar call
+            mock_benepar_parser.assert_called_once_with("benepar_en3_large")
 
     # --- Tests for Export Functionality --- 
 
