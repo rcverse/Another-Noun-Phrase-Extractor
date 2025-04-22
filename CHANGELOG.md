@@ -12,6 +12,10 @@ All notable changes to the ANPE project will be documented in this file.
 - Model cleanup utility script `anpe.utils.clean_models.py` to remove downloaded models and caches.
 - CLI `setup` command now accepts `--spacy-model` and `--benepar-model` arguments to install specific models individually or select non-default models; and accepts `--clean-models` flag to invoke the cleanup utility.
 
+### Fixed
+- Increased subprocess timeout for large Benepar model downloads to prevent failures.
+- Improved robustness of NLTK model installation by removing potentially corrupted zip files if extraction is incomplete.
+- Applied similar robustness improvement to Benepar model installation.
 
 ## [0.2.0] - 2025-04-05
 

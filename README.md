@@ -42,35 +42,22 @@ Currently, ANPE is only tested on **English** and compatible with Python through
 ```python
 import anpe
 
-text = "Sample texts"
+text = "Your texts here"
 result = anpe.extract(text)
 
 print(result)
 ```
 
 ### GUI App
-[To be released from Dependency HELL]
+[To be released]
 
 ## Installation
 
-### Using pip
+Please use pip to install.
 
 ```bash
 pip install anpe
 ```
-
-### From source
-
-1. Clone the repository:
-   ```bash
-   git clone https://github.com/yourusername/anpe.git
-   cd anpe
-   ```
-
-2. Install dependencies:
-   ```bash
-   pip install -r requirements.txt
-   ```
 
 ### Prerequisites
 
@@ -664,7 +651,7 @@ The system categorizes patterns into fundamental types, organized from simple to
 | **Relative Clause** | Clause that modifies a noun | "a past that takes in fascism" |
 | **others** | Other NP structures that are not identifed | N/A |  
 
-For a comprehensive explanation of all structure patterns and their detection logic, please refer to the [structure_patterns.md](structure_patterns.md) file included in the repository. This system enables precise identification of noun phrase structures while maintaining high processing efficiency.
+For a comprehensive explanation of all structure patterns and their detection logic, please refer to the [structure_patterns.md](/docs/structure_patterns.md) file included in the repository. This system enables precise identification of noun phrase structures while maintaining high processing efficiency.
 
 ## GUI Application
 >*❗[Under development]*
@@ -674,9 +661,6 @@ For a comprehensive explanation of all structure patterns and their detection lo
 》***"Oh no, code again! I just want a quick tool, kill me already!😵"***
 
 No worries, ANPE provides a graphical user interface (GUI) for easier interaction with the library. Best part of all - it is a standalone app and requires no environment setup. Supports Mac and Windows.
-
-**Disclaimer:**
-As I do not have any knowledge of the Qt framework, this app is almost developed COMPLETELY with AI. Contributions are most weclomed to enhance this app.
 
 
 ![ANPE GUI Screenshot](/pics/anpe_gui_app_windows.png) 
@@ -692,13 +676,9 @@ As I do not have any knowledge of the Qt framework, this app is almost developed
     - General: Include Nested Phrases, Include Metadata, Treat Newlines as Boundaries.
     - Filtering: Min/Max NP length, Accept Pronouns.
     - Structure Filtering: Master toggle switch and individual selection for specific NP structures (Determiner, Compound, Relative Clause, etc.).
-    - Tooltips: Hover over options for detailed explanations based on documentation.
 - **Real-time Log Viewer**: Track operations and potential issues with log level filtering.
 - **Results Visualization**: View formatted extraction results in the Output tab.
-- **Batch Result Navigation**: Use a dropdown to view results for specific files when processing batches.
 - **Export Options**: Export results to TXT, CSV, or JSON formats to a selected directory.
-- **Status Bar**: Provides feedback on application readiness, processing progress, and completion status.
-- **Workflow Control**: Process button initiates extraction, Reset button clears inputs/outputs for a new task.
 
 For more details on the GUI structure or building it from source, see the ANPE GUI repo.
 

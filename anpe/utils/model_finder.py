@@ -93,7 +93,10 @@ def find_installed_benepar_models() -> List[str]:
                               logger.debug(f"Found Benepar model zip file (but not dir): {zip_path}")
                               installed_models.append(model_name)
                               
-    logger.debug(f"Found installed Benepar models: {installed_models}")
+    if not installed_models:
+        logger.warning("No installed Benepar models found in checked NLTK paths.")
+    else:
+        logger.info(f"Found installed Benepar models: {installed_models}")
     return installed_models
 
 def select_best_spacy_model(models: List[str]) -> Optional[str]:

@@ -137,6 +137,19 @@ class ANPEExtractor:
             # Store the decided model back in config
             self.config["benepar_model"] = benepar_model_to_use
             
+            # --- Check spacy-transformers dependency if needed ---
+            spacy_model_name_to_load = self.config['spacy_model']
+            if spacy_model_name_to_load.endswith('_trf'):
+                self.logger.debug(f"Transformer model '{spacy_model_name_to_load}' selected. Checking for 'spacy-transformers' library...")
+                try:
+                    import spacy_transformers
+                    self.logger.debug("'spacy-transformers' library found.")
+                except ImportError:
+                    self.logger.critical(f"The spaCy model '{spacy_model_name_to_load}' requires the 'spacy-transformers' library, but it is not installed.")
+                    self.logger.critical(f"Please install it using: pip install 'spacy[transformers]'")
+                    self.logger.critical("Alternatively, run the setup command: python -m anpe.cli setup --spacy-model <your_trf_model_alias> --benepar-model <benepar_alias>")
+                    raise RuntimeError(f"Missing required library 'spacy-transformers' for model '{spacy_model_name_to_load}'.")
+            
             # --- Load Models --- 
             # Load the determined spaCy model
             self.logger.info(f"Loading spaCy model: {self.config['spacy_model']}")
@@ -145,6 +158,9 @@ class ANPEExtractor:
                 self.logger.info("spaCy model loaded successfully.")
             except OSError as e:
                  self.logger.error(f"Failed to load spaCy model '{self.config['spacy_model']}'. Is it installed? Error: {e}")
+                 # Add specific hint for transformer models
+                 if self.config['spacy_model'].endswith('_trf'):
+                     self.logger.error("Ensure the 'spacy-transformers' library is also installed: pip install 'spacy[transformers]'")
                  # Attempt setup *only* if auto-detection failed and we used the default fallback
                  if not self.config.get("spacy_model") and self.config["spacy_model"] == SPACY_MODEL_MAP['md']:
                      self.logger.info("Attempting to install default spaCy model...")

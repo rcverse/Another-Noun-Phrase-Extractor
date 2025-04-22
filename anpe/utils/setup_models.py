@@ -8,6 +8,7 @@ import benepar
 import logging
 import shutil
 import zipfile
+import importlib.metadata
 
 logger = get_logger('setup_models')
 logger.setLevel(logging.DEBUG)
@@ -197,6 +198,37 @@ def install_spacy_model(model_name: str = "en_core_web_md") -> bool:
     if not model_name: # Basic validation
         logger.error("No spaCy model name provided to install.")
         return False
+
+    is_transformer_model = model_name.endswith("_trf")
+
+    # --- Check and install spacy-transformers if needed ---
+    if is_transformer_model:
+        logger.info(f"Model '{model_name}' is a transformer model. Checking for 'spacy-transformers' package...")
+        try:
+            importlib.metadata.version("spacy-transformers")
+            logger.info("'spacy-transformers' is already installed.")
+        except importlib.metadata.PackageNotFoundError:
+            logger.warning("'spacy-transformers' package not found. Attempting installation...")
+            try:
+                install_result = subprocess.run(
+                    [sys.executable, '-m', 'pip', 'install', "spacy[transformers]"],
+                    check=True,
+                    capture_output=True,
+                    text=True
+                )
+                logger.info("'spacy-transformers' installed successfully.")
+                logger.debug(f"pip install stdout: {install_result.stdout}")
+            except subprocess.CalledProcessError as e:
+                logger.error(f"Failed to install 'spacy-transformers'. Subprocess error.")
+                logger.error(f"Stderr: {e.stderr}")
+                logger.error(f"You may need to install it manually: pip install 'spacy[transformers]'")
+                # Continue attempting model download, but it will likely fail to load later
+                # return False # Optionally return False here to indicate setup failure
+            except Exception as e:
+                 logger.error(f"An unexpected error occurred during 'spacy-transformers' installation: {e}")
+                 # return False
+
+    # --- Download the spaCy model ---
     try:
         logger.info(f"Attempting to download and install spaCy model: {model_name}")
         result = subprocess.run(
@@ -233,6 +265,21 @@ def install_benepar_model(model_name: str = "benepar_en3") -> bool:
     subprocess_ok = False # Track subprocess success
     files_ok_after_attempt = False # Track if files seem okay after attempt
 
+    # --- Start: Added logic to remove orphan zip --- 
+    if not os.path.exists(model_dir_path) and os.path.exists(model_zip_path):
+        logger.info(f"Found existing zip file {model_zip_path} but missing directory {model_dir_path}. "
+                      f"Removing zip before attempting download to ensure proper extraction.")
+        try:
+            os.remove(model_zip_path)
+            logger.debug(f"Removed existing zip: {model_zip_path}")
+        except OSError as remove_err:
+            # Log as error because failure here might prevent successful download
+            logger.error(f"Failed to remove existing zip {model_zip_path}: {remove_err}. " 
+                         f"Download might fail or use the corrupted zip.")
+            # Optionally, could return False here if removing the zip is critical 
+            # return False 
+    # --- End: Added logic ---
+
     try:
         logger.info(f"Attempting to download Benepar model '{model_name}' using subprocess...")
         # Ensure NLTK_DATA is in the environment for the subprocess
@@ -250,7 +297,7 @@ def install_benepar_model(model_name: str = "benepar_en3") -> bool:
             capture_output=True,
             text=True,
             env=current_env, # Pass the modified environment
-            timeout=300 # Add a timeout (e.g., 5 minutes)
+            timeout=1200 # Add a timeout (e.g., 20 minutes)
         )
 
         logger.debug(f"Benepar download subprocess stdout:\n{result.stdout}")
@@ -325,6 +372,22 @@ def install_nltk_models() -> bool:
                 continue # Skip download if found
             except LookupError:
                 logger.debug(f"NLTK resource 'tokenizers/{model}' not found, proceeding with download.")
+
+            # --- Start: Added logic to remove orphan zip --- 
+            model_dir = os.path.join(nltk_data_dir, "tokenizers", model)
+            # NLTK often downloads zips directly into the target category dir
+            model_zip = os.path.join(nltk_data_dir, "tokenizers", f"{model}.zip") 
+            
+            if not os.path.exists(model_dir) and os.path.exists(model_zip):
+                logger.info(f"Found existing zip file {model_zip} but missing directory {model_dir}. " 
+                               f"Removing zip before attempting download to ensure proper extraction.")
+                try:
+                    os.remove(model_zip)
+                    logger.debug(f"Removed existing zip: {model_zip}")
+                except OSError as remove_err:
+                    logger.error(f"Failed to remove existing zip {model_zip}: {remove_err}. " 
+                                 f"Download might fail or use the corrupted zip.")
+            # --- End: Added logic --- 
 
             logger.info(f"Attempting NLTK download/extraction for '{model}' to {nltk_data_dir}...")
             # Execute download within its own try-except to track download success

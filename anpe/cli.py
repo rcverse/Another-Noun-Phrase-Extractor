@@ -368,11 +368,20 @@ def main(args: Optional[List[str]] = None) -> int:
         
         elif parsed_args.command == "setup":
             # Setup logger with CLI specified level/dir
-            if parsed_args.log_dir:
-                logger = ANPELogger.setup_logging(log_level=parsed_args.log_level, log_dir=parsed_args.log_dir)
-            else:
-                logger = ANPELogger.setup_logging(log_level=parsed_args.log_level)
+            log_file = None
+            if hasattr(parsed_args, 'log_dir') and parsed_args.log_dir:
+                log_dir = Path(parsed_args.log_dir)
+                log_dir.mkdir(parents=True, exist_ok=True)
+                timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+                log_file = str(log_dir / f"log_anpe_setup_{timestamp}.log")
             
+            # Initialize/Reconfigure logger for setup command
+            ANPELogger(
+                log_level=parsed_args.log_level, 
+                log_file=log_file
+            )
+            logger = get_logger("cli.setup") # Get logger specific to setup
+
             if parsed_args.clean_models:
                 # Handle model cleaning
                 if parsed_args.spacy_model or parsed_args.benepar_model:
@@ -415,8 +424,7 @@ def main(args: Optional[List[str]] = None) -> int:
                     # Pass logger instance to setup_models
                     setup_models(
                         spacy_model_alias=spacy_alias_to_install,
-                        benepar_model_alias=benepar_alias_to_install,
-                        logger=logger # Pass the configured logger
+                        benepar_model_alias=benepar_alias_to_install
                     )
                     logger.info("Model setup finished.")
                     return 0 # Indicate success
