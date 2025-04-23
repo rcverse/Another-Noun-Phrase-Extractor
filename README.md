@@ -2,8 +2,8 @@
 
 ![ANPE Banner](/pics/banner.png)
 
-[![Build Status](https://github.com/rcverse/anpe/actions/workflows/python-package.yml/badge.svg)](https://github.com/rcverse/anpe/actions/workflows/python-package.yml)
-[![pytest](https://img.shields.io/badge/pytest-passing-brightgreen)](https://github.com/rcverse/anpe/actions/workflows/python-package.yml)
+[![Build Status](https://github.com/rcverse/another-noun-phrase-extractor/actions/workflows/python-package.yml/badge.svg)](https://github.com/rcverse/another-noun-phrase-extractor/actions/workflows/python-package.yml)
+[![pytest](https://img.shields.io/badge/pytest-passing-brightgreen)](https://github.com/rcverse/another-noun-phrase-extractor/actions/workflows/python-package.yml)
 ![PyPI - Python Version](https://img.shields.io/pypi/pyversions/anpe)
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
@@ -66,7 +66,7 @@ ANPE relies on several pre-trained models for its functionality. The default set
 
 1.  **spaCy Model**: `en_core_web_md` (English language model for tokenization and sentence segmentation).
 2.  **Benepar Model**: `benepar_en3` (English constituency parser for syntactic analysis).
-3.  **NLTK Models**:
+3.  **NLTK Resrouces**:
     *   `punkt` (Punkt tokenizer for sentence splitting).
     *   `punkt_tab` (Language-specific tab-delimited tokenizer data required by Benepar).
 
@@ -757,11 +757,11 @@ If you use ANPE in your research or projects, please cite it as follows:
 @software{Chen_ANPE_2024,
   author = {Chen, Nuo},
   title = {{ANPE: Another Noun Phrase Extractor}},
-  url = {https://github.com/rcverse/anpe},
+  url = {https://github.com/rcverse/another-noun-phrase-extractor},
   version = {0.3.0},
   year = {2025}
 }
 ```
 
 ### Plain Text (APA style)
-Chen, N. (2025). *ANPE: Another Noun Phrase Extractor* (Version 0.3.0) [Computer software]. Retrieved from https://github.com/rcverse/anpe
+Chen, N. (2025). *ANPE: Another Noun Phrase Extractor* (Version 0.3.0) [Computer software]. Retrieved from https://github.com/rcverse/another-noun-phrase-extractor

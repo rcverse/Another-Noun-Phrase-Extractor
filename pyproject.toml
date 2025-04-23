@@ -34,10 +34,10 @@ dependencies = [
 ]
 
 [project.urls]
-Homepage = "https://github.com/rcverse/anpe"
-Documentation = "https://github.com/rcverse/anpe"
-"Bug Tracker" = "https://github.com/rcverse/anpe/issues"
-"Source Code" = "https://github.com/rcverse/anpe"
+Homepage = "https://github.com/rcverse/another-noun-phrase-extractor"
+Documentation = "https://github.com/rcverse/another-noun-phrase-extractor"
+"Bug Tracker" = "https://github.com/rcverse/another-noun-phrase-extractor/issues"
+"Source Code" = "https://github.com/rcverse/another-noun-phrase-extractor"
 
 [project.scripts]
 anpe = "anpe.cli:main"
