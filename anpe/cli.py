@@ -424,7 +424,8 @@ def main(args: Optional[List[str]] = None) -> int:
                     # Pass logger instance to setup_models
                     setup_models(
                         spacy_model_alias=spacy_alias_to_install,
-                        benepar_model_alias=benepar_alias_to_install
+                        benepar_model_alias=benepar_alias_to_install,
+                        logger=logger # Pass the setup-specific logger
                     )
                     logger.info("Model setup finished.")
                     return 0 # Indicate success

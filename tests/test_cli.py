@@ -5,7 +5,7 @@ import json
 from pathlib import Path
 from anpe.cli import main, parse_args
 import csv
-from unittest.mock import patch, MagicMock
+from unittest.mock import patch, MagicMock, call
 
 class TestCLI(unittest.TestCase):
     """Test cases for CLI functionality."""
@@ -252,11 +252,11 @@ class TestCLI(unittest.TestCase):
         mock_setup_models.assert_called_once()
 
     @patch('anpe.cli.setup_models')
-    @patch('anpe.cli.ANPELogger')
-    def test_setup_command_models_missing_success(self, mock_logger_cls, mock_setup_models):
+    @patch('anpe.cli.get_logger')
+    def test_setup_command_models_missing_success(self, mock_get_logger, mock_setup_models):
         """Test setup command when models are missing and installation succeeds."""
-        mock_logger_instance = MagicMock()
-        mock_logger_cls.setup_logging.return_value = mock_logger_instance
+        mock_setup_logger = MagicMock()
+        mock_get_logger.return_value = mock_setup_logger
         
         # Simulate successful installation by not raising Exception
         mock_setup_models.return_value = None 
@@ -273,22 +273,23 @@ class TestCLI(unittest.TestCase):
         self.assertIsNotNone(call_kwargs.get('logger')) # Check logger was passed
 
     @patch('anpe.cli.setup_models')
-    @patch('anpe.cli.ANPELogger')
-    def test_setup_command_models_missing_fail(self, mock_logger_cls, mock_setup_models):
+    @patch('anpe.cli.get_logger')
+    def test_setup_command_models_missing_fail(self, mock_get_logger, mock_setup_models):
         """Test setup command when models are missing and installation fails."""
-        mock_logger_instance = MagicMock()
-        mock_logger_cls.setup_logging.return_value = mock_logger_instance
-        
+        mock_setup_logger = MagicMock()
+        mock_get_logger.return_value = mock_setup_logger
+
         # Simulate failed installation
-        mock_setup_models.side_effect = Exception("Download failed") 
+        # We mock the exception directly in setup_models
+        mock_setup_models.side_effect = Exception("Download failed")
 
         args = ["setup"]
         exit_code = main(args)
-        
+
         self.assertEqual(exit_code, 1) # Should exit with error code 1
         mock_setup_models.assert_called_once() # Still called
-        # Check logger was called with error
-        mock_logger_instance.error.assert_called() 
+        # Check logger was called with error on the correct instance
+        mock_setup_logger.error.assert_called()
 
     @patch('anpe.cli.setup_models')
     @patch('anpe.cli.ANPELogger')
@@ -405,35 +406,36 @@ class TestCLI(unittest.TestCase):
         self.assertIsNotNone(call_kwargs.get('logger'))
         
     @patch('anpe.cli.clean_all')
-    @patch('anpe.cli.ANPELogger')
-    def test_setup_clean_yes_flag_failure(self, mock_logger_cls, mock_clean_all):
+    @patch('anpe.cli.get_logger')
+    def test_setup_clean_yes_flag_failure(self, mock_get_logger, mock_clean_all):
         """Test setup --clean-models -y when clean_all fails."""
-        mock_logger_instance = MagicMock()
-        mock_logger_cls.setup_logging.return_value = mock_logger_instance
+        mock_setup_logger = MagicMock()
+        mock_get_logger.return_value = mock_setup_logger
         # Simulate partial failure
-        mock_clean_all.return_value = {"spacy": False, "benepar": True, "nltk": True} 
+        mock_clean_all.return_value = {"spacy": False, "benepar": True, "nltk": True}
 
         args = ["setup", "--clean-models", "-y"]
         exit_code = main(args)
 
         self.assertEqual(exit_code, 1) # Exit code 1 on failure
         mock_clean_all.assert_called_once() # Should call clean_all
-        mock_logger_instance.error.assert_any_call("Model cleanup finished with errors.") # Check error log
+        # Assert on the logger returned by get_logger
+        mock_setup_logger.error.assert_any_call("Model cleanup finished with errors.")
 
     @patch('anpe.cli.clean_all')
-    @patch('anpe.cli.ANPELogger')
-    def test_setup_clean_conflicting_flags(self, mock_logger_cls, mock_clean_all):
+    @patch('anpe.cli.get_logger')
+    def test_setup_clean_conflicting_flags(self, mock_get_logger, mock_clean_all):
         """Test setup --clean-models with conflicting installation flag."""
-        mock_logger_instance = MagicMock()
-        mock_logger_cls.setup_logging.return_value = mock_logger_instance
-        
+        mock_setup_logger = MagicMock()
+        mock_get_logger.return_value = mock_setup_logger
+
         args = ["setup", "--clean-models", "--spacy-model", "md"]
         exit_code = main(args)
 
         self.assertEqual(exit_code, 1) # Error due to conflict
         mock_clean_all.assert_not_called() # clean_all should not be called
-        # Check specific error log
-        mock_logger_instance.error.assert_called_once_with(
+        # Check specific error log on the correct logger
+        mock_setup_logger.error.assert_called_once_with(
             "Cannot use --clean-models with specific model installation flags (--spacy-model, --benepar-model)."
         )
 
