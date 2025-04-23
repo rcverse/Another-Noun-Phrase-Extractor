@@ -192,13 +192,6 @@ class ANPEExtractor:
                 if '\n' in sentencizer.punct_chars:
                     sentencizer.punct_chars.remove('\n')
 
-            # Initialize NLTK Punkt tokenizer
-            self.logger.info("Loading NLTK Punkt tokenizer")
-            # We need nltk imported for this part
-            import nltk 
-            nltk.data.find('tokenizers/punkt')
-            self.logger.info("NLTK Punkt tokenizer loaded successfully.")
-
             # --- Add Benepar to spaCy pipeline ---
             # (Replaces the standalone Benepar parser loading)
             self.logger.info(f"Adding Benepar component '{self.config['benepar_model']}' to spaCy pipeline.")

@@ -222,70 +222,6 @@ def uninstall_benepar_model(model_name: str, logger: logging.Logger) -> bool:
         
     return overall_success
 
-def remove_nltk_data(resources: List[str] = None, logger: logging.Logger = None) -> bool:
-    """Remove NLTK resources (directories and zips) from all possible locations."""
-    if resources is None:
-        resources = ['punkt', 'punkt_tab']
-    
-    overall_success = True
-    removed_something = False
-    try:
-        logger.info(f"[Remove NLTK] Removing resources: {resources}...") # Added prefix
-        locations = find_model_locations()
-        
-        for nltk_path in locations["nltk"]:
-            tokenizers_base = os.path.join(nltk_path, "tokenizers")
-            if not os.path.isdir(tokenizers_base):
-                logger.debug(f"[Remove NLTK] Path not found or not dir: {tokenizers_base}")
-                continue # Skip if tokenizers subdir doesn't exist in this nltk path
-                
-            for resource in resources:
-                logger.debug(f"[Remove NLTK] Checking for '{resource}' in {tokenizers_base}")
-                # Remove directory
-                resource_path = os.path.join(tokenizers_base, resource)
-                if os.path.exists(resource_path):
-                    removed_something = True
-                    logger.info(f"[Remove NLTK] Found resource. Removing: {resource_path}")
-                    try:
-                        if os.path.isdir(resource_path):
-                            shutil.rmtree(resource_path)
-                        else:
-                            os.remove(resource_path)
-                        logger.info(f"[Remove NLTK] ✓ Removed resource dir/file: {resource_path}")
-                    except Exception as e:
-                        logger.warning(f"[Remove NLTK] ! Could not remove {resource} from {resource_path}: {e}")
-                        overall_success = False
-                else:
-                     logger.debug(f"[Remove NLTK] - Resource dir/file not found: {resource_path}")
-                
-                # Remove corresponding zip file
-                zip_path = resource_path + ".zip"
-                if os.path.exists(zip_path):
-                    removed_something = True
-                    logger.info(f"[Remove NLTK] Found resource zip. Removing: {zip_path}")
-                    try:
-                        os.remove(zip_path)
-                        logger.info(f"[Remove NLTK] ✓ Removed resource zip: {zip_path}")
-                    except Exception as e:
-                        logger.warning(f"[Remove NLTK] ! Could not remove zip file {zip_path}: {e}")
-                        overall_success = False
-                else:
-                     logger.debug(f"[Remove NLTK] - Resource zip not found: {zip_path}")
-        
-        # Final log
-        if removed_something and overall_success:
-            logger.info(f"[Remove NLTK] ✓ Successfully removed specified resources ({', '.join(resources)}). ")
-        elif removed_something and not overall_success:
-            logger.warning(f"[Remove NLTK] ! Partially removed specified NLTK resources ({', '.join(resources)}). Some errors occurred.")
-        elif not removed_something:
-             logger.info(f"[Remove NLTK] ! Specified resources ({', '.join(resources)}) not found in any known location.")
-            
-    except Exception as e:
-        logger.error(f"[Remove NLTK] ! Error removing NLTK resources: {e}")
-        overall_success = False
-    
-    return overall_success
-
 def find_resources() -> Dict[str, List[str]]:
     """Find all existing ANPE-related resources (dirs and zips) in known locations."""
     locations = find_model_locations()
@@ -325,26 +261,11 @@ def find_resources() -> Dict[str, List[str]]:
                      if zip_path not in found_resources["benepar"]:
                           found_resources["benepar"].append(zip_path)
     
-    # Find NLTK resources (dirs and zips)
-    nltk_resources_to_find = ['punkt', 'punkt_tab']
-    for nltk_path in locations["nltk"]:
-        tokenizers_path = os.path.join(nltk_path, "tokenizers")
-        if os.path.exists(tokenizers_path):
-            for resource_name in nltk_resources_to_find:
-                # Check for directory
-                dir_path = os.path.join(tokenizers_path, resource_name)
-                if os.path.exists(dir_path):
-                     found_resources["nltk"].append(dir_path)
-                # Check for zip file
-                zip_path = dir_path + ".zip"
-                if os.path.exists(zip_path) and zip_path not in found_resources["nltk"]:
-                     found_resources["nltk"].append(zip_path)
-    
     return found_resources
 
 def clean_all(verbose: bool = False, logger: logging.Logger = None) -> Dict[str, bool]:
     """Remove ALL known ANPE-related models using granular uninstall functions.
-       Returns status summary for each category (spaCy, Benepar, NLTK).
+       Returns status summary for each category (spaCy, Benepar).
     """
     if logger is None:
         logger = setup_logging(verbose)
@@ -384,15 +305,10 @@ def clean_all(verbose: bool = False, logger: logging.Logger = None) -> Dict[str,
          if not uninstall_benepar_model(model_name, logger):
               benepar_success = False
               
-    # Remove NLTK data (uses existing function)
-    logger.info("[Clean All] --- NLTK Cleanup --- ")
-    nltk_success = remove_nltk_data(logger=logger)
-    
     # Compile results summary
     results = {
         "spacy": spacy_success,
         "benepar": benepar_success,
-        "nltk": nltk_success
     }
     
     logger.info("[Clean All] " + "-" * 50)
@@ -419,9 +335,8 @@ def main():
     
     if not args.yes:
         logger.warning("This will attempt to remove all known ANPE-related models")
-        logger.warning(f" (spaCy: {', '.join(set(SPACY_MODEL_MAP.values()))},")
-        logger.warning(f"  Benepar: {', '.join(set(BENEPAR_MODEL_MAP.values()))},")
-        logger.warning(f"  NLTK: punkt, punkt_tab)")
+        logger.warning(f" (spaCy: {', '.join(set(SPACY_MODEL_MAP.values()))},"
+                       f"  Benepar: {', '.join(set(BENEPAR_MODEL_MAP.values()))})" )
         logger.warning("from all known locations on your system.")
         logger.warning("Models will need to be re-downloaded when you next use ANPE.")
         response = input("Do you want to continue? [y/N] ").lower()
