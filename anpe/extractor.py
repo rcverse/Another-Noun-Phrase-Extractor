@@ -192,36 +192,44 @@ class ANPEExtractor:
                 if '\n' in sentencizer.punct_chars:
                     sentencizer.punct_chars.remove('\n')
 
-            # Load the determined Benepar model
-            self.logger.info(f"Loading Benepar model: {self.config['benepar_model']}")
-            try:
-                self.parser = benepar.Parser(self.config['benepar_model'])
-                self.logger.info("Benepar model loaded successfully.")
-            except Exception as e: # Benepar doesn't raise OSError typically, use broad Exception
-                 self.logger.error(f"Failed to load Benepar model '{self.config['benepar_model']}'. Is it installed? Error: {e}")
-                 # Attempt setup *only* if auto-detection failed and we used the default fallback
-                 if not self.config.get("benepar_model") and self.config["benepar_model"] == BENEPAR_MODEL_MAP['default']:
-                     self.logger.info("Attempting to install default Benepar model...")
-                     if setup_models(spacy_model_alias='md', benepar_model_alias='default'): # Attempt default setup
-                          self.logger.info("Default models installed. Re-initializing extractor...")
-                          self.__init__(config) # Re-run init
-                          return # Exit current init call
-                     else:
-                          self.logger.critical("Failed to install default models after loading error. Cannot proceed.")
-                          raise RuntimeError(f"Failed to load or install required Benepar model '{self.config['benepar_model']}'") from e
-                 else:
-                      # If user specified a model or auto-detect found something else that failed to load
-                      self.logger.critical(f"Specified/detected Benepar model '{self.config['benepar_model']}' could not be loaded. Please ensure it is installed correctly.")
-                      raise RuntimeError(f"Failed to load required Benepar model '{self.config['benepar_model']}'") from e
-
-            # Initialize NLTK Punkt tokenizer
-            self.logger.info("Loading NLTK Punkt tokenizer")
-            nltk.data.find('tokenizers/punkt')
-            self.logger.info("NLTK Punkt tokenizer loaded successfully.")
+            # --- Add Benepar to spaCy pipeline ---
+            # (Replaces the standalone Benepar parser loading)
+            self.logger.info(f"Adding Benepar component '{self.config['benepar_model']}' to spaCy pipeline.")
+            benepar_model_name = self.config['benepar_model']
+            if "benepar" not in self.nlp.pipe_names:
+                try:
+                    # Ensure benepar is imported if not already
+                    import benepar 
+                    # Add the pipe
+                    self.nlp.add_pipe("benepar", config={"model": benepar_model_name})
+                    self.logger.info(f"Added Benepar component '{benepar_model_name}' to spaCy pipeline.")
+                except ImportError:
+                    self.logger.critical("The 'benepar' library is required but not installed.")
+                    self.logger.critical("Please install it, e.g., using: pip install benepar")
+                    raise RuntimeError("Missing required library 'benepar'.")
+                except Exception as e:
+                    # Catch potential errors during add_pipe (e.g., model not found by benepar)
+                    self.logger.error(f"Failed to add Benepar component '{benepar_model_name}' to spaCy pipeline. Error: {e}")
+                    # Attempt setup *only* if auto-detection failed and we used the default fallback
+                    if not self.config.get("benepar_model") and self.config["benepar_model"] == BENEPAR_MODEL_MAP['default']:
+                         self.logger.info("Attempting to install default Benepar model...")
+                         if setup_models(spacy_model_alias='md', benepar_model_alias='default'): # Attempt default setup
+                              self.logger.info("Default models installed. Re-initializing extractor...")
+                              self.__init__(config) # Re-run init
+                              return # Exit current init call
+                         else:
+                              self.logger.critical("Failed to install default models after Benepar add_pipe error. Cannot proceed.")
+                              raise RuntimeError(f"Failed to add or install required Benepar model '{self.config['benepar_model']}'") from e
+                    else:
+                        # If user specified a model or auto-detect found something else that failed to load via add_pipe
+                        self.logger.critical(f"Specified/detected Benepar model '{self.config['benepar_model']}' could not be added to the pipeline. Ensure it's installed and compatible.")
+                        raise RuntimeError(f"Failed to add required Benepar model '{self.config['benepar_model']}' to pipeline") from e
+            else:
+                self.logger.debug("Benepar component already exists in the pipeline.")
 
         except (RuntimeError, OSError) as e:
-             # Catch errors raised from our specific model loading logic
-             self.logger.critical(f"Model loading failed: {e}")
+             # Catch errors raised from our specific model loading logic or add_pipe
+             self.logger.critical(f"Model loading or pipeline configuration failed: {e}")
              raise # Re-raise the critical error
              
         except Exception as e:
@@ -586,46 +594,94 @@ class ANPEExtractor:
     
     def _parse(self, text: str) -> Tree:
         """
-        Parse input text using Berkeley Parser.
-        
+        Parse input text using spaCy pipeline with integrated Benepar.
+
         Args:
             text: Input text string
-                
+
         Returns:
-            Tree: Parse tree for the entire text
+            Tree: A combined NLTK parse tree for the entire text.
+                  Returns Tree('S', []) if no sentences are successfully parsed.
         """
+        self.logger.debug("Starting parsing process with spaCy+Benepar pipeline.")
+
+        # 1. Split text into sentences using the main spaCy object's sentencizer
+        # This respects the newline_breaks configuration applied in __init__.
+        # Temporarily disable benepar for this step to avoid retokenization errors on full text.
         try:
-            # Use spaCy for sentence splitting
-            self.logger.debug("Splitting text into sentences with spaCy")
-            doc = self.nlp(text)
-            sentences = [sent.text for sent in doc.sents]
-            
-            # Parse each sentence and combine results
-            self.logger.debug(f"Parsing {len(sentences)} sentences with Berkeley Parser")
-            
-            # For a single sentence, return its tree directly
-            if len(sentences) == 1:
-                return self.parser.parse(sentences[0])
-            
-            # For multiple sentences, create a parent S node
-            combined_tree = Tree('S', [])
-            
-            for sent_text in sentences:
-                if not sent_text.strip():
-                    continue
-                
-                try:
-                    parse_tree = self.parser.parse(sent_text)
-                    combined_tree.append(parse_tree)
-                except Exception as e:
-                    self.logger.warning(f"Error parsing sentence: '{sent_text}': {str(e)}")
-                    continue
-            
-            return combined_tree
-            
+            with self.nlp.select_pipes(disable=["benepar"]):
+                 doc_for_sentencization = self.nlp(text) # Process text to get sentence boundaries
+            sentences = [sent.text for sent in doc_for_sentencization.sents]
+            self.logger.debug(f"Split text into {len(sentences)} sentences using spaCy sentencizer (benepar disabled).")
         except Exception as e:
-            self.logger.error(f"Error parsing text: {str(e)}")
-            raise
+            self.logger.error(f"Error during spaCy sentence splitting: {e}", exc_info=True)
+            raise RuntimeError(f"Failed during initial sentence splitting: {e}") from e
+
+        sentence_trees: List[Tree] = []
+
+        # 2. Process each sentence string individually through the pipeline
+        for i, sentence_text in enumerate(sentences):
+            if not sentence_text.strip():
+                self.logger.debug(f"Skipping empty or whitespace-only sentence {i+1}.")
+                continue
+
+            self.logger.debug(f"Processing sentence {i+1}/{len(sentences)}: '{sentence_text[:50]}...'")
+            try:
+                # Process the individual sentence string
+                # Strip whitespace to avoid potential issues with trailing newlines in Benepar
+                cleaned_sentence_text = sentence_text.strip()
+                if not cleaned_sentence_text:
+                    self.logger.debug(f"Skipping sentence {i+1} after stripping resulted in empty string.")
+                    continue
+                    
+                doc = self.nlp(cleaned_sentence_text)
+
+                # Benepar expects one sentence per doc. Handle edge cases.
+                sents_in_doc = list(doc.sents)
+                if len(sents_in_doc) == 0:
+                    self.logger.warning(f"spaCy+Benepar pipeline returned no sentences for input: '{sentence_text}'. Skipping.")
+                    continue
+                if len(sents_in_doc) > 1:
+                    self.logger.warning(
+                        f"Sentence '{sentence_text[:50]}...' was split into {len(sents_in_doc)} parts "
+                        f"by spaCy pipeline unexpectedly during individual processing. Processing only the first part."
+                    )
+                sent = sents_in_doc[0] # Process the first (usually only) sentence
+
+                # 3. Retrieve the parse string from the Benepar extension
+                if not sent.has_extension("parse_string"):
+                    self.logger.warning(f"Benepar attribute '_.parse_string' not found for sentence: '{sent.text}'. Skipping.")
+                    continue
+                parse_string = sent._.parse_string
+                if not parse_string or not parse_string.strip():
+                     self.logger.warning(f"Benepar returned an empty parse string for sentence: '{sent.text}'. Skipping.")
+                     continue
+
+                # 4. Convert parse string to NLTK Tree
+                try:
+                    sentence_tree = Tree.fromstring(parse_string)
+                    sentence_trees.append(sentence_tree)
+                    self.logger.debug(f"Successfully parsed sentence {i+1} into NLTK Tree.")
+                except ValueError as e:
+                    self.logger.warning(
+                        f"Could not parse benepar output string into NLTK Tree. Error: {e}. "
+                        f"Sentence: '{sent.text}'. Raw parse string: '{parse_string}'"
+                    )
+                    continue # Skip this sentence if conversion fails
+            except Exception as e:
+                # Catch potential errors during the self.nlp(sentence_text) call or subsequent steps
+                self.logger.error(f"Error processing sentence {i+1} ('{sentence_text[:50]}...'): {e}", exc_info=True)
+                continue # Skip this sentence on error
+
+        # 5. Combine sentence trees into a single root Tree
+        if not sentence_trees:
+            self.logger.warning("No sentences were successfully parsed into NLTK Trees.")
+            return Tree('S', []) # Return empty root tree
+
+        self.logger.info(f"Successfully parsed {len(sentence_trees)} sentences into NLTK Trees.")
+        # Combine into a single root tree, mimicking the old structure if multiple sentences exist
+        combined_tree = Tree('S', sentence_trees)
+        return combined_tree
 
     def _process_np_with_ordered_fields(self, np_dict: Dict, base_id: str, include_metadata: bool, level: int = 1) -> Dict:
         """

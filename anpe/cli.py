@@ -115,7 +115,7 @@ def parse_args(args: Optional[List[str]] = None) -> argparse.Namespace:
     clean_group.add_argument(
         "--clean-models",
         action="store_true",
-        help="Remove all known ANPE-related models (spaCy, Benepar, NLTK). Mutually exclusive with specific model installation."
+        help="Remove all known ANPE-related models (spaCy and Benepar). Mutually exclusive with specific model installation."
     )
     clean_group.add_argument(
         "-y", "--yes",
@@ -392,7 +392,6 @@ def main(args: Optional[List[str]] = None) -> int:
                     logger.warning("This will attempt to remove all known ANPE-related models")
                     logger.warning(f" (spaCy: {', '.join(set(CLEAN_SPACY_MAP.values()))},")
                     logger.warning(f"  Benepar: {', '.join(set(CLEAN_BENEPAR_MAP.values()))},")
-                    logger.warning(f"  NLTK: punkt, punkt_tab)")
                     logger.warning("from all known locations on your system.")
                     logger.warning("Models will need to be re-downloaded when you next use ANPE.")
                     try:

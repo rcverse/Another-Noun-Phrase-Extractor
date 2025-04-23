@@ -156,29 +156,39 @@ class TestANPEExtractor(unittest.TestCase):
     def test_config_no_newline_breaks(self):
         """Test extraction with newline_breaks=False configuration."""
         # Default behavior (newline_breaks=True)
+        # Uses self.extractor initialized in setUp which has default config (newline_breaks=True)
         result_default = self.extractor.extract(self.newline_text)
-        # Expected: Treats newline as boundary, finds "Second sentence with a line break"
-        found_nps_default = [np['noun_phrase'].lower() for np in result_default["results"]]
-        self.assertTrue(any("second sentence with a line break" in found_np for found_np in found_nps_default))
+        nps_default = [np['noun_phrase'] for np in result_default["results"]]
+        print(f"--- NPs with newline_breaks=True: {nps_default} ---")
+        
+        # Check the actual output based on debug script findings
+        # The parser includes the trailing period and might have whitespace variations
+        expected_np_text = "second sentence with a line break ."
+        # Normalize extracted text for comparison (lower, strip)
+        normalized_nps_default = [' '.join(np.lower().split()) for np in nps_default]
+        self.assertTrue(
+            any(expected_np_text == norm_np for norm_np in normalized_nps_default),
+            f"Expected to find normalized NP '{expected_np_text}' when newline_breaks=True. Found: {normalized_nps_default}"
+        )
         
         # Custom behavior (newline_breaks=False)
-        no_break_extractor = ANPEExtractor({"newline_breaks": False})
-        result_no_break = no_break_extractor.extract(self.newline_text)
-        # Expected: Treats text continuously, might parse differently.
-        # We check if the previous NP is still found. If sentence boundaries change, it might not be.
-        # This test is a bit brittle, depends heavily on parser behavior with joined sentences.
-        # A better test might check the *number* of sentences spaCy finds. 
-        found_nps_no_break = [np['noun_phrase'].lower() for np in result_no_break["results"]]
-        # Let's assert that *something* is found, even if the specific phrases change
-        self.assertGreater(len(result_no_break["results"]), 0) 
-        # Optional: More robust check comparing sentence segmentation result? Requires mocking spacy. 
+        extractor_no_break = ANPEExtractor({"newline_breaks": False})
+        result_no_break = extractor_no_break.extract(self.newline_text)
+        nps_no_break = [np['noun_phrase'] for np in result_no_break["results"]]
+        print(f"--- NPs with newline_breaks=False: {nps_no_break} ---")
+
+        # Ensure *some* results are found in both cases
+        self.assertGreater(len(nps_default), 0, "Expected some NPs when newline_breaks=True")
+        self.assertGreater(len(nps_no_break), 0, "Expected some NPs when newline_breaks=False")
 
     def test_config_explicit_model_selection(self):
         """Test that explicitly providing models in config uses them."""
         
-        # Use patch as a context manager
-        with patch('anpe.extractor.spacy.load') as mock_spacy_load, \
-             patch('anpe.extractor.benepar.Parser') as mock_benepar_parser:
+        # Dictionary to store the mock nlp object created by the side effect
+        mock_nlp_holder = {'instance': None}
+        
+        # Use patch as a context manager - remove benepar.Parser patch
+        with patch('anpe.extractor.spacy.load') as mock_spacy_load:
             
             # Define a side effect function for spacy.load mock
             def spacy_load_side_effect(model_name, *args, **kwargs):
@@ -188,7 +198,15 @@ class TestANPEExtractor(unittest.TestCase):
                     raise OSError("Mock detected attempt to load default spaCy model!")
                 elif model_name == "en_core_web_lg":
                     # If called with the intended model, return a MagicMock
-                    return MagicMock() 
+                    # Configure the mock to simulate the nlp object
+                    mock_nlp = MagicMock()
+                    # Simulate pipe_names attribute (needed for check)
+                    mock_nlp.pipe_names = [] 
+                    # Simulate add_pipe method (returns None by default)
+                    mock_nlp.add_pipe = MagicMock(return_value=None)
+                    # Store the mock nlp instance
+                    mock_nlp_holder['instance'] = mock_nlp 
+                    return mock_nlp
                 else:
                     # For any other unexpected call, maybe return default mock
                     return MagicMock()
@@ -196,9 +214,6 @@ class TestANPEExtractor(unittest.TestCase):
             # Assign the side effect
             mock_spacy_load.side_effect = spacy_load_side_effect
             
-            # Mock benepar normally
-            mock_benepar_parser.return_value = MagicMock()
-
             # Config under test
             config = {
                 "spacy_model": "en_core_web_lg", # Explicitly use lg
@@ -208,27 +223,40 @@ class TestANPEExtractor(unittest.TestCase):
             # Action under test: Initialize extractor with specific config
             # This should NOT raise the OSError defined in the side_effect
             try:
-                explicit_extractor = ANPEExtractor(config)
+                # We also need to mock nltk.data.find for the punkt check
+                with patch('anpe.extractor.nltk.data.find') as mock_nltk_find:
+                    mock_nltk_find.return_value = True # Assume punkt is found
+                    explicit_extractor = ANPEExtractor(config)
             except OSError as e:
                 # If the specific OSError we defined is raised, the test fails
-                if "Mock detected attempt to load default spaCy model!" in str(e):
+                if "Mock detected attempt to load default SpaCy model!" in str(e):
                     self.fail(f"ANPEExtractor incorrectly tried to load default spaCy model: {e}")
                 else:
                     # Re-raise other OS errors if necessary
                     raise e
             
-            # Verification: Check calls *after* successful initialization
+            # Verification: Check spacy.load calls *after* successful initialization
             calls = mock_spacy_load.call_args_list
-            print(f"--- FINAL MOCK CALLS: {calls} ---") # Debug print
+            print(f"--- FINAL MOCK spacy.load CALLS: {calls} ---") # Debug print
             
             # Assert that the intended model was called
-            intended_call = unittest.mock.call("en_core_web_lg")
-            self.assertIn(intended_call, calls)
+            intended_spacy_call = unittest.mock.call("en_core_web_lg")
+            self.assertIn(intended_spacy_call, calls)
             
             # The side effect already prevents the unwanted call, so no need for assertNotIn
             
-            # Verify benepar call
-            mock_benepar_parser.assert_called_once_with("benepar_en3_large")
+            # --- Verify benepar integration via nlp.add_pipe ---
+            # Retrieve the mock nlp object that should have been created
+            mock_nlp_instance = mock_nlp_holder.get('instance')
+            self.assertIsNotNone(mock_nlp_instance, "Mock nlp object was not created by spacy.load side effect")
+            
+            # Assert that add_pipe was called correctly on the mock nlp object
+            # Use assert_any_call since 'sentencizer' might also be added
+            mock_nlp_instance.add_pipe.assert_any_call(
+                "benepar", 
+                config={"model": "benepar_en3_large"}
+            )
+            print("--- MOCK nlp.add_pipe called correctly. ---") # Debug print
 
     # --- Tests for Export Functionality --- 
 

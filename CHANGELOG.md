@@ -2,6 +2,15 @@
 
 All notable changes to the ANPE project will be documented in this file.
 
+## [0.4.0] - 2025-04-23
+### Changed
+- Refactored core parsing logic to integrate Benepar directly into the spaCy pipeline, removing the need for separate NLTK resource downloads.
+- Simplified model loading, error handling, and NLTK path management.
+
+### Removed
+- Explicit dependency checks and download logic for NLTK `punkt` and `punkt_tab` resources.
+- References to NLTK `punkt` and `punkt_tab` from documentation, setup utilities, and cleanup logic.
+
 ## [0.3.0] - 2025-04-17
 ### Changed
 - All tests updated to provide more comprehensive testing on code functions.

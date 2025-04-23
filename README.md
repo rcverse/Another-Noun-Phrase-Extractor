@@ -7,7 +7,7 @@
 ![PyPI - Python Version](https://img.shields.io/pypi/pyversions/anpe)
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
-ANPE (*Another Noun Phrase Extractor*) is a Python library for **directly extracting complete noun phrases from text**. This library leverages the [Berkeley Neural Parser](https://github.com/nikitakit/self-attentive-parser) with [spaCy](https://spacy.io/) and [NLTK](https://www.nltk.org/) for precise parsing and NP extraction. On top of that, the library provides flexible configuration options to **include nested NP**, **filter specific structural types of NP**, or **taget length requirements**, as well as options to **export to files** in multiple structured formats directly. 
+ANPE (*Another Noun Phrase Extractor*) is a Python library for **directly extracting complete noun phrases from text**. This library leverages the [Berkeley Neural Parser](https://github.com/nikitakit/self-attentive-parser) (via the `benepar` package) integrated with [spaCy](https://spacy.io/) for precise parsing. The resulting constituency trees are then processed (using [NLTK](https://www.nltk.org/) tree structures) for NP extraction. On top of that, the library provides flexible configuration options to **include nested NP**, **filter specific structural types of NP**, or **taget length requirements**, as well as options to **export to files** in multiple structured formats directly. 
 
 Currently, ANPE is only tested on **English** and compatible with Python through **3.9** to **3.12**.
 
@@ -66,15 +66,12 @@ ANPE relies on several pre-trained models for its functionality. The default set
 
 1.  **spaCy Model**: `en_core_web_md` (English language model for tokenization and sentence segmentation).
 2.  **Benepar Model**: `benepar_en3` (English constituency parser for syntactic analysis).
-3.  **NLTK Resrouces**:
-    *   `punkt` (Punkt tokenizer for sentence splitting).
-    *   `punkt_tab` (Language-specific tab-delimited tokenizer data required by Benepar).
 
 ANPE also supports using alternative spaCy models (`en_core_web_sm`, `en_core_web_lg`, `en_core_web_trf`) and a larger Benepar model (`benepar_en3_large`) for different performance/accuracy trade-offs. These can be selected and managed via the GUI application or potentially future updates to the CLI/library API.
 
 #### **Automatic Setup**
 
-ANPE provides a built-in tool to setup the necessary **default** models (`en_core_web_md` and `benepar_en3`, plus NLTK data). When you run the extractor, the package will automatically check if the default models are installed and install them if they're not. However, it is **recommended** to run the setup utility before you start using the extractor for the first time.
+ANPE provides a built-in tool to setup the necessary **default** models (`en_core_web_md` and `benepar_en3`). When you run the extractor, the package will automatically check if the default models are installed and install them if they're not. However, it is **recommended** to run the setup utility before you start using the extractor for the first time.
 To setup the **default** models, simply run the following command in terminal (Please refer to [CLI usage](#command-line-interface) for more options.):
 ```bash
 anpe setup
@@ -104,7 +101,7 @@ Alternatively,
 python -m anpe.utils.clean_models
 ```
 
-> **⚠️ Warning:** Running the cleanup script or command will remove *all* downloaded spaCy models known to ANPE, the Benepar models, and the NLTK data (`punkt`, `punkt_tab`) from their standard locations. You will need to run `anpe setup` or let the extractor auto-download them again before using ANPE.
+> **⚠️ Warning:** Running the cleanup script or command will remove *all* downloaded spaCy models known to ANPE and the Benepar models from their standard locations. You will need to run `anpe setup` or let the extractor auto-download them again before using ANPE.
 
 #### **Manual Setup**
 If automatic setup fails or you prefer to manually download the models, you can run install the models manually. Below are examples for the **default** models:
@@ -121,13 +118,6 @@ Install Benepar Parser Model:
 # Default model
 python -m benepar.download benepar_en3
 # Other option: benepar_en3_large
-```
-
-Install NLTK Punkt Tokenizer (via python console):
-``` python
-import nltk
-nltk.download('punkt')
-nltk.download('punkt_tab')
 ```
 
 ## Library API Usage
@@ -535,7 +525,7 @@ anpe [command] [options]
 |--------|-------------|---------|
 | `--spacy-model <alias>` | Specify the spaCy model alias to *install* (`sm`, `md`, `lg`, `trf`). If omitted, installs default (`md`). | `anpe setup --spacy-model lg` |
 | `--benepar-model <alias>` | Specify the Benepar model alias to *install* (`default`, `large`). If omitted, installs default (`default`). | `anpe setup --benepar-model large` |
-| `--clean-models` | Remove all known ANPE-related models (spaCy, Benepar, NLTK). Cannot be used with model installation flags. | `anpe setup --clean-models` |
+| `--clean-models` | Remove all known ANPE-related models (spaCy and Benepar). Cannot be used with model installation flags. | `anpe setup --clean-models` |
 | `-y`, `--yes` | Skip confirmation prompt when using `--clean-models`. | `anpe setup --clean-models -y` |
 | `--log-level` | Set the logging level (DEBUG, INFO, WARNING, ERROR, CRITICAL) | `anpe setup --log-level DEBUG` |
 | `--log-dir` | Directory path for log files | `anpe setup --log-dir logs` |
@@ -754,14 +744,14 @@ If you use ANPE in your research or projects, please cite it as follows:
 
 ### BibTeX
 ```bibtex
-@software{Chen_ANPE_2024,
+@software{Chen_ANPE_2025,
   author = {Chen, Nuo},
   title = {{ANPE: Another Noun Phrase Extractor}},
   url = {https://github.com/rcverse/another-noun-phrase-extractor},
-  version = {0.3.0},
+  version = {0.4.0},
   year = {2025}
 }
 ```
 
 ### Plain Text (APA style)
-Chen, N. (2025). *ANPE: Another Noun Phrase Extractor* (Version 0.3.0) [Computer software]. Retrieved from https://github.com/rcverse/another-noun-phrase-extractor
+Chen, N. (2025). *ANPE: Another Noun Phrase Extractor* (Version 0.4.0) [Computer software]. Retrieved from https://github.com/rcverse/another-noun-phrase-extractor

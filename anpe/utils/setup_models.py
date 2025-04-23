@@ -109,42 +109,23 @@ def check_benepar_model(model_name: str = "benepar_en3") -> bool:
         logger.error(f"Error checking Benepar model: {e}")
         return False
 
-def check_nltk_models(models: list[str] = ['punkt', 'punkt_tab']) -> bool:
-    """Check if the specified NLTK models/data are available."""
-    all_present = True
-    
-    for model in models:
-        try:
-            # Use NLTK's built-in find function which handles all path resolution
-            nltk.data.find(f'tokenizers/{model}')
-            logger.debug(f"NLTK resource 'tokenizers/{model}' found")
-        except LookupError:
-            logger.debug(f"NLTK resource 'tokenizers/{model}' not found")
-            all_present = False
-        except Exception as e:
-            logger.error(f"Error checking NLTK resource '{model}': {e}")
-            all_present = False
-    
-    return all_present
-
 def check_all_models_present(
     spacy_model_alias: str = DEFAULT_SPACY_ALIAS,
     benepar_model_alias: str = DEFAULT_BENEPAR_ALIAS
 ) -> bool:
-    """Check if all required models (specified spaCy/Benepar, NLTK) are present."""
+    """Check if all required models (specified spaCy/Benepar) are present."""
     # Map aliases to actual names for checking
     spacy_model_name = SPACY_MODEL_MAP.get(spacy_model_alias.lower(), SPACY_MODEL_MAP[DEFAULT_SPACY_ALIAS])
     benepar_model_name = BENEPAR_MODEL_MAP.get(benepar_model_alias.lower(), BENEPAR_MODEL_MAP[DEFAULT_BENEPAR_ALIAS])
 
-    logger.info(f"Checking for presence of specified models (spaCy: {spacy_model_name}, Benepar: {benepar_model_name}, NLTK)...")
+    logger.info(f"Checking for presence of specified models (spaCy: {spacy_model_name}, Benepar: {benepar_model_name})...")
     results = {
         "spacy": check_spacy_model(model_name=spacy_model_name),
         "benepar": check_benepar_model(model_name=benepar_model_name),
-        "nltk": check_nltk_models() # NLTK models are usually fixed (punkt, punkt_tab)
     }
     all_present = all(results.values())
     if all_present:
-        logger.info(f"All specified models ({spacy_model_name}, {benepar_model_name}, NLTK) are present.")
+        logger.info(f"All specified models ({spacy_model_name}, {benepar_model_name}) are present.")
     else:
         # Log which specific model is missing
         missing = [name for name, present in results.items() if not present]
@@ -353,89 +334,12 @@ def install_benepar_model(model_name: str = "benepar_en3") -> bool:
              logger.error(f"Subprocess stderr: {e.stderr}")
         return False
 
-def install_nltk_models() -> bool:
-    """Install required NLTK models (punkt, punkt_tab)."""
-    nltk_data_dir = setup_nltk_data_dir()
-    if not nltk_data_dir:
-        logger.error("Could not determine NLTK data directory. Cannot install NLTK models.")
-        return False
-    
-    download_success = True # Track if download attempts were successful
-    required = ['punkt', 'punkt_tab']
-    
-    for model in required:
-        try:
-            # Check if the model is ALREADY present before downloading
-            try:
-                nltk.data.find(f'tokenizers/{model}')
-                logger.info(f"NLTK resource 'tokenizers/{model}' already present. Skipping download.")
-                continue # Skip download if found
-            except LookupError:
-                logger.debug(f"NLTK resource 'tokenizers/{model}' not found, proceeding with download.")
-
-            # --- Start: Added logic to remove orphan zip --- 
-            model_dir = os.path.join(nltk_data_dir, "tokenizers", model)
-            # NLTK often downloads zips directly into the target category dir
-            model_zip = os.path.join(nltk_data_dir, "tokenizers", f"{model}.zip") 
-            
-            if not os.path.exists(model_dir) and os.path.exists(model_zip):
-                logger.info(f"Found existing zip file {model_zip} but missing directory {model_dir}. " 
-                               f"Removing zip before attempting download to ensure proper extraction.")
-                try:
-                    os.remove(model_zip)
-                    logger.debug(f"Removed existing zip: {model_zip}")
-                except OSError as remove_err:
-                    logger.error(f"Failed to remove existing zip {model_zip}: {remove_err}. " 
-                                 f"Download might fail or use the corrupted zip.")
-            # --- End: Added logic --- 
-
-            logger.info(f"Attempting NLTK download/extraction for '{model}' to {nltk_data_dir}...")
-            # Execute download within its own try-except to track download success
-            try:
-                nltk.download(model, download_dir=nltk_data_dir)
-                logger.info(f"NLTK download command completed for '{model}'.")
-            except Exception as download_exc:
-                logger.error(f"NLTK download command failed for '{model}': {download_exc}")
-                download_success = False # Mark download as failed
-                # Continue to next model attempt, maybe others succeed
-                continue 
-
-            # Basic verification: check if directory exists after download attempt
-            # This might not guarantee usability but is a basic check.
-            model_dir = os.path.join(nltk_data_dir, "tokenizers", model)
-            if os.path.exists(model_dir):
-                logger.info(f"Directory {model_dir} verified for '{model}'.")
-            else:
-                logger.warning(f"Directory {model_dir} not found after download attempt for '{model}'.")
-                # Consider if this should also set download_success = False
-                # For now, rely on the exception handling above.
-
-        except Exception as outer_exc:
-            # Catch unexpected errors during the check/download process for a model
-            logger.error(f"Unexpected error processing NLTK model '{model}': {outer_exc}")
-            download_success = False # Mark as failed if outer loop has issues
-            continue
-            
-    # Final decision: Return True only if all required downloads succeeded *and* final check passes
-    if not download_success:
-        logger.error("One or more NLTK download attempts failed.")
-        return False
-        
-    # Verify final presence after all attempts
-    logger.info("Verifying final NLTK model presence after download attempts...")
-    if check_nltk_models(required):
-        logger.info(f"NLTK models {required} verified successfully.")
-        return True
-    else:
-        logger.error("NLTK verification failed after download attempts. Check NLTK data path/permissions.")
-        return False
-
 def setup_models(
     spacy_model_alias: str = DEFAULT_SPACY_ALIAS,
     benepar_model_alias: str = DEFAULT_BENEPAR_ALIAS
 ) -> bool:
     """
-    Checks for required models (specified spaCy/Benepar, NLTK) and attempts
+    Checks for required models (specified spaCy/Benepar) and attempts
     to install any that are missing. Uses user-friendly aliases for models.
 
     Args:
@@ -493,21 +397,6 @@ def setup_models(
             logger.info(f"Successfully downloaded and verified Benepar model '{actual_benepar_model}'.")
     else:
         logger.info(f"Benepar model '{actual_benepar_model}' is already present.")
-
-    # --- 3. NLTK Models ---
-    logger.info("Checking NLTK models (punkt, punkt_tab)...")
-    if not check_nltk_models():
-        logger.info("One or more NLTK models not found. Attempting download/setup...")
-        if not install_nltk_models():
-            logger.error("Failed to download/setup NLTK models.")
-            final_status = False
-        elif not check_nltk_models():  # Verify installation
-            logger.error("NLTK setup completed but resources still not found. Check NLTK data path/permissions.")
-            final_status = False
-        else:
-            logger.info("Successfully downloaded and verified NLTK models.")
-    else:
-        logger.info("Required NLTK models are already present.")
 
     # --- Final Summary ---
     if final_status:
