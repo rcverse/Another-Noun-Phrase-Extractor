@@ -49,3 +49,5 @@ htmlcov/
 *.dll
 .pypirc
 Archive/
+/archive_docs
+/debug_scripts
