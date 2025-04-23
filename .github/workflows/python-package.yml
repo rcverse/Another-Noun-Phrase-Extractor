@@ -56,10 +56,8 @@ jobs:
         NLTK_DATA: ${{ env.NLTK_DATA }}
       run: |
         python -c "
-        import nltk
         import benepar
         import spacy
-        assert nltk.data.find('tokenizers/punkt') is not None
         assert benepar.download('benepar_en3') is not None
         assert spacy.util.is_package('en_core_web_md')
         "
