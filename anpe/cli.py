@@ -14,7 +14,6 @@ from anpe.utils.setup_models import (  # Import specific functions
     check_all_models_present,
     check_spacy_model,
     check_benepar_model,
-    check_nltk_models,
     # Import maps and defaults for choices/validation
     SPACY_MODEL_MAP,
     BENEPAR_MODEL_MAP,

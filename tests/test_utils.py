@@ -25,13 +25,11 @@ from anpe.utils.model_finder import (
 from anpe.utils.setup_models import (
     check_spacy_model, 
     check_benepar_model,
-    check_nltk_models,
     check_all_models_present,
     SPACY_MODEL_MAP,
     BENEPAR_MODEL_MAP,
     install_spacy_model,
     install_benepar_model,
-    install_nltk_models,
     setup_models
 )
 
@@ -632,205 +630,206 @@ class TestModelChecking(unittest.TestCase):
         self.assertFalse(check_benepar_model("benepar_en3"))
         mock_nltk_find.assert_called_once_with('models/benepar_en3')
 
-    @patch('anpe.utils.setup_models.nltk.data.find')
-    def test_check_nltk_models_present(self, mock_nltk_find):
-        """Test check_nltk_models when all models are present."""
-        # Configure mock to succeed for both punkt and punkt_tab
-        mock_nltk_find.return_value = "/fake/path/tokenizers/punkt"
-        self.assertTrue(check_nltk_models(['punkt', 'punkt_tab']))
-        # Check calls
-        self.assertEqual(mock_nltk_find.call_count, 2)
-        mock_nltk_find.assert_any_call('tokenizers/punkt')
-        mock_nltk_find.assert_any_call('tokenizers/punkt_tab')
-
-    @patch('anpe.utils.setup_models.nltk.data.find')
-    def test_check_nltk_models_missing_one(self, mock_nltk_find):
-        """Test check_nltk_models when one model is missing."""
-        # Configure mock to raise LookupError for the second call
-        mock_nltk_find.side_effect = [
-            "/fake/path/tokenizers/punkt", # Success for first call
-            LookupError("Resource punkt_tab not found") # Failure for second
-        ]
-        self.assertFalse(check_nltk_models(['punkt', 'punkt_tab']))
-        self.assertEqual(mock_nltk_find.call_count, 2)
-
     # Test check_all_models_present relies on the individual checks,
     # so we mock those.
     @patch('anpe.utils.setup_models.check_spacy_model')
     @patch('anpe.utils.setup_models.check_benepar_model')
-    @patch('anpe.utils.setup_models.check_nltk_models')
-    def test_check_all_models_present_all_true(self, mock_check_nltk, mock_check_benepar, mock_check_spacy):
+    def test_check_all_models_present_all_true(self, mock_check_benepar, mock_check_spacy):
         """Test check_all_models_present when all sub-checks return True."""
         mock_check_spacy.return_value = True
         mock_check_benepar.return_value = True
-        mock_check_nltk.return_value = True
         
         # Test with default aliases
         self.assertTrue(check_all_models_present())
         mock_check_spacy.assert_called_once_with(model_name=SPACY_MODEL_MAP['md'])
         mock_check_benepar.assert_called_once_with(model_name=BENEPAR_MODEL_MAP['default'])
-        mock_check_nltk.assert_called_once()
         
         # Reset mocks and test with specific aliases
         mock_check_spacy.reset_mock()
         mock_check_benepar.reset_mock()
-        mock_check_nltk.reset_mock()
         self.assertTrue(check_all_models_present(spacy_model_alias='lg', benepar_model_alias='large'))
         mock_check_spacy.assert_called_once_with(model_name=SPACY_MODEL_MAP['lg'])
         mock_check_benepar.assert_called_once_with(model_name=BENEPAR_MODEL_MAP['large'])
-        mock_check_nltk.assert_called_once()
 
     @patch('anpe.utils.setup_models.check_spacy_model')
     @patch('anpe.utils.setup_models.check_benepar_model')
-    @patch('anpe.utils.setup_models.check_nltk_models')
-    def test_check_all_models_present_one_false(self, mock_check_nltk, mock_check_benepar, mock_check_spacy):
+    def test_check_all_models_present_one_false(self, mock_check_benepar, mock_check_spacy):
         """Test check_all_models_present when one sub-check returns False."""
         mock_check_spacy.return_value = True
         mock_check_benepar.return_value = False # Simulate Benepar missing
-        mock_check_nltk.return_value = True
         
         self.assertFalse(check_all_models_present())
         mock_check_spacy.assert_called_once()
         mock_check_benepar.assert_called_once()
-        mock_check_nltk.assert_called_once()
 
 # --- New Test Class for Model Installation --- 
 class TestModelInstallation(unittest.TestCase):
     """Test cases for model installation utility functions."""
 
     @patch('anpe.utils.setup_models.subprocess.run')
-    @patch('anpe.utils.setup_models.check_spacy_model')
-    def test_install_spacy_model_success(self, mock_check_spacy, mock_subprocess_run):
+    @patch('anpe.utils.setup_models.check_spacy_model') # Mock for the FINAL check after install attempt
+    @patch('anpe.utils.setup_models._check_spacy_physical_path') 
+    @patch('anpe.utils.setup_models.check_spacy_model') # Mock for the INITIAL check
+    def test_install_spacy_model_success(self, mock_initial_check_spacy, mock_check_physical_path, mock_final_check_spacy, mock_subprocess_run):
         """Test install_spacy_model successful installation."""
         from anpe.utils.setup_models import install_spacy_model
+        # Simulate model not loadable initially
+        mock_initial_check_spacy.return_value = False 
+        # Simulate model physical path doesn't exist initially
+        mock_check_physical_path.return_value = False
         # Simulate subprocess success
         mock_subprocess_run.return_value = MagicMock(returncode=0, stdout="Success", stderr="")
-        # Simulate check confirms success after install
-        mock_check_spacy.return_value = True 
+        # Simulate FINAL check confirms success after install
+        mock_final_check_spacy.return_value = True 
         
         self.assertTrue(install_spacy_model("en_core_web_sm"))
-        mock_subprocess_run.assert_called_once()
-        mock_check_spacy.assert_called_once_with("en_core_web_sm")
+        mock_initial_check_spacy.assert_called_once_with("en_core_web_sm") # Verify initial check
+        mock_check_physical_path.assert_called_once_with("en_core_web_sm") # Verify physical check
+        mock_subprocess_run.assert_called_once() 
+        mock_final_check_spacy.assert_called_once_with("en_core_web_sm") # Verify final check
 
     @patch('anpe.utils.setup_models.subprocess.run')
-    @patch('anpe.utils.setup_models.check_spacy_model') # Still need to mock check
-    def test_install_spacy_model_fail_subprocess(self, mock_check_spacy, mock_subprocess_run):
+    @patch('anpe.utils.setup_models.check_spacy_model') # Mock for FINAL check
+    @patch('anpe.utils.setup_models._check_spacy_physical_path') 
+    @patch('anpe.utils.setup_models.check_spacy_model') # Mock for INITIAL check
+    def test_install_spacy_model_fail_subprocess(self, mock_initial_check_spacy, mock_check_physical_path, mock_final_check_spacy, mock_subprocess_run):
         """Test install_spacy_model when subprocess fails."""
         from anpe.utils.setup_models import install_spacy_model
+        # Simulate model not loadable initially
+        mock_initial_check_spacy.return_value = False
+        # Simulate model physical path doesn't exist initially
+        mock_check_physical_path.return_value = False
         # Simulate subprocess failure
         mock_subprocess_run.side_effect = subprocess.CalledProcessError(1, "cmd", stderr="Failed")
         
-        self.assertFalse(install_spacy_model("en_core_web_sm"))
-        mock_subprocess_run.assert_called_once()
-        mock_check_spacy.assert_not_called() # Check should not be called if subprocess fails
+        self.assertFalse(install_spacy_model("en_core_web_sm")) # Expect False now
+        mock_initial_check_spacy.assert_called_once_with("en_core_web_sm")
+        mock_check_physical_path.assert_called_once_with("en_core_web_sm")
+        mock_subprocess_run.assert_called_once() 
+        # Final check shouldn't be called if subprocess fails directly
+        mock_final_check_spacy.assert_not_called() 
 
     @patch('anpe.utils.setup_models.subprocess.run')
-    @patch('anpe.utils.setup_models.check_spacy_model') 
-    def test_install_spacy_model_fail_check(self, mock_check_spacy, mock_subprocess_run):
-        """Test install_spacy_model when subprocess succeeds but check fails."""
+    @patch('anpe.utils.setup_models.check_spacy_model') # Mock for FINAL check
+    @patch('anpe.utils.setup_models._check_spacy_physical_path') 
+    @patch('anpe.utils.setup_models.check_spacy_model') # Mock for INITIAL check
+    def test_install_spacy_model_fail_check(self, mock_initial_check_spacy, mock_check_physical_path, mock_final_check_spacy, mock_subprocess_run):
+        """Test install_spacy_model when subprocess succeeds but final check fails."""
         from anpe.utils.setup_models import install_spacy_model
+        # Simulate model not loadable initially
+        mock_initial_check_spacy.return_value = False
+        # Simulate model physical path doesn't exist initially
+        mock_check_physical_path.return_value = False
         # Simulate subprocess success
         mock_subprocess_run.return_value = MagicMock(returncode=0, stdout="Success", stderr="")
-        # Simulate check still returns False after install attempt
-        mock_check_spacy.return_value = False 
+        # Simulate FINAL check still returns False after install attempt
+        mock_final_check_spacy.return_value = False 
         
-        self.assertFalse(install_spacy_model("en_core_web_sm"))
+        self.assertFalse(install_spacy_model("en_core_web_sm")) # Expect False now
+        mock_initial_check_spacy.assert_called_once_with("en_core_web_sm")
+        mock_check_physical_path.assert_called_once_with("en_core_web_sm")
         mock_subprocess_run.assert_called_once()
-        mock_check_spacy.assert_called_once_with("en_core_web_sm")
+        mock_final_check_spacy.assert_called_once_with("en_core_web_sm") # Final check is called
 
     @patch('anpe.utils.setup_models.subprocess.run')
-    @patch('anpe.utils.setup_models.check_benepar_model')
-    @patch('anpe.utils.setup_models.os.path.isdir') # Mock os.path.isdir
-    def test_install_benepar_model_success(self, mock_os_path_isdir, mock_check_benepar, mock_subprocess_run):
+    @patch('anpe.utils.setup_models.check_benepar_model') # Mock for the FINAL check after install attempt
+    @patch('anpe.utils.setup_models.os.path.isdir') 
+    @patch('anpe.utils.setup_models.os.path.isfile') # Added isfile mock needed for logic
+    @patch('anpe.utils.setup_models.check_benepar_model') # Mock for the INITIAL check
+    def test_install_benepar_model_success(self, mock_initial_check_benepar, mock_isfile, mock_isdir, mock_final_check_benepar, mock_subprocess_run):
         """Test install_benepar_model successful installation."""
         from anpe.utils.setup_models import install_benepar_model
+        # Simulate model not present initially
+        mock_initial_check_benepar.return_value = False 
         # Simulate subprocess success
         mock_subprocess_run.return_value = MagicMock(returncode=0, stdout="Success", stderr="")
-        # Simulate directory IS found after subprocess run
-        mock_os_path_isdir.return_value = True 
-        # Simulate final check confirms success
-        mock_check_benepar.return_value = True
+        # Simulate directory IS found after subprocess run (isdir check)
+        mock_isdir.return_value = True 
+        # Mock isfile just in case (shouldn't be called if isdir is True)
+        mock_isfile.return_value = False 
+        # Simulate FINAL check confirms success
+        mock_final_check_benepar.return_value = True
         
         self.assertTrue(install_benepar_model("benepar_en3"))
-        mock_subprocess_run.assert_called_once()
-        mock_os_path_isdir.assert_called_once() # Check directory was checked
-        mock_check_benepar.assert_called_once_with("benepar_en3") # Final check was called
+        mock_initial_check_benepar.assert_called_once_with("benepar_en3") 
+        mock_subprocess_run.assert_called_once() 
+        mock_isdir.assert_called() # isdir is checked
+        mock_isfile.assert_not_called() # isfile not checked if dir exists
+        mock_final_check_benepar.assert_called_once_with("benepar_en3") 
 
     @patch('anpe.utils.setup_models.subprocess.run')
-    @patch('anpe.utils.setup_models.check_benepar_model')
-    @patch('anpe.utils.setup_models.os.path.isdir') # Mock os.path.isdir
-    @patch('anpe.utils.setup_models.os.path.isfile') # Mock os.path.isfile
-    def test_install_benepar_model_fail_subprocess(self, mock_isfile, mock_isdir, mock_check_benepar, mock_subprocess_run):
+    @patch('anpe.utils.setup_models.check_benepar_model') # Mock for the FINAL check
+    @patch('anpe.utils.setup_models.os.path.isdir') 
+    @patch('anpe.utils.setup_models.os.path.isfile') 
+    @patch('anpe.utils.setup_models.check_benepar_model') # Mock for the INITIAL check
+    def test_install_benepar_model_fail_subprocess(self, mock_initial_check_benepar, mock_isfile, mock_isdir, mock_final_check_benepar, mock_subprocess_run):
         """Test install_benepar_model when subprocess fails and model doesn't exist."""
         from anpe.utils.setup_models import install_benepar_model
+        # Simulate model not present initially
+        mock_initial_check_benepar.return_value = False
         # Simulate subprocess failure
         mock_subprocess_run.return_value = MagicMock(returncode=1, stdout="", stderr="Failed")
         # Simulate model dir/zip NOT found after failed attempt
         mock_isdir.return_value = False
         mock_isfile.return_value = False
-        # Simulate final check also fails (or isn't reached, but mock defensively)
-        mock_check_benepar.return_value = False 
+        # Final check mock (shouldn't be called)
+        mock_final_check_benepar.return_value = False 
         
         self.assertFalse(install_benepar_model("benepar_en3"), "Function should return False when subprocess fails and model files are not found.")
-        mock_subprocess_run.assert_called_once()
-        mock_isdir.assert_called() # isdir should be checked
-        mock_isfile.assert_called() # isfile should be checked if isdir fails
-        # check_benepar_model should NOT be called if files_ok_after_attempt is False
-        mock_check_benepar.assert_not_called() 
-
-    @patch('anpe.utils.setup_models.nltk.download')
-    @patch('anpe.utils.setup_models.check_nltk_models')
-    @patch('anpe.utils.setup_models.nltk.data.find') # Mock find as well
-    def test_install_nltk_models_fail_download(self, mock_nltk_find, mock_check_nltk, mock_nltk_download):
-        """Test install_nltk_models when nltk.download fails."""
-        from anpe.utils.setup_models import install_nltk_models
-        # Simulate find fails to trigger download path
-        mock_nltk_find.side_effect = LookupError("Simulating not found")
-        # Simulate nltk download failure
-        mock_nltk_download.side_effect = Exception("Download failed")
-        # Mock final check (should ideally not be reached if download fails)
-        mock_check_nltk.return_value = False 
-        
-        # Expect False because download_success flag should be False
-        self.assertFalse(install_nltk_models()) 
-        
-        # Verify find was called twice (for punkt, punkt_tab)
-        self.assertEqual(mock_nltk_find.call_count, 2)
-        # Verify download was called at least once (might fail on first or second)
-        mock_nltk_download.assert_called()
-        # Verify the final check_nltk_models was NOT called because download_success was False
-        mock_check_nltk.assert_not_called()
+        mock_initial_check_benepar.assert_called_once_with("benepar_en3") 
+        mock_subprocess_run.assert_called_once() 
+        mock_isdir.assert_called() # isdir is checked
+        mock_isfile.assert_called() # isfile is checked if isdir fails
+        # Final check_benepar_model should NOT be called if install fails so early
+        mock_final_check_benepar.assert_not_called() 
 
     # --- Tests for setup_models --- 
 
     @patch('anpe.utils.setup_models.install_spacy_model')
     @patch('anpe.utils.setup_models.install_benepar_model')
-    @patch('anpe.utils.setup_models.install_nltk_models')
     @patch('anpe.utils.setup_models.check_spacy_model')
     @patch('anpe.utils.setup_models.check_benepar_model')
-    @patch('anpe.utils.setup_models.check_nltk_models')
-    def test_setup_models_all_missing_success(self, mock_check_nltk, mock_check_benepar, mock_check_spacy, 
-                                             mock_install_nltk, mock_install_benepar, mock_install_spacy):
+    def test_setup_models_all_missing_success(self, mock_check_benepar, mock_check_spacy, 
+                                             mock_install_benepar, mock_install_spacy):
         """Test setup_models when all models are missing and installation succeeds."""
         from anpe.utils.setup_models import setup_models
         # Simulate all models missing initially
-        mock_check_spacy.return_value = False      # Only called once
-        mock_check_benepar.return_value = False     # Only called once
-        mock_check_nltk.side_effect = [False, True] # Called before and after install
+        mock_check_spacy.return_value = False      
+        mock_check_benepar.return_value = False     
         # Simulate all installs succeed
         mock_install_spacy.return_value = True
         mock_install_benepar.return_value = True
-        mock_install_nltk.return_value = True
         
         self.assertTrue(setup_models()) # Use default aliases
-        # Check installs were called
-        mock_install_spacy.assert_called_once_with(model_name=SPACY_MODEL_MAP['md'])
-        mock_install_benepar.assert_called_once_with(model_name=BENEPAR_MODEL_MAP['default'])
-        mock_install_nltk.assert_called_once()
+        # Check installs were called with log_callback=None
+        mock_install_spacy.assert_called_once_with(model_name=SPACY_MODEL_MAP['md'], log_callback=None)
+        mock_install_benepar.assert_called_once_with(model_name=BENEPAR_MODEL_MAP['default'], log_callback=None)
         # Check that checks were called the correct number of times
-        mock_check_spacy.assert_called_once()  # Called only once
-        mock_check_benepar.assert_called_once() # Called only once
-        self.assertEqual(mock_check_nltk.call_count, 2) # Called before and after install
+        mock_check_spacy.assert_called_once()  
+        mock_check_benepar.assert_called_once() 
+        
+        # --- Additional check: Test with specific aliases ---
+        mock_check_spacy.reset_mock()
+        mock_check_benepar.reset_mock()
+        mock_install_spacy.reset_mock()
+        mock_install_benepar.reset_mock()
+
+        # Simulate models missing again
+        mock_check_spacy.return_value = False     
+        mock_check_benepar.return_value = False    
+        # Simulate installs succeed again
+        mock_install_spacy.return_value = True
+        mock_install_benepar.return_value = True
+        
+        # Test with specific aliases and a dummy log callback
+        dummy_callback = lambda x: None
+        self.assertTrue(setup_models(spacy_model_alias='trf', benepar_model_alias='large', log_callback=dummy_callback))
+        # Check installs were called with the actual callback
+        mock_install_spacy.assert_called_once_with(model_name=SPACY_MODEL_MAP['trf'], log_callback=dummy_callback)
+        mock_install_benepar.assert_called_once_with(model_name=BENEPAR_MODEL_MAP['large'], log_callback=dummy_callback)
+        # Check checks were called with the correct model names (they don't receive callback)
+        mock_check_spacy.assert_called_once_with(model_name=SPACY_MODEL_MAP['trf'])
+        mock_check_benepar.assert_called_once_with(model_name=BENEPAR_MODEL_MAP['large'])
 
 if __name__ == "__main__":
     unittest.main() 
