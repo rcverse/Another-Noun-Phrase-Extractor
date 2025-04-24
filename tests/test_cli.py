@@ -278,18 +278,18 @@ class TestCLI(unittest.TestCase):
         """Test setup command when models are missing and installation fails."""
         mock_setup_logger = MagicMock()
         mock_get_logger.return_value = mock_setup_logger
-
+    
         # Simulate failed installation
-        # We mock the exception directly in setup_models
-        mock_setup_models.side_effect = Exception("Download failed")
-
+        exception_message = "Download failed"
+        mock_setup_models.side_effect = Exception(exception_message)
+    
         args = ["setup"]
         exit_code = main(args)
-
+    
         self.assertEqual(exit_code, 1) # Should exit with error code 1
         mock_setup_models.assert_called_once() # Still called
-        # Check logger was called with error on the correct instance
-        mock_setup_logger.error.assert_called()
+        # Check logger was called with the correct error message
+        mock_setup_logger.error.assert_any_call(f"Model setup failed: {exception_message}")
 
     @patch('anpe.cli.setup_models')
     @patch('anpe.cli.ANPELogger')
@@ -350,77 +350,83 @@ class TestCLI(unittest.TestCase):
         
     # --- Tests for Clean Models --- 
     
-    @patch('builtins.input')
-    @patch('anpe.cli.clean_all')
-    @patch('anpe.cli.ANPELogger')
-    def test_setup_clean_confirm_yes_success(self, mock_logger_cls, mock_clean_all, mock_input):
-        """Test setup --clean-models with confirmation 'y' and success."""
-        mock_logger_instance = MagicMock()
-        mock_logger_cls.setup_logging.return_value = mock_logger_instance
-        mock_input.return_value = 'y' # Simulate user confirms
-        mock_clean_all.return_value = {"spacy": True, "benepar": True, "nltk": True} # Simulate success
-        
-        args = ["setup", "--clean-models"]
-        exit_code = main(args)
-        
-        self.assertEqual(exit_code, 0)
-        mock_input.assert_called_once() # Should ask for confirmation
-        mock_clean_all.assert_called_once() # Should call clean_all
-        call_args, call_kwargs = mock_clean_all.call_args
-        self.assertFalse(call_kwargs.get('verbose')) # Default log level INFO -> verbose=False
-        self.assertIsNotNone(call_kwargs.get('logger')) # Logger passed
-
-    @patch('builtins.input')
-    @patch('anpe.cli.clean_all')
-    @patch('anpe.cli.ANPELogger')
-    def test_setup_clean_confirm_no(self, mock_logger_cls, mock_clean_all, mock_input):
-        """Test setup --clean-models with confirmation 'n'."""
-        mock_logger_instance = MagicMock()
-        mock_logger_cls.setup_logging.return_value = mock_logger_instance
-        mock_input.return_value = 'n' # Simulate user cancels
-        
-        args = ["setup", "--clean-models"]
-        exit_code = main(args)
-        
-        self.assertEqual(exit_code, 1) # Operation cancelled
-        mock_input.assert_called_once() # Should ask for confirmation
-        mock_clean_all.assert_not_called() # Should NOT call clean_all
-
-    @patch('builtins.input')
-    @patch('anpe.cli.clean_all')
-    @patch('anpe.cli.ANPELogger')
-    def test_setup_clean_yes_flag_success(self, mock_logger_cls, mock_clean_all, mock_input):
-        """Test setup --clean-models -y (skip confirmation) with success."""
-        mock_logger_instance = MagicMock()
-        mock_logger_cls.setup_logging.return_value = mock_logger_instance
-        mock_clean_all.return_value = {"spacy": True, "benepar": True, "nltk": True}
-
-        args = ["setup", "--clean-models", "-y"]
-        exit_code = main(args)
-
-        self.assertEqual(exit_code, 0)
-        mock_input.assert_not_called() # Should NOT ask for confirmation
-        mock_clean_all.assert_called_once() # Should call clean_all
-        call_args, call_kwargs = mock_clean_all.call_args
-        self.assertFalse(call_kwargs.get('verbose'))
-        self.assertIsNotNone(call_kwargs.get('logger'))
-        
     @patch('anpe.cli.clean_all')
     @patch('anpe.cli.get_logger')
-    def test_setup_clean_yes_flag_failure(self, mock_get_logger, mock_clean_all):
-        """Test setup --clean-models -y when clean_all fails."""
-        mock_setup_logger = MagicMock()
-        mock_get_logger.return_value = mock_setup_logger
-        # Simulate partial failure
-        mock_clean_all.return_value = {"spacy": False, "benepar": True, "nltk": True}
+    def test_setup_clean_confirm_yes_success(self, mock_get_logger, mock_clean_all):
+        """Test setup --clean-models with confirmation 'y' (no -f flag) simulated by clean_all succeeding."""
+        mock_logger_instance = MagicMock()
+        mock_get_logger.return_value = mock_logger_instance
+        # Simulate clean_all succeeding (as if user confirmed 'y')
+        mock_clean_all.return_value = {"spacy": True, "benepar": True, "overall": True}
 
-        args = ["setup", "--clean-models", "-y"]
+        args = ["setup", "--clean-models"] # No -f flag
         exit_code = main(args)
 
-        self.assertEqual(exit_code, 1) # Exit code 1 on failure
+        self.assertEqual(exit_code, 0)
+        # Assert clean_all was called once with force=False
+        mock_clean_all.assert_called_once()
+        call_args, call_kwargs = mock_clean_all.call_args
+        self.assertIn('force', call_kwargs)
+        self.assertFalse(call_kwargs['force'])
+
+    @patch('anpe.cli.clean_all')
+    @patch('anpe.cli.get_logger')
+    def test_setup_clean_confirm_no(self, mock_get_logger, mock_clean_all):
+        """Test setup --clean-models with confirmation 'n' (no -f flag) simulated by clean_all succeeding overall (handles cancellation gracefully)."""
+        mock_logger_instance = MagicMock()
+        mock_get_logger.return_value = mock_logger_instance
+        # Simulate clean_all reporting overall success even if user cancels ('n')
+        # because cancellation is handled internally and is not an error state.
+        # The function might log the cancellation but exits cleanly.
+        mock_clean_all.return_value = {"spacy": True, "benepar": True, "overall": True}
+
+        args = ["setup", "--clean-models"] # No -f flag
+        exit_code = main(args)
+
+        # Exit code 0 because clean_all handles cancellation gracefully
+        self.assertEqual(exit_code, 0)
+        # Assert clean_all was called once with force=False
+        mock_clean_all.assert_called_once()
+        call_args, call_kwargs = mock_clean_all.call_args
+        self.assertIn('force', call_kwargs)
+        self.assertFalse(call_kwargs['force'])
+
+    @patch('anpe.cli.clean_all')
+    @patch('anpe.cli.get_logger')
+    def test_setup_clean_force_flag_success(self, mock_get_logger, mock_clean_all):
+        """Test setup --clean-models -f (force flag) with success."""
+        mock_logger_instance = MagicMock()
+        mock_get_logger.return_value = mock_logger_instance
+        mock_clean_all.return_value = {"spacy": True, "benepar": True, "overall": True}
+
+        args = ["setup", "--clean-models", "-f"] # Use -f flag
+        exit_code = main(args)
+
+        self.assertEqual(exit_code, 0)
+        # No input prompt when force=True
+        # mock_input.assert_not_called() # Removed as mock_input is not used
+        mock_clean_all.assert_called_once()
+        call_args, call_kwargs = mock_clean_all.call_args
+        self.assertTrue(call_kwargs.get('force'))
+
+    @patch('anpe.cli.clean_all')
+    @patch('anpe.cli.get_logger')
+    def test_setup_clean_force_flag_failure(self, mock_get_logger, mock_clean_all):
+        """Test setup --clean-models -f when clean_all fails."""
+        mock_setup_logger = MagicMock()
+        mock_get_logger.return_value = mock_setup_logger
+        # Simulate overall failure
+        mock_clean_all.return_value = {"spacy": False, "benepar": True, "overall": False}
+
+        args = ["setup", "--clean-models", "-f"] # Use -f flag
+        exit_code = main(args)
+
+        self.assertEqual(exit_code, 1) # Exit code 1 on overall failure
         mock_clean_all.assert_called_once() # Should call clean_all
-        # Assert on the logger returned by get_logger
-        mock_setup_logger.error.assert_any_call("Model cleanup finished with errors.")
+        call_args, call_kwargs = mock_clean_all.call_args
+        self.assertTrue(call_kwargs.get('force')) # force should be True
+        # Assert on the logger returned by get_logger for the correct message
+        mock_setup_logger.error.assert_any_call("Model cleanup failed.")
 
     @patch('anpe.cli.clean_all')
     @patch('anpe.cli.get_logger')

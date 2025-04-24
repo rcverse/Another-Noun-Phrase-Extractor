@@ -526,7 +526,7 @@ anpe [command] [options]
 | `--spacy-model <alias>` | Specify the spaCy model alias to *install* (`sm`, `md`, `lg`, `trf`). If omitted, installs default (`md`). | `anpe setup --spacy-model lg` |
 | `--benepar-model <alias>` | Specify the Benepar model alias to *install* (`default`, `large`). If omitted, installs default (`default`). | `anpe setup --benepar-model large` |
 | `--clean-models` | Remove all known ANPE-related models (spaCy and Benepar). Cannot be used with model installation flags. | `anpe setup --clean-models` |
-| `-y`, `--yes` | Skip confirmation prompt when using `--clean-models`. | `anpe setup --clean-models -y` |
+| `-f`, `--force` | Force removal without user confirmation when using `--clean-models`. | `anpe setup --clean-models -f` |
 | `--log-level` | Set the logging level (DEBUG, INFO, WARNING, ERROR, CRITICAL) | `anpe setup --log-level DEBUG` |
 | `--log-dir` | Directory path for log files | `anpe setup --log-dir logs` |
 
@@ -580,7 +580,7 @@ anpe setup --clean-models
 
 **Clean existing models (without confirmation):**
 ```bash
-anpe setup --clean-models -y
+anpe setup --clean-models -f
 ```
 
 **Extract and output to JSON:**

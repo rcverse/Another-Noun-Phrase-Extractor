@@ -117,9 +117,9 @@ def parse_args(args: Optional[List[str]] = None) -> argparse.Namespace:
         help="Remove all known ANPE-related models (spaCy and Benepar). Mutually exclusive with specific model installation."
     )
     clean_group.add_argument(
-        "-y", "--yes",
+        "-f", "--force",
         action="store_true",
-        help="Skip confirmation prompt when using --clean-models."
+        help="Force removal without user confirmation when using --clean-models."
     )
     
     # Logging options (apply to both setup and clean)
@@ -387,29 +387,14 @@ def main(args: Optional[List[str]] = None) -> int:
                     logger.error("Cannot use --clean-models with specific model installation flags (--spacy-model, --benepar-model).")
                     return 1
 
-                if not parsed_args.yes:
-                    logger.warning("This will attempt to remove all known ANPE-related models")
-                    logger.warning(f" (spaCy: {', '.join(set(CLEAN_SPACY_MAP.values()))},")
-                    logger.warning(f"  Benepar: {', '.join(set(CLEAN_BENEPAR_MAP.values()))},")
-                    logger.warning("from all known locations on your system.")
-                    logger.warning("Models will need to be re-downloaded when you next use ANPE.")
-                    try:
-                        response = input("Do you want to continue? [y/N] ").lower()
-                        if response != 'y':
-                            logger.info("Operation cancelled.")
-                            return 1
-                    except EOFError: # Handle non-interactive environments gracefully
-                        logger.error("Confirmation required, but no interactive terminal found. Use -y to bypass.")
-                        return 1
-
                 logger.info("Starting model cleanup...")
-                results = clean_all(verbose=(parsed_args.log_level == "DEBUG"), logger=logger)
-                if all(results.values()):
+                results = clean_all(logger=logger, force=parsed_args.force)
+                if results["overall"]:
                      logger.info("Model cleanup completed successfully.")
                      return 0
-                else:
-                     logger.error("Model cleanup finished with errors.")
-                     return 1
+                # Add explicit return for failure
+                logger.error("Model cleanup failed.") # Optional: Add log message
+                return 1
 
             else:
                 # Handle model installation

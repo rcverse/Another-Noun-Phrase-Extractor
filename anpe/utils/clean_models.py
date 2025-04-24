@@ -567,12 +567,13 @@ def find_resources() -> FoundResources:
 
     return found
 
-def clean_all(logger: logging.Logger, log_callback: Optional[Callable[[str], None]] = None) -> Dict[str, bool]:
-    """Find and remove all known ANPE-related models and caches after user confirmation.
+def clean_all(logger: logging.Logger, log_callback: Optional[Callable[[str], None]] = None, force: bool = False) -> Dict[str, bool]:
+    """Find and remove all known ANPE-related models and caches.
 
     Args:
         logger (logging.Logger): Logger instance.
         log_callback (Optional[Callable[[str], None]]): Optional callback for real-time logging.
+        force (bool, optional): If True, skip user confirmation before removing resources. Defaults to False.
 
     Returns:
         Dict[str, bool]: Status dict indicating success (True) or failure (False) for each component
@@ -641,33 +642,49 @@ def clean_all(logger: logging.Logger, log_callback: Optional[Callable[[str], Non
             logger.info(detail_msg)
             if log_callback: log_callback(detail_msg)
 
-    # --- Add User Confirmation --- 
-    prompt_msg = "\n[Clean All] Proceed with removing all found resources? (y/N): "
-    logger.info(prompt_msg.strip()) # Log prompt without newline
-    if log_callback:
-        log_callback(prompt_msg.strip()) # Send prompt to callback
-    
-    try:
-        user_confirmation = input()
-    except EOFError: # Handle non-interactive environments
-        user_confirmation = 'n'
-        err_msg = "[Clean All] Non-interactive environment detected or input stream closed. Assuming 'No'."
-        logger.warning(err_msg)
+    # --- Add User Confirmation ---
+    proceed_with_removal = True # Default to True if force=True
+    if not force:
+        prompt_msg = "\n[Clean All] Proceed with removing all found resources? (y/N): "
+        logger.info(prompt_msg.strip()) # Log prompt without newline
         if log_callback:
-            log_callback(err_msg)
+            log_callback(prompt_msg.strip()) # Send prompt to callback
 
-    if user_confirmation.lower() != 'y':
-        cancel_msg = "[Clean All] Removal cancelled by user."
-        logger.info(cancel_msg)
-        if log_callback:
-            log_callback(cancel_msg)
-        # Return success=True as no errors occurred, just cancellation
-        return status
+        try:
+            user_confirmation = input()
+        except EOFError: # Handle non-interactive environments
+            user_confirmation = 'n'
+            err_msg = "[Clean All] Non-interactive environment detected or input stream closed. Assuming 'No'."
+            logger.warning(err_msg)
+            if log_callback:
+                log_callback(err_msg)
+
+        if user_confirmation.lower() != 'y':
+            cancel_msg = "[Clean All] Removal cancelled by user."
+            logger.info(cancel_msg)
+            if log_callback:
+                log_callback(cancel_msg)
+            # Return success=True as no errors occurred, just cancellation
+            proceed_with_removal = False # Don't proceed
+            # Return status early if cancelled
+            return status 
     
-    confirm_msg = "[Clean All] User confirmed. Proceeding with removal..."
-    logger.info(confirm_msg)
-    if log_callback:
-        log_callback(confirm_msg)
+    if not proceed_with_removal: # Should only be reached if cancelled above
+         # This return is technically redundant due to the return in the if block,
+         # but kept for clarity. The logic inside the `if not force` block handles cancellation.
+        return status
+
+    # Log confirmation only if we went through the prompt or if forced
+    if force:
+         confirm_msg = "[Clean All] Force flag set. Proceeding with removal without confirmation..."
+         logger.info(confirm_msg)
+         if log_callback:
+             log_callback(confirm_msg)
+    elif proceed_with_removal: # Only log this if user confirmed 'y'
+        confirm_msg = "[Clean All] User confirmed. Proceeding with removal..."
+        logger.info(confirm_msg)
+        if log_callback:
+            log_callback(confirm_msg)
 
     # 1. Clean SpaCy Models (using standalone uninstaller)
     if not spacy_packages:
@@ -778,6 +795,7 @@ def main(log_callback: Optional[Callable[[str], None]] = None) -> int:
     # Parse command-line arguments
     parser = argparse.ArgumentParser(description='Clean ANPE-related models and caches.')
     parser.add_argument('--verbose', '-v', action='store_true', help='Enable verbose logging')
+    parser.add_argument('--force', '-f', action='store_true', help='Force removal without user confirmation')
     args = parser.parse_args()
     
     # Set up logging
@@ -790,7 +808,7 @@ def main(log_callback: Optional[Callable[[str], None]] = None) -> int:
         log_callback(banner_msg)
     
     # Run the cleanup (Pass logger and callback)
-    status = clean_all(logger=logger, log_callback=log_callback)
+    status = clean_all(logger=logger, log_callback=log_callback, force=args.force)
     
     # Print final status
     if status["overall"]:

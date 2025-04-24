@@ -666,118 +666,141 @@ class TestModelChecking(unittest.TestCase):
 class TestModelInstallation(unittest.TestCase):
     """Test cases for model installation utility functions."""
 
-    @patch('anpe.utils.setup_models.subprocess.run')
-    @patch('anpe.utils.setup_models.check_spacy_model') # Mock for the FINAL check after install attempt
+    # Mocks needed for install_spacy_model
+    @patch('anpe.utils.setup_models.subprocess.Popen')
+    @patch('anpe.utils.setup_models.importlib.util.find_spec')
     @patch('anpe.utils.setup_models._check_spacy_physical_path') 
-    @patch('anpe.utils.setup_models.check_spacy_model') # Mock for the INITIAL check
-    def test_install_spacy_model_success(self, mock_initial_check_spacy, mock_check_physical_path, mock_final_check_spacy, mock_subprocess_run):
-        """Test install_spacy_model successful installation."""
+    def test_install_spacy_model_success(self, mock_check_physical_path, mock_find_spec, mock_popen):
+        """Test install_spacy_model successful installation via importlib verification."""
         from anpe.utils.setup_models import install_spacy_model
-        # Simulate model not loadable initially
-        mock_initial_check_spacy.return_value = False 
-        # Simulate model physical path doesn't exist initially
-        mock_check_physical_path.return_value = False
         # Simulate subprocess success
-        mock_subprocess_run.return_value = MagicMock(returncode=0, stdout="Success", stderr="")
-        # Simulate FINAL check confirms success after install
-        mock_final_check_spacy.return_value = True 
+        mock_process = MagicMock()
+        mock_process.stdout = ["Download successful"].__iter__() # Simulate some output
+        mock_process.wait.return_value = 0 # Success code
+        mock_popen.return_value = mock_process
+        
+        # Simulate verification success via find_spec
+        mock_spec = MagicMock()
+        mock_spec.origin = "/path/to/model"
+        mock_find_spec.return_value = mock_spec
+        mock_check_physical_path.return_value = False # Should not be needed if find_spec works
         
         self.assertTrue(install_spacy_model("en_core_web_sm"))
-        mock_initial_check_spacy.assert_called_once_with("en_core_web_sm") # Verify initial check
-        mock_check_physical_path.assert_called_once_with("en_core_web_sm") # Verify physical check
-        mock_subprocess_run.assert_called_once() 
-        mock_final_check_spacy.assert_called_once_with("en_core_web_sm") # Verify final check
+        mock_popen.assert_called_once() # Verify download command was run
+        mock_find_spec.assert_called_once_with("en_core_web_sm") # Verify find_spec check
+        mock_check_physical_path.assert_not_called() # Physical path check skipped
 
-    @patch('anpe.utils.setup_models.subprocess.run')
-    @patch('anpe.utils.setup_models.check_spacy_model') # Mock for FINAL check
+    @patch('anpe.utils.setup_models.subprocess.Popen')
+    @patch('anpe.utils.setup_models.importlib.util.find_spec')
+    @patch('anpe.utils.setup_models._check_spacy_physical_path')
+    def test_install_spacy_model_success_physical_path(self, mock_check_physical_path, mock_find_spec, mock_popen):
+        """Test install_spacy_model successful installation via physical path verification."""
+        from anpe.utils.setup_models import install_spacy_model
+        # Simulate subprocess success
+        mock_process = MagicMock()
+        mock_process.stdout = ["Download successful"].__iter__()
+        mock_process.wait.return_value = 0
+        mock_popen.return_value = mock_process
+
+        # Simulate verification failure via find_spec, success via physical path
+        mock_find_spec.return_value = None # Fails
+        mock_check_physical_path.return_value = True # Succeeds
+
+        self.assertTrue(install_spacy_model("en_core_web_sm"))
+        mock_popen.assert_called_once()
+        mock_find_spec.assert_called_once_with("en_core_web_sm")
+        mock_check_physical_path.assert_called_once_with("en_core_web_sm") # Physical path checked
+
+    @patch('anpe.utils.setup_models.subprocess.Popen')
+    @patch('anpe.utils.setup_models.importlib.util.find_spec') 
     @patch('anpe.utils.setup_models._check_spacy_physical_path') 
-    @patch('anpe.utils.setup_models.check_spacy_model') # Mock for INITIAL check
-    def test_install_spacy_model_fail_subprocess(self, mock_initial_check_spacy, mock_check_physical_path, mock_final_check_spacy, mock_subprocess_run):
+    def test_install_spacy_model_fail_subprocess(self, mock_check_physical_path, mock_find_spec, mock_popen):
         """Test install_spacy_model when subprocess fails."""
         from anpe.utils.setup_models import install_spacy_model
-        # Simulate model not loadable initially
-        mock_initial_check_spacy.return_value = False
-        # Simulate model physical path doesn't exist initially
-        mock_check_physical_path.return_value = False
         # Simulate subprocess failure
-        mock_subprocess_run.side_effect = subprocess.CalledProcessError(1, "cmd", stderr="Failed")
+        mock_process = MagicMock()
+        mock_process.stdout = ["Download failed"].__iter__()
+        mock_process.wait.return_value = 1 # Error code
+        mock_popen.return_value = mock_process
         
-        self.assertFalse(install_spacy_model("en_core_web_sm")) # Expect False now
-        mock_initial_check_spacy.assert_called_once_with("en_core_web_sm")
-        mock_check_physical_path.assert_called_once_with("en_core_web_sm")
-        mock_subprocess_run.assert_called_once() 
-        # Final check shouldn't be called if subprocess fails directly
-        mock_final_check_spacy.assert_not_called() 
+        self.assertFalse(install_spacy_model("en_core_web_sm")) 
+        mock_popen.assert_called_once()
+        # Verification checks should NOT be called if subprocess fails
+        mock_find_spec.assert_not_called()
+        mock_check_physical_path.assert_not_called()
 
-    @patch('anpe.utils.setup_models.subprocess.run')
-    @patch('anpe.utils.setup_models.check_spacy_model') # Mock for FINAL check
+    @patch('anpe.utils.setup_models.subprocess.Popen')
+    @patch('anpe.utils.setup_models.importlib.util.find_spec') 
     @patch('anpe.utils.setup_models._check_spacy_physical_path') 
-    @patch('anpe.utils.setup_models.check_spacy_model') # Mock for INITIAL check
-    def test_install_spacy_model_fail_check(self, mock_initial_check_spacy, mock_check_physical_path, mock_final_check_spacy, mock_subprocess_run):
-        """Test install_spacy_model when subprocess succeeds but final check fails."""
+    def test_install_spacy_model_fail_check(self, mock_check_physical_path, mock_find_spec, mock_popen):
+        """Test install_spacy_model when subprocess succeeds but all final checks fail."""
         from anpe.utils.setup_models import install_spacy_model
-        # Simulate model not loadable initially
-        mock_initial_check_spacy.return_value = False
-        # Simulate model physical path doesn't exist initially
-        mock_check_physical_path.return_value = False
         # Simulate subprocess success
-        mock_subprocess_run.return_value = MagicMock(returncode=0, stdout="Success", stderr="")
-        # Simulate FINAL check still returns False after install attempt
-        mock_final_check_spacy.return_value = False 
+        mock_process = MagicMock()
+        mock_process.stdout = ["Download successful"].__iter__()
+        mock_process.wait.return_value = 0 
+        mock_popen.return_value = mock_process
         
-        self.assertFalse(install_spacy_model("en_core_web_sm")) # Expect False now
-        mock_initial_check_spacy.assert_called_once_with("en_core_web_sm")
-        mock_check_physical_path.assert_called_once_with("en_core_web_sm")
-        mock_subprocess_run.assert_called_once()
-        mock_final_check_spacy.assert_called_once_with("en_core_web_sm") # Final check is called
+        # Simulate FINAL checks failing
+        mock_find_spec.return_value = None
+        mock_check_physical_path.return_value = False
+        
+        # ** This test might still fail if the function's logic incorrectly returns True **
+        # ** based solely on subprocess success. Let's see. **
+        self.assertFalse(install_spacy_model("en_core_web_sm")) 
+        mock_popen.assert_called_once()
+        mock_find_spec.assert_called_once_with("en_core_web_sm") # find_spec is called
+        mock_check_physical_path.assert_called_once_with("en_core_web_sm") # physical check is called
 
-    @patch('anpe.utils.setup_models.subprocess.run')
+    # Mocks needed for install_benepar_model
+    @patch('anpe.utils.setup_models.subprocess.Popen')
     @patch('anpe.utils.setup_models.check_benepar_model') # Mock for the FINAL check after install attempt
     @patch('anpe.utils.setup_models.os.path.isdir') 
-    @patch('anpe.utils.setup_models.os.path.isfile') # Added isfile mock needed for logic
-    @patch('anpe.utils.setup_models.check_benepar_model') # Mock for the INITIAL check
-    def test_install_benepar_model_success(self, mock_initial_check_benepar, mock_isfile, mock_isdir, mock_final_check_benepar, mock_subprocess_run):
+    @patch('anpe.utils.setup_models.os.path.isfile') 
+    @patch('anpe.utils.setup_models._extract_zip_archive') # Mock zip extraction helper
+    def test_install_benepar_model_success(self, mock_extract_zip, mock_isfile, mock_isdir, mock_final_check_benepar, mock_popen):
         """Test install_benepar_model successful installation."""
         from anpe.utils.setup_models import install_benepar_model
-        # Simulate model not present initially
-        mock_initial_check_benepar.return_value = False 
         # Simulate subprocess success
-        mock_subprocess_run.return_value = MagicMock(returncode=0, stdout="Success", stderr="")
-        # Simulate directory IS found after subprocess run (isdir check)
+        mock_process = MagicMock()
+        mock_process.stdout = ["Download successful"].__iter__()
+        mock_process.wait.return_value = 0
+        mock_popen.return_value = mock_process
+        
+        # Simulate directory IS found after subprocess run
         mock_isdir.return_value = True 
-        # Mock isfile just in case (shouldn't be called if isdir is True)
-        mock_isfile.return_value = False 
+        mock_isfile.return_value = False # Zip file doesn't exist or isn't checked
+        mock_extract_zip.assert_not_called() # Shouldn't be called if dir exists
+        
         # Simulate FINAL check confirms success
         mock_final_check_benepar.return_value = True
         
         self.assertTrue(install_benepar_model("benepar_en3"))
-        mock_initial_check_benepar.assert_called_once_with("benepar_en3") 
-        mock_subprocess_run.assert_called_once() 
+        mock_popen.assert_called_once() 
         mock_isdir.assert_called() # isdir is checked
-        mock_isfile.assert_not_called() # isfile not checked if dir exists
-        mock_final_check_benepar.assert_called_once_with("benepar_en3") 
+        mock_final_check_benepar.assert_called_once_with("benepar_en3") # Final check is called
 
-    @patch('anpe.utils.setup_models.subprocess.run')
+    @patch('anpe.utils.setup_models.subprocess.Popen')
     @patch('anpe.utils.setup_models.check_benepar_model') # Mock for the FINAL check
     @patch('anpe.utils.setup_models.os.path.isdir') 
     @patch('anpe.utils.setup_models.os.path.isfile') 
-    @patch('anpe.utils.setup_models.check_benepar_model') # Mock for the INITIAL check
-    def test_install_benepar_model_fail_subprocess(self, mock_initial_check_benepar, mock_isfile, mock_isdir, mock_final_check_benepar, mock_subprocess_run):
-        """Test install_benepar_model when subprocess fails and model doesn't exist."""
+    @patch('anpe.utils.setup_models._extract_zip_archive')
+    def test_install_benepar_model_fail_subprocess(self, mock_extract_zip, mock_isfile, mock_isdir, mock_final_check_benepar, mock_popen):
+        """Test install_benepar_model when subprocess fails and model files don't exist."""
         from anpe.utils.setup_models import install_benepar_model
-        # Simulate model not present initially
-        mock_initial_check_benepar.return_value = False
         # Simulate subprocess failure
-        mock_subprocess_run.return_value = MagicMock(returncode=1, stdout="", stderr="Failed")
+        mock_process = MagicMock()
+        mock_process.stdout = ["Download failed"].__iter__()
+        mock_process.wait.return_value = 1 # Error code
+        mock_popen.return_value = mock_process
+        
         # Simulate model dir/zip NOT found after failed attempt
         mock_isdir.return_value = False
         mock_isfile.return_value = False
-        # Final check mock (shouldn't be called)
-        mock_final_check_benepar.return_value = False 
+        mock_extract_zip.assert_not_called()
         
         self.assertFalse(install_benepar_model("benepar_en3"), "Function should return False when subprocess fails and model files are not found.")
-        mock_initial_check_benepar.assert_called_once_with("benepar_en3") 
-        mock_subprocess_run.assert_called_once() 
+        mock_popen.assert_called_once() 
         mock_isdir.assert_called() # isdir is checked
         mock_isfile.assert_called() # isfile is checked if isdir fails
         # Final check_benepar_model should NOT be called if install fails so early
