@@ -1,215 +1,119 @@
 # NP Structure Detection Patterns
 
-This document summarizes the patterns for detecting various noun phrase structures based on spaCy's dependency parsing.
+This document summarizes the patterns used by `ANPEAnalyzer` for detecting various noun phrase (NP) structures based on spaCy's dependency parsing.
 
 > **Disclaimer**: While we strive for accuracy in detecting noun phrase structures, please keep in mind that the results may vary due to **the limitations of spaCy's dependency parsing** and the **complex, sometimes ambiguous nature of English syntax**. This labeling system is a helpful tool, but it **may not be 100% accurate**. If you find any inaccuracies or have suggestions for additional structures to detect, please feel free to raise an issue on GitHub. I'll do my best to address them!
 
 ## Table of Contents
 
-1. [Determiner Structure](#1-determiner-structure)
-2. [Adjectival Modifier Structure](#2-adjectival-modifier-structure)
-3. [Prepositional Modifier Structure](#3-prepositional-modifier-structure)
-4. [Compound Noun Structure](#4-compound-noun-structure)
-5. [Possessive Structure](#5-possessive-structure)
-6. [Quantified Structure](#6-quantified-structure)
-7. [Coordinated Structure](#7-coordinated-structure)
-8. [Appositive Structure](#8-appositive-structure)
-9. [Standard Relative Clause Structure](#9-standard-relative-clause-structure)
-10. [Reduced Relative Clause Structure](#10-reduced-relative-clause-structure)
-11. [Non-restrictive Relative Clause Structure](#11-non-restrictive-relative-clause-structure)
-12. [Finite Complement Structure](#12-finite-complement-structure)
-13. [Nonfinite Complement Structure](#13-nonfinite-complement-structure)
-
-## 1. Determiner Structure
-
-### Definition
-A noun phrase with a determiner (the, a, an, this, that, these, those, etc.) preceding the head noun.
-
-### Reliable Patterns
-- Token with `pos="DET"` and `dep="det"`
-- Determiner is a left child of a noun with `pos="NOUN"` or `pos="PROPN"`
-
-### Logic
-We check each token in the document to see if it is a determiner and if it modifies a noun.
-
----
-
-## 2. Adjectival Modifier Structure
-
-### Definition
-A noun phrase with one or more adjectives modifying the head noun.
-
-### Reliable Patterns
-- Token with `pos="ADJ"` and typically `dep="amod"`
-- Adjective is a left child of a noun with `pos="NOUN"` or `pos="PROPN"`
-
-### Logic
-We identify adjectives that modify nouns by checking their part of speech and dependency relations.
-
----
-
-## 3. Prepositional Modifier Structure
-
-### Definition
-A noun phrase with a prepositional phrase modifying the head noun.
-
-### Reliable Patterns
-- Token with `pos="ADP"` and `dep="prep"` as a child of a noun
-- Preposition has a child with `dep="pobj"` (prepositional object)
-
-### Logic
-We look for prepositions that modify nouns and ensure they have an object to confirm their role as modifiers.
-
----
-
-## 4. Compound Noun Structure
-
-### Definition
-A noun phrase where multiple nouns combine to form a single conceptual unit.
-
-### Reliable Patterns
-- Token with `dep="compound"` and `pos="NOUN"` or `pos="PROPN"` modifying another noun
-- Two adjacent nouns where the first modifies the second
-
-### Logic
-We check for compound dependencies and adjacent nouns to identify compound structures.
-
----
-
-## 5. Possessive Structure
-
-### Definition
-A noun phrase where a possessor is indicated, either by an explicit possessive marker (apostrophe + s) or a possessive pronoun.
-
-### Reliable Patterns
-- Token with `tag="POS"` (possessive marker)
-- Token with `tag="PRP$"` (possessive pronoun: my, your, his, her, etc.)
-- Token with `dep="poss"` (possessive modifier)
-
-### Logic
-We identify possessive structures by checking for possessive markers, pronouns, and unmarked possessives.
-
----
-
-## 6. Quantified Structure
-
-### Definition
-A noun phrase with a quantifier (number, quantity word) modifying the head noun.
-
-### Reliable Patterns
-- Token with `pos="NUM"` or `dep="nummod"` modifying a noun
-- Quantifying determiners: many, few, several, etc.
-
-### Logic
-We look for numeric modifiers and quantifying determiners that modify nouns.
-
----
-
-## 7. Coordinated Structure
-
-### Definition
-A noun phrase containing coordinated elements joined by conjunctions like "and", "or", etc.
-
-### Reliable Patterns
-- Token with `dep="cc"` (coordinating conjunction)
-- Token with `dep="conj"` (conjoined element)
-
-### Logic
-We check for conjunctions and conjoined elements to identify coordinated structures.
-
----
-
-## 8. Appositive Structure
-
-### Definition
-A noun phrase containing an appositive construction, where one noun phrase renames or explains another.
-
-### Reliable Patterns
-- Token with `dep="appos"` (appositive)
-- Two noun phrases separated by a comma
-
-### Logic
-We identify appositives by checking for appositive dependencies and potential appositives following commas.
-
----
-
-## 9. Standard Relative Clause Structure
-
-### Definition
-A noun phrase containing a standard relative clause that modifies the head noun, introduced by a relative pronoun.
-
-### Reliable Patterns
-- Contains a relative pronoun (who, which, that, etc.) with `tag=WDT`, `tag=WP`, `tag=WP$`, or `tag=WRB`
-- The verb in the clause often has `dep="relcl"` (relative clause)
-
-### Logic
-We check for relative pronouns and their associated verbs to identify standard relative clauses.
-
----
-
-## 10. Reduced Relative Clause Structure
-
-### Definition
-A noun phrase containing a reduced relative clause (without a relative pronoun), where the clause modifies the head noun.
-
-### Reliable Patterns
-- No relative pronoun
-- Subject immediately follows the head noun
-- Verb follows the subject
-
-### Logic
-We identify reduced relative clauses by checking for the presence of a subject and verb sequence after the head noun. We also check for `acl` dependencies without relative pronouns.
-
----
-
-## 11. Non-restrictive Relative Clause Structure
-
-### Definition
-A noun phrase containing a non-restrictive relative clause, which adds additional information about the head noun but is not essential for identifying it. The clause is separated from the head noun by a comma.
-
-### Reliable Patterns
-- Contains a relative pronoun (who, which, that, etc.)
-- Has a comma separating the head noun from the relative clause
-
-### Logic
-We check for both a relative pronoun and a comma to identify non-restrictive relative clauses.
-
----
-
-## 12. Finite Complement Structure
-
-### Definition
-A noun phrase with a finite clause complement introduced by a complementizer like "that", "whether", or "if".
-
-### Reliable Patterns
-- Contains a complementizer (that, whether, if) with `dep="mark"` (marker)
-
-### Logic
-We identify finite complements by checking for complementizers and their associated verbs, ensuring the structure is valid.
-
----
-
-## 13. Nonfinite Complement Structure
-
-### Definition
-A noun phrase with a nonfinite clause complement, typically an infinitive (to-clause).
-
-### Reliable Patterns
-- Token "to" with `tag="TO"` introducing an infinitive
-
-### Logic
-We check for the presence of "to" followed by a verb to identify nonfinite complements.
-
----
-
-## Special Case: Handling Ambiguities in Clausal Structures
-
-### Strategies for Resolving Ambiguities
-1. Distinguishing Relative Clauses from Finite Complements
-2. Resolving Conflicts Between Different Clause Types
-
-### Implementation for Conflict Resolution
-We apply validation rules to remove inconsistent or implausible combinations of structures detected in a noun phrase. If no structures are detected, we assign the label `others` to avoid empty returns.
+1.  [Pronoun (`pronoun`)](#pronoun-pronoun)
+2.  [Standalone Noun (`standalone_noun`)](#standalone-noun-standalone_noun)
+3.  [Determiner (`determiner`)](#determiner-determiner)
+4.  [Adjectival Modifier (`adjectival_modifier`)](#adjectival-modifier-adjectival_modifier)
+5.  [Prepositional Modifier (`prepositional_modifier`)](#prepositional-modifier-prepositional_modifier)
+6.  [Compound Noun (`compound`)](#compound-noun-compound)
+7.  [Possessive (`possessive`)](#possessive-possessive)
+8.  [Quantified (`quantified`)](#quantified-quantified)
+9.  [Coordinated (`coordinated`)](#coordinated-coordinated)
+10. [Appositive (`appositive`)](#appositive-appositive)
+11. [Relative Clause (`relative_clause`)](#relative-clause-relative_clause)
+12. [Reduced Relative Clause (`reduced_relative_clause`)](#reduced-relative-clause-reduced_relative_clause)
+13. [Finite Complement (`finite_complement`)](#finite-complement-finite_complement)
+14. [Nonfinite Complement (`nonfinite_complement`)](#nonfinite-complement-nonfinite_complement)
+15. [Validation and Fallback](#validation-and-fallback)
+    - [Structure Validation (`_validate_structures`)](#structure-validation-_validate_structures)
+    - [Helper: Complement-Taking Noun (`_is_complement_taking_noun`)](#helper-complement-taking-noun-_is_complement_taking_noun)
+
+## Basic Structures
+
+### Pronoun (`pronoun`)
+- **Detection Logic**: Checks if the NP consists of exactly one token and that token's Part-of-Speech (POS) tag is `PRON`.
+- **Explanation**: Identifies NPs that are just a single pronoun (e.g., "it", "they", "he").
+
+### Standalone Noun (`standalone_noun`)
+- **Detection Logic**: Checks if the NP consists of exactly one token and that token's POS tag is `NOUN` or `PROPN` (Proper Noun).
+- **Explanation**: Identifies NPs that are just a single common or proper noun without any modifiers (e.g., "cat", "John").
+
+## Modifier Structures
+
+### Determiner (`determiner`)
+- **Detection Logic**: Looks for a token within the NP that has the POS tag `DET` (Determiner) and the dependency relation `det`, modifying a head token tagged as `NOUN` or `PROPN`.
+- **Explanation**: Identifies NPs containing a determiner (e.g., "the book", "a car", "this idea").
+
+### Adjectival Modifier (`adjectival_modifier`)
+- **Detection Logic**: Looks for a token tagged as `ADJ` (Adjective) with the dependency relation `amod` (adjectival modifier), modifying a head token tagged as `NOUN` or `PROPN`.
+- **Explanation**: Identifies NPs where a noun is modified by an adjective (e.g., "red ball", "beautiful scenery").
+
+### Prepositional Modifier (`prepositional_modifier`)
+- **Detection Logic**: Looks for a token tagged as `ADP` (Adposition/Preposition) with the dependency relation `prep`, modifying a head token tagged as `NOUN` or `PROPN`. It also verifies that the preposition has a child token with the dependency `pobj` (object of preposition).
+- **Explanation**: Identifies NPs containing a prepositional phrase that modifies the noun (e.g., "man in the hat", "box of chocolates").
+
+### Compound Noun (`compound`)
+- **Detection Logic**: Looks for a token with the dependency relation `compound`, modifying a head token tagged as `NOUN` or `PROPN`.
+- **Explanation**: Identifies NPs formed by multiple nouns working together as a single unit (e.g., "coffee shop", "computer science").
+
+### Possessive (`possessive`)
+- **Detection Logic**: Detects possessive structures by looking for:
+    1. Tokens with the fine-grained tag `POS` (possessive ending, like 's)
+    2. Tokens with the fine-grained tag `PRP$` (possessive pronoun, like "my", "his")
+    3. Tokens with the dependency relation `poss`.
+    4. Proper nouns (`PROPN`) that have a child with the `poss` dependency (handles unmarked possessives like "James book").
+- **Explanation**: Identifies NPs indicating possession (e.g., "John's car", "her idea", "its tail").
+
+### Quantified (`quantified`)
+- **Detection Logic**: Looks for tokens tagged as `NUM` (Numeral) or having the dependency relation `nummod` (numeric modifier), modifying a head token tagged as `NOUN` or `PROPN`.
+- **Explanation**: Identifies NPs that include a number or quantifier (e.g., "three dogs", "several people").
+
+## Complex Structures
+
+### Coordinated (`coordinated`)
+- **Detection Logic**: Detects coordination by looking for:
+    1. Tokens with the dependency relation `cc` (coordinating conjunction) whose head is a `NOUN`, `PROPN`, or `ADJ`.
+    2. Tokens with the dependency relation `conj` (conjunct) whose head is a `NOUN`, `PROPN`, or `ADJ`.
+- **Explanation**: Identifies NPs containing elements joined by conjunctions like "and", "or" (e.g., "cats and dogs", "the red or blue car").
+
+### Appositive (`appositive`)
+- **Detection Logic**: Looks for a token with the dependency relation `appos` (appositional modifier).
+- **Explanation**: Identifies NPs where one NP element renames or explains another (e.g., "John, my brother", "Paris, the capital of France").
+
+### Relative Clause (`relative_clause`)
+- **Detection Logic**: Detects relative clauses (both standard and non-restrictive) by looking for:
+    1. Tokens tagged as relative pronouns (`WDT`, `WP`, `WP$`, `WRB`).
+    2. Tokens with the dependency relation `relcl` (relative clause modifier).
+    3. Tokens with the dependency `acl` (adjectival clause) that have a child with the `mark` dependency (subordinating conjunction).
+    4. Specifically checks for non-restrictive clauses indicated by `relcl` dependency potentially separated by commas.
+- **Explanation**: Identifies NPs modified by a clause that provides additional information, often starting with "who", "which", "that", etc. (e.g., "the man who lives next door", "the book that I read").
+
+### Reduced Relative Clause (`reduced_relative_clause`)
+- **Detection Logic**: Detects relative clauses where the relative pronoun is omitted. It looks for:
+    1. Tokens with `acl` or `relcl` dependency modifying a `NOUN` or `PROPN`, ensuring no relative pronoun (`WDT`, `WP`, etc.) is present, it's not an infinitive (`TO` tag), and the head noun isn't a complement-taking noun.
+    2. Verb phrases (`VERB` POS) modifying a `NOUN` or `PROPN`, ensuring no relative pronoun, no infinitive, not a complement-taking noun head, and the verb either has a subject (`nsubj`) or is passive (`VBN` tag with `auxpass` child).
+    3. A subject pronoun (`PRON` POS, `nsubj` dep) whose head is a verb, and *that* verb's head is a `NOUN` or `PROPN`, ensuring no relative pronoun is present in the NP.
+- **Explanation**: Identifies NPs modified by a clause where the relative pronoun and potentially the auxiliary verb are omitted (e.g., "the book written by John" instead of "the book that was written by John", "the man talking to the police").
+
+### Finite Complement (`finite_complement`)
+- **Detection Logic**: Detects finite complement clauses attached to nouns. Requires the presence of a complement-taking noun (identified by `_is_complement_taking_noun` helper). Looks for:
+    1. Complementizers ("that", "whether", "if") with the `mark` dependency, attached to a verb which has a subject (`nsubj`), and modifying a preceding complement-taking noun.
+    2. Tokens with `acl` dependency modifying a complement-taking noun, where the `acl` token has a child with the `mark` dependency ("that", "whether", "if").
+- **Explanation**: Identifies NPs containing a clause that completes the meaning of a noun, often expressing a fact, possibility, or belief (e.g., "the idea that he might leave", "the question whether it's true").
+
+### Nonfinite Complement (`nonfinite_complement`)
+- **Detection Logic**: Detects nonfinite complements (infinitives or gerunds) attached to nouns. Looks for:
+    1. An infinitive marker (`TO` tag) followed by a verb (`VERB` POS), where the "to" or the verb is attached to or immediately follows a preceding `NOUN` or `PROPN`.
+    2. A preposition (`ADP` POS, `prep` dep) modifying a `NOUN` or `PROPN`, where the preposition's object (`pobj`) is a gerund (`VERB` POS, `VBG` tag).
+    3. A verb (`VERB` POS) with `acl` or `relcl` dependency modifying a `NOUN` or `PROPN`, where the verb has a child tagged `TO`.
+- **Explanation**: Identifies NPs containing an infinitive ("to" + verb) or gerund (-ing form used as noun) phrase that completes the meaning of the noun (e.g., "a chance to win", "the possibility of leaving", "time to go").
+
+## Validation and Fallback
+
+### Structure Validation (`_validate_structures`)
+- **Conflict Resolution**: Specifically addresses conflicts between `finite_complement` and `relative_clause` when both are detected. It prioritizes `relative_clause` if "that" is clearly used as a relative pronoun (`WDT` tag, `dobj`/`nsubj` dep) and the head noun isn't typically complement-taking. It prioritizes `finite_complement` if the head noun *is* complement-taking and "that" isn't clearly a relative pronoun. Defaults to `relative_clause` in ambiguous cases.
+- **Fallback Label**: If no specific structure is detected for a non-empty NP, it assigns the label `others`.
+- **Explanation**: Cleans up the detected labels by resolving known ambiguities (especially around the word "that") and ensures every NP gets at least one label, using "others" if no specific pattern matches.
+
+### Helper: Complement-Taking Noun (`_is_complement_taking_noun`)
+- **Detection Logic**: Checks if a token is a `NOUN` or `PROPN` and has a child with a dependency relation indicating a clausal complement (`ccomp` or `acl`).
+- **Explanation**: Identifies nouns that commonly introduce complement clauses (like "fact", "idea", "belief", "possibility"). Used as a prerequisite for detecting `finite_complement` structures.
 
 ---
 

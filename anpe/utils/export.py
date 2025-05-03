@@ -74,14 +74,50 @@ class ANPEExporter:
         
         try:
             with open(output_filepath, 'w', encoding='utf-8') as f:
-                f.write(f"ANPE Noun Phrase Extraction Results\n")
-                f.write(f"Timestamp: {data['metadata'].get('timestamp', datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S'))}\n")
-                f.write(f"Includes Nested NPs: {data['metadata'].get('includes_nested', False)}\n")
-                f.write(f"Includes Metadata: {data['metadata'].get('includes_metadata', False)}\n\n")
+                # Write Header
+                f.write("--- ANPE Noun Phrase Extraction Results ---\n")
+                # Write Timestamp (now top-level)
+                f.write(f"Timestamp: {data.get('timestamp', 'N/A')}\n")
+
+                # Write Configuration Used (if available)
+                config = data.get("configuration", {})
+                if config:
+                    f.write("\n--- Configuration Used ---\n")
+                    # Display output flags from configuration first
+                    includes_nested = config.get('nested_requested', False)
+                    includes_metadata = config.get('metadata_requested', False)
+                    f.write(f"Output includes Nested NPs: {includes_nested}\n")
+                    f.write(f"Output includes Metadata: {includes_metadata}\n")
+                    f.write("-----\n") # Separator within config section
+
+                    for key, value in config.items():
+                        # Skip flags already displayed
+                        if key in ['nested_requested', 'metadata_requested']:
+                            continue
+                        
+                        # Format list values nicely
+                        if isinstance(value, list):
+                            value_str = ", ".join(map(str, value)) if value else "None"
+                        else:
+                            value_str = str(value)
+                        # Format key nicely (replace underscores, title case)
+                        key_str = key.replace("_", " ").title()
+                        f.write(f"{key_str}: {value_str}\n")
+                    f.write("--------------------------\n") # End configuration section
+                else:
+                    # Fallback if configuration section is missing
+                    f.write("Output includes Nested NPs: N/A\n") 
+                    f.write("Output includes Metadata: N/A\n")
+                    f.write("Configuration details not available.\n")
+                
+                f.write("\n--- Extraction Results ---\n") # Separator before results
                 
                 # Export each top-level NP and its nested NPs
-                for np_item in data['results']:
-                    self._write_np_to_txt(f, np_item, level=0)
+                if "results" in data and data["results"]:
+                    for np_item in data['results']:
+                        self._write_np_to_txt(f, np_item, level=0)
+                else:
+                    f.write("No noun phrases extracted.\n")
             
             self.logger.info(f"Successfully exported to text file: {output_filepath}")
             return output_filepath
@@ -127,7 +163,9 @@ class ANPEExporter:
                 self._flatten_np_hierarchy(np_item, flattened_list=flattened_nps)
             
             # Determine which columns to include
-            includes_metadata = data['metadata'].get('includes_metadata', False)
+            # includes_metadata = data['metadata'].get('includes_metadata', False)
+            # Read from the new location in configuration
+            includes_metadata = data.get('configuration', {}).get('metadata_requested', False)
             
             with open(output_filepath, 'w', newline='', encoding='utf-8') as f:
                 writer = csv.writer(f)

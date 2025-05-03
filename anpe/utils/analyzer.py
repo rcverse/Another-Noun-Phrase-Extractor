@@ -253,9 +253,12 @@ class ANPEAnalyzer:
     def _detect_adjectival_np(self, doc) -> bool:
         """Detect if the NP contains an adjectival modifier."""
         for token in doc:
-            if token.pos_ == "ADJ" and token.dep_ == "amod" and token.head.pos_ in ["NOUN", "PROPN"]:
-                self.logger.debug(f"Found adjective '{token.text}' modifying noun '{token.head.text}'")
-                return True
+            # Include adjectives (ADJ) and participles (VERB) used adjectivally (amod)
+            if token.dep_ == "amod" and token.head.pos_ in ["NOUN", "PROPN"]:
+                # Check if the modifier is tagged ADJ or VERB
+                if token.pos_ in ["ADJ", "VERB"]:
+                     self.logger.debug(f"Found adjectival modifier ({token.pos_}) '{token.text}' modifying noun '{token.head.text}'")
+                     return True
         return False
         
     def _detect_prepositional_np(self, doc) -> bool:

@@ -23,6 +23,7 @@ Currently, ANPE is only tested on **English** and compatible with Python through
 
 - [Installation](#installation)
 - [Usage](#usage)
+- [Command-line Interface](#Command-line-interface)
 - [GUI Application](#gui-application)
 - [Contributing](#contributing)
 - [Troubleshooting](#troubleshooting)
@@ -83,11 +84,6 @@ anpe setup --spacy-model lg
 ```
 Refer to the [CLI documentation](#setup-command-options) for details.
 
-Alteratively, you can run the script with:
-```bash
-python -m anpe.utils.setup_models
-```
-
 #### **Model Cleanup**
 
 If you need to remove the downloaded models and caches (e.g., to free up space or resolve potential corruption), ANPE provides a cleanup utility.
@@ -95,10 +91,6 @@ If you need to remove the downloaded models and caches (e.g., to free up space o
 You can run
 ```bash
 anpe setup --clean-models
-```
-Alternatively, 
-```bash
-python -m anpe.utils.clean_models
 ```
 
 > **⚠️ Warning:** Running the cleanup script or command will remove *all* downloaded spaCy models known to ANPE and the Benepar models from their standard locations. You will need to run `anpe setup` or let the extractor auto-download them again before using ANPE.
@@ -120,7 +112,7 @@ python -m benepar.download benepar_en3
 # Other option: benepar_en3_large
 ```
 
-## Library API Usage
+## Usage
 
 The primary way to use ANPE is through its Python API.
 
@@ -263,16 +255,19 @@ The `newline_breaks` option determines whether newlines should be treated as sen
 
 ANPE aims for a balance between ease of use and flexibility when loading spaCy and Benepar models:
 
-1.  **Explicit Configuration (Highest Priority):** If you provide the `spacy_model` or `benepar_model` keys in the configuration dictionary when creating `ANPEExtractor` (or via the corresponding CLI flags for the `extract` command), ANPE will use the specified model(s).
-2.  **Automatic Detection:** If a model is *not* explicitly specified in the configuration, ANPE will attempt to find all relevant installed models (e.g., `en_core_web_sm`, `en_core_web_md`, `en_core_web_lg` for spaCy). It will select the model based on the following priority:
-    *   **Default Model Priority:** If the default model (`en_core_web_md` for spaCy or `benepar_en3` for Benepar) is installed, it will be selected.
-    *   **Preference List Fallback:** If the default model is *not* installed, ANPE will use a predefined preference order (e.g., `trf` > `lg` > `sm` for spaCy; `large` for Benepar) and select the highest-priority model from that list that *is* installed.
-3.  **Initialization Failure:** If no relevant model is specified and no suitable model can be auto-detected or loaded (e.g., none are installed, not even the defaults), the extractor initialization will fail.
+ANPE automatically selects the model to use based on this priority:
+1.  **Explicit Configuration (Highest Priority):** The model specified via the `spacy_model` or `benepar_model` option when creating `ANPEExtractor` or using the CLI.
+2.  **Default Model:** If no model is explicitly specified, the default (`en_core_web_md` for spaCy, `benepar_en3` for Benepar) is used if installed.
+3.  **Best Available Fallback:** If the default model isn't installed, ANPE attempts to load the best compatible model found in your environment (e.g., preferring larger or transformer models if available).
+4.  **Initialization Failure:** If no relevant model is specified and no suitable model can be auto-detected or loaded, extractor initialization will fail.
 
 ANPE will log which models are being loaded at the INFO level.
 
 ### Convenient Method
 For quick, one-off extractions, you may use the `anpe.extract()` function directly. This method is simpler and avoids the need to explicitly create an extractor instance. 
+
+> **Note:** While convenient for single calls, creating an `ANPEExtractor` instance (see Basic Usage) is recommended for processing multiple texts as models are loaded only once, improving performance.
+
 Similarly, the `extract()` function accepts the following parameters:
 - `text` (str): The input text to process.
 - `metadata` (bool, optional): Whether to include metadata (length and structure analysis). Defaults to `False`.
@@ -391,6 +386,9 @@ The `export()` method accepts the same parameters as `extract()` plus:
 
 **Convenient Method**
 Similarly, ANPE provides a convenient method to extract NP and export files directly via `anpe.export()`. The usage is the same as `anpe.extract()` method, with the addition of the two aforementioned parameters.
+
+> **Note:** Similar to `anpe.extract()`, if exporting results for multiple texts, using `extractor.export()` with a pre-created `ANPEExtractor` instance is more efficient.
+
 ```python
 import anpe
 # Export noun phrases to a text file in the specified directory
@@ -626,7 +624,7 @@ ANPE's structural labeling system analyzes noun phrases to identify their syntac
 2. **Pattern Matching**: Applying rules to detect specific syntactic constructions
 3. **Feature Extraction**: Identifying determiners, modifiers, and other grammatical features
 
-The system categorizes patterns into fundamental types, organized from simple to complex. For a comprehensive explanation of all structure patterns and their detection logic, please refer to the [structure_patterns.md](structure_patterns.md) file included in the repository.
+The system categorizes patterns into fundamental types, organized from simple to complex. For a comprehensive explanation of all structure patterns and their detection logic, please refer to the [structure_patterns.md](docs/structure_patterns.md) file included in the repository.
 
 | Type | Description | Example |
 |------|-------------|---------|
@@ -641,7 +639,7 @@ The system categorizes patterns into fundamental types, organized from simple to
 | **Relative Clause** | Clause that modifies a noun | "a past that takes in fascism" |
 | **others** | Other NP structures that are not identifed | N/A |  
 
-For a comprehensive explanation of all structure patterns and their detection logic, please refer to the [structure_patterns.md](/docs/structure_patterns.md) file included in the repository. This system enables precise identification of noun phrase structures while maintaining high processing efficiency.
+For a comprehensive explanation of all structure patterns and their detection logic, please refer to the [structure_patterns.md](docs/structure_patterns.md) file included in the repository. This system enables precise identification of noun phrase structures while maintaining high processing efficiency.
 
 ## GUI Application
 >*❗[Under development]*
@@ -731,12 +729,32 @@ def test_my_utility_function(self):
 ```
 
 ## **Troubleshooting**
-If you encounter issues with model setup:
-1. Ensure you have an active internet connection.
-2. Run `anpe setup` with `--log-level DEBUG` and check the logs for errors.
-3. If you suspect model corruption or want a clean slate, run `anpe setup --clean-models` (see [Model Cleanup](#model-cleanup) section) and then try the setup again.
-4. If the issue persists, check the logs generated by the cleanup script (`python -m anpe.utils.clean_models -v`) for specific file removal errors.
-5. For specific model installation issues, refer to the documentation for [spaCy](https://spacy.io/), [Benepar](https://github.com/nikitakit/self-attentive-parser), and [NLTK](https://www.nltk.org/).
+If you encounter issues with model setup or cleanup:
+
+1.  **Check the Basics**: Ensure you have an active internet connection (for downloading models) and sufficient disk space (models can be large).
+2.  **Run with Detailed Logging**: Execute the setup command with debug logging enabled and directed to a file for easier review:
+    ```bash
+    anpe setup --log-level DEBUG --log-dir ./logs
+    ```
+    Carefully examine the console output and the generated log file in the `logs` directory for specific error messages.
+3.  **Check File Permissions**: ANPE needs write access to install models. Ensure your user has permission to write to:
+    *   Your Python environment's `site-packages` directory (for spaCy models).
+    *   The `~/nltk_data` directory (for Benepar models, created automatically in your home directory if possible).
+    Permission issues can prevent downloading or cleanup.
+4.  **Perform a Full Cleanup**: If you suspect model corruption or inconsistent state, run the cleanup command. Use `--force` (or `-f`) to skip confirmation if needed:
+    ```bash
+    anpe setup --clean-models [--force]
+    ```
+    Check the console output of *this* command for any errors related to file removal (e.g., permission denied). After a successful cleanup, try running `anpe setup` again.
+5.  **Transformer Model Issues**: If using a spaCy transformer model (e.g., alias `trf`), the setup attempts to install `spacy-transformers`. Ensure this dependency installed correctly. Transformer models also rely on underlying ML frameworks (like PyTorch). Installation issues might relate to those frameworks rather than ANPE itself.
+6.  **Manual Verification**: If automatic setup fails, you can manually check if the models exist in their expected locations:
+    *   **spaCy**: Look for model directories (e.g., `en_core_web_md`) within your Python environment's `site-packages` directory.
+    *   **Benepar**: Check for model directories (e.g., `benepar_en3`) inside `~/nltk_data/models/`.
+7.  **Refer to External Documentation**: For issues potentially related to the underlying libraries, consult their documentation:
+    *   [spaCy Documentation](https://spacy.io/)
+    *   [Benepar Issues](https://github.com/nikitakit/self-attentive-parser/issues)
+    *   [NLTK Data Issues](https://www.nltk.org/data.html)
+8.  **Report an Issue**: If the problem persists after trying these steps, please [open an issue](https://github.com/rcverse/another-noun-phrase-extractor/issues) on the GitHub repository, including the relevant logs from step 2 or 4.
 
 ## Citation
 
@@ -748,10 +766,10 @@ If you use ANPE in your research or projects, please cite it as follows:
   author = {Chen, Nuo},
   title = {{ANPE: Another Noun Phrase Extractor}},
   url = {https://github.com/rcverse/another-noun-phrase-extractor},
-  version = {0.4.0},
+  version = {0.5.0},
   year = {2025}
 }
 ```
 
 ### Plain Text (APA style)
-Chen, N. (2025). *ANPE: Another Noun Phrase Extractor* (Version 0.4.0) [Computer software]. Retrieved from https://github.com/rcverse/another-noun-phrase-extractor
+Chen, N. (2025). *ANPE: Another Noun Phrase Extractor* (Version 0.5.0) [Computer software]. Retrieved from https://github.com/rcverse/another-noun-phrase-extractor

@@ -264,14 +264,21 @@ def process_directory(input_dir: str, output: Optional[str], format: str,
 
 def print_result_to_stdout(data: Dict) -> None:
     """Print extraction results to stdout."""
-    print("ANPE Noun Phrase Extraction Results")
-    print(f"Timestamp: {data['metadata'].get('timestamp')}")
-    print(f"Includes Nested NPs: {data['metadata'].get('includes_nested')}")
-    print(f"Includes Metadata: {data['metadata'].get('includes_metadata')}")
+    print("--- ANPE Noun Phrase Extraction Results ---")
+    # Read timestamp from top level
+    print(f"Timestamp: {data.get('timestamp', 'N/A')}")
+    # Read output flags from configuration
+    config = data.get('configuration', {})
+    print(f"Output includes Nested NPs: {config.get('nested_requested', False)}")
+    print(f"Output includes Metadata: {config.get('metadata_requested', False)}")
+    print("-------------------------------------------") # Separator
     print()
     
-    for np_item in data["results"]:
-        print_np_to_stdout(np_item, 0)
+    if "results" in data and data["results"]:
+        for np_item in data["results"]:
+            print_np_to_stdout(np_item, 0)
+    else:
+        print("No noun phrases extracted.")
 
 def print_np_to_stdout(np_item: Dict, level: int = 0) -> None:
     """Print a noun phrase to stdout."""

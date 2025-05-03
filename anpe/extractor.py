@@ -136,6 +136,8 @@ class ANPEExtractor:
                     self.logger.warning(f"Could not auto-detect any installed Benepar models. Falling back to default: {benepar_model_to_use}")
             # Store the decided model back in config
             self.config["benepar_model"] = benepar_model_to_use
+            # Store the actual model name determined for loading
+            self._loaded_benepar_model_name = benepar_model_to_use
             
             # --- Check spacy-transformers dependency if needed ---
             spacy_model_name_to_load = self.config['spacy_model']
@@ -315,13 +317,33 @@ class ANPEExtractor:
 
             self.logger.info(f"Extracted {len(noun_phrases)} top-level noun phrases")
 
-        # Prepare the result
+        # Prepare the result dictionary
+        # Assemble configuration used for this extraction
+        config_used = {
+            "min_length": self.config.get("min_length"),
+            "max_length": self.config.get("max_length"),
+            "accept_pronouns": self.config.get("accept_pronouns"),
+            "structure_filters": self.config.get("structure_filters", []),
+            "newline_breaks": self.config.get("newline_breaks"),
+            # Capture the actual models loaded by the extractor
+            "spacy_model_used": self.nlp.meta.get("name", "unknown"),
+            # Get the actual Benepar model name stored during init
+            "benepar_model_used": getattr(self, '_loaded_benepar_model_name', 'unknown'), 
+            # Include parameters passed to the extract call
+            "metadata_requested": metadata,
+            "nested_requested": include_nested
+        }
+        
+        # Filter out None values from config for cleaner output
+        config_used = {k: v for k, v in config_used.items() if v is not None}
+
+        # Prepare the final result structure
         result = {
-            "metadata": {
-                "timestamp": datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-                "includes_nested": include_nested,
-                "includes_metadata": metadata
-            },
+            "timestamp": datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+            # Add the configuration section
+            "configuration": config_used,
+            # The flags about what the output contains are now in configuration
+            # (metadata_requested, nested_requested)
             "results": noun_phrases
         }
 

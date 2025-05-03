@@ -42,12 +42,19 @@ class TestExporter(unittest.TestCase):
         self.temp_dir = tempfile.TemporaryDirectory()
         self.export_dir = Path(self.temp_dir.name)
         
-        # Sample extraction result using our test text
+        # Sample extraction result using the NEW structure
         self.sample_result = {
-            "metadata": {
-                "timestamp": "2023-04-01T12:00:00",
-                "includes_nested": True,
-                "includes_metadata": True
+            "timestamp": "2023-04-01T12:00:00", # Moved to top level
+            "configuration": {
+                "min_length": None, # Example config fields
+                "max_length": None,
+                "accept_pronouns": True,
+                "structure_filters": [],
+                "newline_breaks": True,
+                "spacy_model_used": "en_core_web_md", # Example
+                "benepar_model_used": "benepar_en3", # Example
+                "metadata_requested": True, # Flag for output content
+                "nested_requested": True    # Flag for output content
             },
             "results": [
                 {
@@ -136,11 +143,25 @@ class TestExporter(unittest.TestCase):
         self.assertTrue(output_filepath.exists())
         self.assertTrue(output_filepath.is_file())
 
-        # Verify content (check for specific lines)
+        # Verify content (check for specific lines based on NEW header format)
         with open(output_filepath, 'r', encoding='utf-8') as f:
             content = f.read()
         
-        self.assertIn("ANPE Noun Phrase Extraction Results", content)
+        # Check header lines
+        self.assertIn("--- ANPE Noun Phrase Extraction Results ---", content)
+        self.assertIn("Timestamp: 2023-04-01T12:00:00", content)
+        
+        # Check configuration section
+        self.assertIn("--- Configuration Used ---", content)
+        self.assertIn("Output includes Nested NPs: True", content)
+        self.assertIn("Output includes Metadata: True", content)
+        self.assertIn("Spacy Model Used: en_core_web_md", content)
+        self.assertIn("Accept Pronouns: True", content)
+        self.assertIn("Structure Filters: None", content) # Assuming empty list formats as None
+        self.assertIn("--------------------------", content)
+        
+        # Check results separator and content
+        self.assertIn("--- Extraction Results ---", content)
         self.assertIn("• [1] The team of scientists", content)
         self.assertIn("  Length: 4", content)
         self.assertIn("  Structures: [determiner, prepositional_modifier]", content)

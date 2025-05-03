@@ -348,7 +348,9 @@ class TestANPEExtractor(unittest.TestCase):
         try:
             with open(exported_file_path.resolve(), 'r', encoding='utf-8') as f:
                 result = json.load(f)
-            self.assertIn("metadata", result)
+            # Check for the new top-level keys
+            self.assertIn("timestamp", result)
+            self.assertIn("configuration", result)
             self.assertIn("results", result)
             self.assertTrue(len(result["results"]) > 0)
         except json.JSONDecodeError:

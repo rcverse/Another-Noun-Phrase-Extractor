@@ -2,6 +2,22 @@
 
 All notable changes to the ANPE project will be documented in this file.
 
+## [0.5.0] - 2025-05-03
+### Added
+- Detailed configuration settings used for extraction are now included in the results dictionary (`configuration` key).
+- TXT export format now includes the full configuration used in the header.
+
+### Changed
+- **Breaking:** Modified the structure of the dictionary returned by `extract()`:
+    - Removed the top-level `metadata` key (which contained timestamp and output flags).
+    - Added a top-level `timestamp` key.
+    - Added a top-level `configuration` key containing settings and output flags (`metadata_requested`, `nested_requested`).
+- Updated the header format for standard output (when running CLI without `-o`) to reflect the new structure.
+- Updated internal logic and tests (`export.py`, `cli.py`, `test_utils.py`) to be compatible with the new result structure.
+
+### Fixed
+- The `benepar_model_used` field in the output configuration now correctly reports the Benepar model actually loaded (especially relevant for auto-detection/fallback scenarios), instead of just the requested model.
+
 ## [0.4.0] - 2025-04-23
 ### Changed
 - Refactored core parsing logic to integrate Benepar directly into the spaCy pipeline, removing the need for separate NLTK resource downloads.
