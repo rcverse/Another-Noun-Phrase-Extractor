@@ -1,18 +1,22 @@
-from anpe.utils.anpe_logger import get_logger  # Updated import path
+#!/usr/bin/env python3
+"""Utilities for finding installed ANPE models and selecting the best one to use."""
+
+# --- Standard Logging Setup ---
+import logging
+logger = logging.getLogger(__name__) # Use standard pattern
+# --- End Standard Logging ---
+
 import subprocess
 import sys
 import nltk
 import os
 import spacy
 import benepar
-import logging
 import shutil
 import zipfile
 import importlib.metadata
 from typing import Callable, Optional  # Add import for callback types
 import site
-
-logger = get_logger('setup_models')
 
 # --- Model Name Mappings ---
 # Map user-friendly aliases to actual spaCy model names
@@ -122,8 +126,9 @@ def check_all_models_present(
 ) -> bool:
     """Check if all required models (specified spaCy/Benepar) are present."""
     # Map aliases to actual names for checking
-    spacy_model_name = SPACY_MODEL_MAP.get(spacy_model_alias.lower(), SPACY_MODEL_MAP[DEFAULT_SPACY_ALIAS])
-    benepar_model_name = BENEPAR_MODEL_MAP.get(benepar_model_alias.lower(), BENEPAR_MODEL_MAP[DEFAULT_BENEPAR_ALIAS])
+    # Handle None case for aliases before calling .lower()
+    spacy_model_name = SPACY_MODEL_MAP.get(spacy_model_alias.lower() if spacy_model_alias else None, SPACY_MODEL_MAP[DEFAULT_SPACY_ALIAS])
+    benepar_model_name = BENEPAR_MODEL_MAP.get(benepar_model_alias.lower() if benepar_model_alias else None, BENEPAR_MODEL_MAP[DEFAULT_BENEPAR_ALIAS])
 
     msg = f"Checking for presence of specified models (spaCy: {spacy_model_name}, Benepar: {benepar_model_name})..."
     logger.info(msg)
@@ -155,7 +160,6 @@ def check_all_models_present(
 
 def _check_spacy_physical_path(model_name: str) -> bool:
     """Check if a directory named model_name exists in site-packages."""
-    logger = logging.getLogger('setup_models') # Use setup_models logger
     site_packages_dirs = site.getsitepackages()
     # Also include user site directory
     user_site = site.getusersitepackages()
@@ -578,7 +582,8 @@ def install_benepar_model(model_name: str = "benepar_en3", log_callback: Optiona
                 if log_callback:
                     log_callback(msg)
                 subprocess_ok = False
-                # Even if subprocess failed, continue to check files; maybe it worked partially or existed before.
+                # If subprocess failed, return False immediately
+                return False 
         except subprocess.TimeoutExpired:
             msg = f"Benepar download subprocess timed out for '{model_name}'."
             logger.error(msg)
@@ -587,6 +592,7 @@ def install_benepar_model(model_name: str = "benepar_en3", log_callback: Optiona
             process.kill()
             return False
 
+        # This part is now only reached if subprocess_ok was potentially True
         # Check if the model directory or extracted zip exists now
         if os.path.isdir(model_dir_path):
             msg = f"Benepar model directory found at: {model_dir_path}"
@@ -691,93 +697,102 @@ def setup_models(
     logger.info(msg)
     if log_callback:
         log_callback(msg)
-        
+
     final_status = True  # Tracks if all models are OK by the end
+    spacy_needed = bool(spacy_model_alias)
+    benepar_needed = bool(benepar_model_alias)
 
-    # --- Map Aliases ---
-    actual_spacy_model = SPACY_MODEL_MAP.get(spacy_model_alias.lower())
-    if not actual_spacy_model:
-        msg = f"Invalid spaCy model alias '{spacy_model_alias}'. Falling back to default '{DEFAULT_SPACY_ALIAS}'."
-        logger.warning(msg)
-        if log_callback:
-            log_callback(msg)
-        actual_spacy_model = SPACY_MODEL_MAP[DEFAULT_SPACY_ALIAS]
-
-    actual_benepar_model = BENEPAR_MODEL_MAP.get(benepar_model_alias.lower())
-    if not actual_benepar_model:
-        msg = f"Invalid Benepar model alias '{benepar_model_alias}'. Falling back to default '{DEFAULT_BENEPAR_ALIAS}'."
-        logger.warning(msg)
-        if log_callback:
-            log_callback(msg)
-        actual_benepar_model = BENEPAR_MODEL_MAP[DEFAULT_BENEPAR_ALIAS]
-
-    # --- 1. spaCy Model ---
-    msg = f"Checking spaCy model ({actual_spacy_model} from alias '{spacy_model_alias}')..."
-    logger.info(msg)
-    if log_callback:
-        log_callback(msg)
-        
-    if not check_spacy_model(model_name=actual_spacy_model):
-        msg = f"spaCy model '{actual_spacy_model}' not found. Attempting download..."
-        logger.info(msg)
-        if log_callback:
-            log_callback(msg)
-            
-        if not install_spacy_model(model_name=actual_spacy_model, log_callback=log_callback):
-            msg = f"Failed to download/install spaCy model '{actual_spacy_model}'."
+    actual_spacy_model = None
+    if spacy_needed:
+        spacy_alias_lower = spacy_model_alias.lower()
+        actual_spacy_model = SPACY_MODEL_MAP.get(spacy_alias_lower)
+        if not actual_spacy_model:
+            msg = f"Error: Invalid spaCy model alias '{spacy_model_alias}'. Available: {list(SPACY_MODEL_MAP.keys())}."
             logger.error(msg)
             if log_callback:
                 log_callback(msg)
-            final_status = False
-        # Verification is now part of install_spacy_model
-        # elif not check_spacy_model(model_name=actual_spacy_model):
-        #     logger.error(f"spaCy model '{actual_spacy_model}' installed but still not loadable.")
-        #     final_status = False
-        else:
-            msg = f"Successfully downloaded and verified spaCy model '{actual_spacy_model}'."
-            logger.info(msg)
-            if log_callback:
-                log_callback(msg)
+            return False # Fail immediately on invalid alias
     else:
-        msg = f"spaCy model '{actual_spacy_model}' is already present."
+        msg = "spaCy model setup skipped (alias not provided)."
         logger.info(msg)
         if log_callback:
             log_callback(msg)
 
-    # --- 2. Benepar Model ---
-    msg = f"Checking Benepar model ({actual_benepar_model} from alias '{benepar_model_alias}')..."
-    logger.info(msg)
-    if log_callback:
-        log_callback(msg)
-        
-    if not check_benepar_model(model_name=actual_benepar_model):
-        msg = f"Benepar model '{actual_benepar_model}' not found. Attempting download..."
-        logger.info(msg)
-        if log_callback:
-            log_callback(msg)
-            
-        if not install_benepar_model(model_name=actual_benepar_model, log_callback=log_callback):
-            msg = f"Failed to download/install Benepar model '{actual_benepar_model}'."
+    actual_benepar_model = None
+    if benepar_needed:
+        benepar_alias_lower = benepar_model_alias.lower()
+        actual_benepar_model = BENEPAR_MODEL_MAP.get(benepar_alias_lower)
+        if not actual_benepar_model:
+            msg = f"Error: Invalid Benepar model alias '{benepar_model_alias}'. Available: {list(BENEPAR_MODEL_MAP.keys())}."
             logger.error(msg)
             if log_callback:
                 log_callback(msg)
-            final_status = False
-        # Verification is now part of install_benepar_model
-        # elif not check_benepar_model(model_name=actual_benepar_model):
-        #     logger.error(f"Benepar model '{actual_benepar_model}' downloaded but not found.")
-        #     final_status = False
-        else:
-            msg = f"Successfully downloaded and verified Benepar model '{actual_benepar_model}'."
-            logger.info(msg)
-            if log_callback:
-                log_callback(msg)
+            return False # Fail immediately on invalid alias
     else:
-        msg = f"Benepar model '{actual_benepar_model}' is already present."
+        msg = "Benepar model setup skipped (alias not provided)."
         logger.info(msg)
         if log_callback:
             log_callback(msg)
 
-    # --- Final Summary ---
+    # --- Check and Install spaCy ---
+    if spacy_needed:
+        msg_check = f"Checking for required spaCy model '{actual_spacy_model}' (alias '{spacy_model_alias}')..."
+        logger.info(msg_check)
+        if log_callback:
+            log_callback(msg_check)
+
+        if check_spacy_model(model_name=actual_spacy_model):
+            msg = f"Required spaCy model '{actual_spacy_model}' already installed."
+            logger.info(msg)
+            if log_callback:
+                log_callback(msg)
+        else:
+            msg = f"Required spaCy model '{actual_spacy_model}' not found. Attempting installation..."
+            logger.info(msg)
+            if log_callback:
+                log_callback(msg)
+            if not install_spacy_model(actual_spacy_model, log_callback=log_callback):
+                msg = f"Failed to install required spaCy model '{actual_spacy_model}'."
+                logger.error(msg)
+                if log_callback:
+                    log_callback(msg)
+                final_status = False
+            else:
+                 msg = f"Successfully installed spaCy model '{actual_spacy_model}'."
+                 logger.info(msg)
+                 if log_callback:
+                     log_callback(msg)
+
+    # --- Check and Install Benepar ---
+    if benepar_needed:
+        msg_check = f"Checking for required Benepar model '{actual_benepar_model}' (alias '{benepar_model_alias}')..."
+        logger.info(msg_check)
+        if log_callback:
+            log_callback(msg_check)
+
+        if check_benepar_model(model_name=actual_benepar_model):
+            msg = f"Required Benepar model '{actual_benepar_model}' already installed."
+            logger.info(msg)
+            if log_callback:
+                log_callback(msg)
+        else:
+            msg = f"Required Benepar model '{actual_benepar_model}' not found. Attempting installation..."
+            logger.info(msg)
+            if log_callback:
+                log_callback(msg)
+            if not install_benepar_model(actual_benepar_model, log_callback=log_callback):
+                msg = f"Failed to install required Benepar model '{actual_benepar_model}'."
+                logger.error(msg)
+                if log_callback:
+                    log_callback(msg)
+                final_status = False
+            else:
+                msg = f"Successfully installed Benepar model '{actual_benepar_model}'."
+                logger.info(msg)
+                if log_callback:
+                    log_callback(msg)
+
+    # --- Final Status ---
     if final_status:
         msg = "Model setup process completed successfully."
         logger.info(msg)
@@ -802,34 +817,24 @@ def main(log_callback: Optional[Callable[[str], None]] = None) -> int:
         int: Exit code (0 for success, 1 for failure)
     """
     # This main is primarily for direct CLI invocation: `python -m anpe.utils.setup_models`
-    # It ensures required models are present, installing if needed.
-    # It will use the *default* models ('md', 'default')
-    msg = "--- Running ANPE Model Setup Utility (using default models) ---"
-    print(msg)
-    if log_callback:
-        log_callback(msg)
+    # Configure logging if run directly (Application should configure otherwise)
+    logging.basicConfig(level=logging.INFO, 
+                        format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+    logger.info("--- Running ANPE Model Setup Utility (using default models) --- ")
     
     # First check if the default models are already present
     if check_all_models_present(log_callback=log_callback): # Uses default arguments
-        msg = "--- All required default models are already present. No installation needed. ---"
-        print(msg)
-        if log_callback:
-            log_callback(msg)
+        logger.info("--- All required default models are already present. No installation needed. --- ")
         return 0
     
     # If not all default models are present, run the setup process with defaults
     if setup_models(log_callback=log_callback): # Uses default arguments + callback
-        msg = "--- Setup Complete: All required default models are now present. ---"
-        print(msg)
-        if log_callback:
-            log_callback(msg)
+        logger.info("--- Setup Complete: All required default models are now present. --- ")
         return 0
     else:
-        msg = "--- Setup Failed: One or more default models could not be installed or verified. Please check logs above. ---"
-        print(msg)
-        if log_callback:
-            log_callback(msg)
+        logger.error("--- Setup Failed: One or more default models could not be installed or verified. Please check logs above. --- ")
         return 1
 
 if __name__ == "__main__":
-    sys.exit(main())
+    # Removed sys.exit call, let main return the code
+    main() # Calls main which configures basic logging

@@ -5,10 +5,13 @@ from typing import List, Dict, Optional, Any
 from pathlib import Path
 import datetime
 
+# --- Standard Logging Setup ---
+import logging
+logger = logging.getLogger(__name__) # Logger for CLI messages
+# --- End Standard Logging ---
 
 import anpe 
 from anpe import ANPEExtractor
-from anpe.utils.anpe_logger import ANPELogger, get_logger
 from anpe.utils.setup_models import (  # Import specific functions
     setup_models,
     check_all_models_present,
@@ -22,9 +25,6 @@ from anpe.utils.setup_models import (  # Import specific functions
 )
 # Import cleaning utility
 from anpe.utils.clean_models import clean_all, SPACY_MODEL_MAP as CLEAN_SPACY_MAP, BENEPAR_MODEL_MAP as CLEAN_BENEPAR_MAP
-
-# Initialize logger at module level
-logger = get_logger("cli")
 
 def parse_args(args: Optional[List[str]] = None) -> argparse.Namespace:
     """Parse command-line arguments."""
@@ -157,14 +157,9 @@ def read_input_text(args: argparse.Namespace) -> str:
 def create_extractor(args: argparse.Namespace) -> ANPEExtractor:
     """Create an ANPEExtractor with the specified configuration."""
     config = {
-        "log_level": args.log_level,
         "accept_pronouns": not args.no_pronouns,
         "newline_breaks": not args.no_newline_breaks
     }
-    
-    # Add log directory to config if specified
-    if args.log_dir:
-        config["log_dir"] = args.log_dir
     
     # Add model overrides if specified via CLI for extract command
     if hasattr(args, 'spacy_model') and args.spacy_model:
@@ -187,79 +182,112 @@ def create_extractor(args: argparse.Namespace) -> ANPEExtractor:
     if args.structures:
         config["structure_filters"] = [s.strip() for s in args.structures.split(',')]
     
-    logger.debug(f"Creating extractor with config: {config}")
-    return ANPEExtractor(config)
+    logger.debug(f"Creating extractor with config (excluding logging): {config}")
+    # Pass filtered config (extractor's __init__ now ignores logger keys anyway)
+    return ANPEExtractor(config=config)
 
 def process_text(text: str, output: Optional[str], format: str, 
                 metadata: bool, nested: bool, extractor: ANPEExtractor) -> None:
-    """Process text and either print to stdout or export using the extractor."""
+    """Process text: Extract and either print to stdout or export using the extractor's export method."""
     try:
         if output:
-            # Let the extractor handle export logic (including path handling)
-            logger.info(f"Exporting results to: {output} in {format} format")
-            extractor.export(
-                text,
+            # Let the extractor handle both extraction and export logic
+            logger.info(f"Extracting and exporting results to: {output} in {format} format")
+            # The extractor.export method handles path logic and calls extract internally
+            exported_path = extractor.export(
+                text=text, # Pass the raw text
                 format=format,
                 output=output,
                 metadata=metadata,
                 include_nested=nested
             )
+            logger.info(f"Export complete: {exported_path}")
         else:
             # Extract and print to stdout
             logger.info("Extracting results and printing to stdout")
-            result = extractor.extract(
+            result_data = extractor.extract(
                 text, 
                 metadata=metadata,
                 include_nested=nested
             )
-            print_result_to_stdout(result)
+            print_result_to_stdout(result_data)
             
     except Exception as e:
-        logger.error(f"Error processing text: {str(e)}")
-        raise
+        logger.error(f"Error processing text: {str(e)}", exc_info=True) # Log traceback
+        raise # Re-raise after logging
 
 def process_file(input_file: str, output: Optional[str], format: str,
                 metadata: bool, nested: bool, extractor: ANPEExtractor) -> None:
-    """Process a single file."""
+    """Process a single file by reading its content and calling process_text."""
     logger.info(f"Processing file: {input_file}")
     try:
         with open(input_file, 'r', encoding='utf-8') as f:
             text = f.read()
-        # Pass directly to process_text which now handles export or printing
+        # Pass to process_text which handles extraction and output logic
         process_text(text, output, format, metadata, nested, extractor)
+    except FileNotFoundError as e:
+        logger.error(f"Input file not found: {input_file}") 
+        # Don't re-raise if part of batch
     except Exception as e:
-        logger.error(f"Error processing file {input_file}: {str(e)}")
-        # Optionally re-raise or just log and continue if part of batch processing
-        # raise # Uncomment if one file failure should stop the batch
+        logger.error(f"Error processing file {input_file}: {str(e)}", exc_info=True) # Log traceback
+        # Don't re-raise if part of batch
 
 def process_directory(input_dir: str, output: Optional[str], format: str,
                      metadata: bool, nested: bool, extractor: ANPEExtractor) -> None:
     """Process all text files in a directory."""
     logger.info(f"Processing directory: {input_dir}")
     processed_files = 0
+    
+    # Determine if output is a directory upfront for logging/logic
+    output_is_dir = False
+    if output:
+        output_path = Path(output)
+        if output_path.is_dir() or not output_path.suffix:
+            output_is_dir = True
+            output_path.mkdir(parents=True, exist_ok=True) # Ensure dir exists
+            logger.debug(f"Output directory confirmed: {output_path}")
+        elif output_path.parent:
+             # Single output file specified for potentially multiple inputs
+             logger.warning(f"Output '{output}' is a file path, but input is a directory. Output will be overwritten by the last processed file.")
+             output_path.parent.mkdir(parents=True, exist_ok=True) # Ensure parent dir exists
+        else:
+             # Output file in current dir? Ensure parent exists (which is '.')
+             logger.warning(f"Output '{output}' is a file path relative to current dir, but input is a directory. Output will be overwritten by the last processed file.")
+    
     try:
         for root, _, files in os.walk(input_dir):
             for file in files:
                 # Consider other text file extensions if needed
-                if file.lower().endswith('.txt'): 
-                    input_file = os.path.join(root, file)
-                    # Note: If output is a directory, extractor.export will handle unique filenames.
-                    # If output is a file path, it will be overwritten for each input file. 
-                    # This might require further refinement depending on desired batch behavior for file output.
-                    # For now, we proceed assuming the user understands this behavior or provides a directory.
-                    if output and not Path(output).is_dir() and not output.endswith(os.sep):
-                         logger.warning(f"Output '{output}' is a file path. It will be overwritten by each file processed in the directory '{input_dir}'. Provide a directory for unique outputs per input file.")
-                    
-                    process_file(input_file, output, format, metadata, nested, extractor)
-                    processed_files += 1
+                if file.lower().endswith(('.txt')): 
+                    input_filepath = Path(root) / file
+                    logger.info(f"Processing file: {input_filepath}")
+                    try:
+                        with open(input_filepath, 'r', encoding='utf-8') as f:
+                            text = f.read()
+
+                        # Call process_text to handle logic for this file's text
+                        # process_text will call extractor.export or extractor.extract+print
+                        process_text(
+                            text,
+                            output, # Pass the original output arg (extractor.export handles path logic)
+                            format,
+                            metadata,
+                            nested,
+                            extractor
+                        )
+                        processed_files += 1
+                            
+                    except FileNotFoundError:
+                        logger.error(f"Could not find file during directory walk: {input_filepath}")
+                        continue # Skip this file
+                    except Exception as e:
+                        logger.error(f"Error processing file {input_filepath}: {str(e)}", exc_info=True)
+                        continue # Skip this file
         
-        if processed_files == 0:
-            logger.warning(f"No .txt files found in directory: {input_dir}")
-        else:
-            logger.info(f"Finished processing {processed_files} file(s) from directory: {input_dir}")
+        logger.info(f"Finished processing directory. Processed {processed_files} file(s).")
 
     except Exception as e:
-        logger.error(f"Error processing directory {input_dir}: {str(e)}")
+        logger.error(f"Error walking directory {input_dir}: {str(e)}", exc_info=True)
         raise
 
 def print_result_to_stdout(data: Dict) -> None:
@@ -302,136 +330,172 @@ def print_np_to_stdout(np_item: Dict, level: int = 0) -> None:
         print()
 
 def main(args: Optional[List[str]] = None) -> int:
-    """Main entry point for the CLI."""
+    """Main CLI entry point."""
     parsed_args = parse_args(args)
     
-    # Handle version command immediately
-    if parsed_args.command == "version":
-        from anpe import __version__
-        print(f"ANPE version {__version__}")
-        return 0
+    # --- Setup Logging using standard logging --- 
+    log_level_str = parsed_args.log_level if hasattr(parsed_args, 'log_level') else 'INFO'
+    numeric_level = getattr(logging, log_level_str.upper(), logging.INFO)
     
-    # Initialize logging
-    try:
-        # Convert log directory to file path if specified
-        log_file = None
-        if hasattr(parsed_args, 'log_dir') and parsed_args.log_dir:
-            log_dir = Path(parsed_args.log_dir)
+    log_format = '%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+    date_format = '%Y-%m-%d %H:%M:%S'
+    
+    log_handlers = []
+    # Console Handler (always add)
+    console_handler = logging.StreamHandler(sys.stdout)
+    console_handler.setFormatter(logging.Formatter(log_format, datefmt=date_format))
+    # Set console handler level directly - basicConfig level sets root logger level
+    console_handler.setLevel(numeric_level) 
+    log_handlers.append(console_handler)
+    
+    # File Handler (optional)
+    log_filepath = None
+    if hasattr(parsed_args, 'log_dir') and parsed_args.log_dir:
+        try:
+            log_dir = Path(parsed_args.log_dir).resolve()
             log_dir.mkdir(parents=True, exist_ok=True)
             timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
-            log_file = str(log_dir / f"log_anpe_export_{timestamp}.log")
-        
-        # Initialize logger with proper configuration
-        log_level = parsed_args.log_level if hasattr(parsed_args, 'log_level') else "INFO"
-        ANPELogger(
-            log_level=log_level, 
-            log_file=log_file
-        )
-        logger = get_logger("cli")
-    except Exception as e:
-        print(f"Error initializing logger: {e}", file=sys.stderr)
-        return 1
+            log_filepath = log_dir / f"anpe_cli_{timestamp}.log"
+            
+            file_handler = logging.FileHandler(log_filepath, encoding='utf-8')
+            file_handler.setFormatter(logging.Formatter(log_format, datefmt=date_format))
+            file_handler.setLevel(logging.DEBUG) # File handler always captures DEBUG and up
+            log_handlers.append(file_handler)
+            print(f"[CLI Setup] Logging detailed output to: {log_filepath}", file=sys.stderr)
+        except Exception as e:
+            print(f"[CLI Setup] Warning: Could not configure file logging: {e}", file=sys.stderr)
+            # Continue with console logging
     
-    logger.debug(f"ANPE CLI started with command: {parsed_args.command}")
+    # Configure the root logger
+    # Set level to the lowest level needed by any handler (DEBUG if file, else numeric_level)
+    root_level = logging.DEBUG if log_filepath else numeric_level
+    logging.basicConfig(level=root_level, handlers=log_handlers, force=True)
+    # force=True is needed if basicConfig might have been called implicitly before (e.g., by a dependency)
+    
+    # Now get the logger instance for this module *after* configuration
+    logger = logging.getLogger(__name__) # Re-get logger after basicConfig
+    # --- End Logging Setup ---
+    
+    logger.info(f"Executing command: {parsed_args.command}")
+    logger.debug(f"Parsed arguments: {parsed_args}") # Log parsed args at debug level
     
     try:
-        if parsed_args.command == "extract":
-            # Create extractor
-            extractor = create_extractor(parsed_args)
-            
-            # Process based on input type
-            if parsed_args.dir:
-                process_directory(
-                    parsed_args.dir,
-                    parsed_args.output,
-                    parsed_args.type,
-                    parsed_args.metadata,
-                    parsed_args.nested,
-                    extractor
-                )
-            elif parsed_args.file:
-                process_file(
-                    parsed_args.file,
-                    parsed_args.output,
-                    parsed_args.type,
-                    parsed_args.metadata,
-                    parsed_args.nested,
-                    extractor
-                )
-            else:
-                # Read from stdin or direct text
-                input_text = read_input_text(parsed_args)
-                process_text(
-                    input_text, 
-                    parsed_args.output,
-                    parsed_args.type, 
-                    parsed_args.metadata, 
-                    parsed_args.nested, 
-                    extractor
-                )
-            
-            return 0
+        if parsed_args.command == "version":
+            print(f"ANPE Version: {anpe.__version__}")
         
-        elif parsed_args.command == "setup":
-            # Setup logger with CLI specified level/dir
-            log_file = None
-            if hasattr(parsed_args, 'log_dir') and parsed_args.log_dir:
-                log_dir = Path(parsed_args.log_dir)
-                log_dir.mkdir(parents=True, exist_ok=True)
-                timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
-                log_file = str(log_dir / f"log_anpe_setup_{timestamp}.log")
-            
-            # Initialize/Reconfigure logger for setup command
-            ANPELogger(
-                log_level=parsed_args.log_level, 
-                log_file=log_file
-            )
-            logger = get_logger("cli.setup") # Get logger specific to setup
-
-            if parsed_args.clean_models:
-                # Handle model cleaning
-                if parsed_args.spacy_model or parsed_args.benepar_model:
-                    logger.error("Cannot use --clean-models with specific model installation flags (--spacy-model, --benepar-model).")
-                    return 1
-
-                logger.info("Starting model cleanup...")
-                results = clean_all(logger=logger, force=parsed_args.force)
-                if results["overall"]:
-                     logger.info("Model cleanup completed successfully.")
-                     return 0
-                # Add explicit return for failure
-                logger.error("Model cleanup failed.") # Optional: Add log message
-                return 1
-
-            else:
-                # Handle model installation
-                # Use defaults if user didn't specify
-                spacy_alias_to_install = parsed_args.spacy_model if parsed_args.spacy_model is not None else DEFAULT_SPACY_ALIAS
-                benepar_alias_to_install = parsed_args.benepar_model if parsed_args.benepar_model is not None else DEFAULT_BENEPAR_ALIAS
+        elif parsed_args.command == "extract":
+            # Read input FIRST
+            try:
+                input_text = read_input_text(parsed_args)
+            except (FileNotFoundError, ValueError) as e:
+                logger.error(str(e))
+                return 1 # Exit if input reading fails
                 
-                logger.info("Starting model setup...")
+            # Create extractor only AFTER successful input reading
+            try:
+                extractor = create_extractor(parsed_args)
+            except Exception as e:
+                logger.error(f"Error creating extractor: {str(e)}")
+                return 1 # Exit if extractor creation fails
+            
+            # Now process the text
+            process_text(
+                text=input_text, 
+                output=parsed_args.output, 
+                format=parsed_args.type, 
+                metadata=parsed_args.metadata, 
+                nested=parsed_args.nested, 
+                extractor=extractor
+            )
+
+        elif parsed_args.command == "setup":
+            # Define callback using standard logging
+            def cli_log_callback(message: str):
+                level = "DEBUG" if "Downloading" in message or "Extracting" in message else "INFO"
+                setup_logger = logging.getLogger("anpe.setup") # Use specific name
+                if level == "DEBUG":
+                    setup_logger.debug(message)
+                else:
+                    setup_logger.info(message)
+            
+            if parsed_args.clean_models:
+                logger.info("Executing model cleanup...")
+                print("--- Executing Model Cleanup ---", file=sys.stderr)
+                # Confirmation logic moved into clean_all, handle abort based on return?
+                # Or keep simple confirmation here?
+                confirmed = False
+                if parsed_args.force:
+                    confirmed = True
+                    logger.debug("--force flag used, skipping confirmation.")
+                else:
+                    # Check if running interactively
+                    if sys.stdin.isatty():
+                        try:
+                            confirm = input("Remove all detected models? This cannot be undone. [y/N]: ")
+                            if confirm.lower() == 'y':
+                                confirmed = True
+                        except EOFError: 
+                            logger.warning("Non-interactive input detected, confirmation skipped. Use --force to bypass.")
+                    else:
+                         logger.warning("Non-interactive session detected, confirmation skipped. Use --force to bypass.")
+                         
+                if confirmed:
+                    try:
+                        # Pass the logger instance to clean_all
+                        clean_all(logger=logger, force=parsed_args.force)
+                        print("--- Model Cleanup Finished Successfully. ---", file=sys.stderr)
+                        logger.info("Model cleanup finished successfully.")
+                    except Exception as e:
+                        logger.error(f"Cleanup failed: {str(e)}", exc_info=True)
+                        print(f"Error: {str(e)}", file=sys.stderr)
+                        return 1 # Error during cleanup
+                else:
+                    logger.info("Cleanup aborted.") # Changed from ERROR to INFO
+                    print("Cleanup aborted.", file=sys.stderr) # Also print to stderr
+                    return 1 # <<< FIX: Ensure non-zero return on abort
+
+            else: # Normal setup
+                spacy_alias = parsed_args.spacy_model
+                benepar_alias = parsed_args.benepar_model
+                
+                if not spacy_alias and not benepar_alias:
+                    logger.info("No specific models provided, setting up default spaCy (md) and Benepar (default) models.")
+                    spacy_alias = DEFAULT_SPACY_ALIAS
+                    benepar_alias = DEFAULT_BENEPAR_ALIAS
+                elif not spacy_alias:
+                    logger.info(f"Setting up default spaCy ({DEFAULT_SPACY_ALIAS}) and specified Benepar ({benepar_alias}).")
+                    spacy_alias = DEFAULT_SPACY_ALIAS
+                elif not benepar_alias:
+                    logger.info(f"Setting up specified spaCy ({spacy_alias}) and default Benepar ({DEFAULT_BENEPAR_ALIAS}).")
+                    benepar_alias = DEFAULT_BENEPAR_ALIAS
+                else:
+                    logger.info(f"Setting up spaCy='{spacy_alias}', Benepar='{benepar_alias}'")
+                    
                 try:
-                    # Pass logger instance to setup_models
                     setup_models(
-                        spacy_model_alias=spacy_alias_to_install,
-                        benepar_model_alias=benepar_alias_to_install,
-                        logger=logger # Pass the setup-specific logger
+                        spacy_model_alias=spacy_alias, 
+                        benepar_model_alias=benepar_alias, 
+                        log_callback=cli_log_callback
                     )
-                    logger.info("Model setup finished.")
-                    return 0 # Indicate success
+                    print(f"--- Setup for spaCy='{spacy_alias}', Benepar='{benepar_alias}' finished successfully. ---", file=sys.stderr)
                 except Exception as e:
-                    logger.error(f"Model setup failed: {e}")
-                    return 1 # Indicate failure
+                    logger.error(f"Setup failed: {str(e)}")
+                    print(f"Error: {str(e)}", file=sys.stderr)
+                    return 1 # Error during setup
         
         else:
+            # Should not happen if argparse is set up correctly
             logger.error(f"Unknown command: {parsed_args.command}")
-            print(f"Unknown command: {parsed_args.command}. Use --help for usage information.", file=sys.stderr)
             return 1
-    
+            
     except Exception as e:
-        logger.error(f"Error: {str(e)}")
+        logger.error(f"Unhandled error during command execution: {str(e)}", exc_info=True)
         print(f"Error: {str(e)}", file=sys.stderr)
-        return 1
+        return 1 # Failure
+    
+    logger.debug("CLI command finished successfully.")
+    return 0 # Success
 
-if __name__ == "__main__":
+
+if __name__ == '__main__':
     sys.exit(main())

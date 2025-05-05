@@ -1,5 +1,10 @@
 """Export functionality for noun phrases."""
 
+# --- Standard Logging Setup ---
+import logging
+logger = logging.getLogger(__name__)
+# --- End Standard Logging ---
+
 import json
 import csv
 import os
@@ -7,7 +12,7 @@ from pathlib import Path
 from typing import  Dict, Optional
 import datetime
 
-from anpe.utils.anpe_logger import get_logger
+# REMOVED: from anpe.utils.anpe_logger import get_logger
 
 
 class ANPEExporter:
@@ -15,8 +20,8 @@ class ANPEExporter:
     
     def __init__(self):
         """Initialize the exporter."""
-        self.logger = get_logger('exporter')
-        self.logger.debug("Initializing ANPEExporter")
+        # REMOVED: self.logger = get_logger('exporter')
+        logger.debug("Initializing ANPEExporter") # Use module logger
     
     def export(self, 
                data: Dict,
@@ -39,22 +44,22 @@ class ANPEExporter:
         """
         # Resolve the path immediately
         resolved_path = Path(output_filepath).resolve()
-        self.logger.info(f"Exporting noun phrases to {resolved_path} in {format} format")
+        logger.info(f"Exporting noun phrases to {resolved_path} in {format} format") # Use module logger
         
         # Validate format
         valid_formats = ["txt", "csv", "json"]
         if format not in valid_formats:
             error_msg = f"Invalid format: {format}. Must be one of {valid_formats}"
-            self.logger.error(error_msg)
+            logger.error(error_msg) # Use module logger
             raise ValueError(error_msg)
         
         # Check data structure
         if not isinstance(data, dict) or "results" not in data:
             error_msg = "Invalid data structure. Expected dictionary with 'results' key"
-            self.logger.error(error_msg)
+            logger.error(error_msg) # Use module logger
             raise ValueError(error_msg)
         
-        self.logger.debug(f"Exporting {len(data['results'])} top-level noun phrases to {resolved_path}")
+        logger.debug(f"Exporting {len(data['results'])} top-level noun phrases to {resolved_path}") # Use module logger
         
         # Use resolved path for all operations
         try:
@@ -65,96 +70,93 @@ class ANPEExporter:
             elif format == "json":
                 return str(self._export_json(data, resolved_path))
         except Exception as e:
-            self.logger.error(f"Error exporting to {format} at {resolved_path}: {str(e)}")
+            logger.error(f"Error exporting to {format} at {resolved_path}: {str(e)}") # Use module logger
             raise
     
-    def _export_txt(self, data, output_filepath):
-        """Export to text file with hierarchical structure."""
-        self.logger.debug(f"Exporting to text file: {output_filepath}")
-        
+    def _export_txt(self, data: Dict, output_filepath: Path) -> Path:
+        """Exports data to a simple text file, one NP per line."""
         try:
-            with open(output_filepath, 'w', encoding='utf-8') as f:
+            with open(output_filepath, "w", encoding="utf-8") as f:
                 # Write Header
                 f.write("--- ANPE Noun Phrase Extraction Results ---\n")
-                # Write Timestamp (now top-level)
                 f.write(f"Timestamp: {data.get('timestamp', 'N/A')}\n")
-
-                # Write Configuration Used (if available)
-                config = data.get("configuration", {})
-                if config:
-                    f.write("\n--- Configuration Used ---\n")
-                    # Display output flags from configuration first
-                    includes_nested = config.get('nested_requested', False)
-                    includes_metadata = config.get('metadata_requested', False)
-                    f.write(f"Output includes Nested NPs: {includes_nested}\n")
-                    f.write(f"Output includes Metadata: {includes_metadata}\n")
-                    f.write("-----\n") # Separator within config section
-
-                    for key, value in config.items():
-                        # Skip flags already displayed
-                        if key in ['nested_requested', 'metadata_requested']:
-                            continue
-                        
-                        # Format list values nicely
-                        if isinstance(value, list):
-                            value_str = ", ".join(map(str, value)) if value else "None"
-                        else:
-                            value_str = str(value)
-                        # Format key nicely (replace underscores, title case)
-                        key_str = key.replace("_", " ").title()
-                        f.write(f"{key_str}: {value_str}\n")
-                    f.write("--------------------------\n") # End configuration section
-                else:
-                    # Fallback if configuration section is missing
-                    f.write("Output includes Nested NPs: N/A\n") 
-                    f.write("Output includes Metadata: N/A\n")
-                    f.write("Configuration details not available.\n")
+                f.write("\n--- Configuration Used ---\n")
                 
-                f.write("\n--- Extraction Results ---\n") # Separator before results
+                config = data.get('configuration', {})
                 
-                # Export each top-level NP and its nested NPs
-                if "results" in data and data["results"]:
-                    for np_item in data['results']:
-                        self._write_np_to_txt(f, np_item, level=0)
+                # Read flags from the config dict for reporting
+                nested_requested = config.get('nested_requested', False) # Default to False if missing
+                metadata_requested = config.get('metadata_requested', False) # Default to False if missing
+                
+                f.write(f"Output includes Nested NPs: {nested_requested}\n")
+                f.write(f"Output includes Metadata: {metadata_requested}\n")
+                f.write("-----\n")
+                
+                # Write other config details from the data dictionary
+                f.write(f"Accept Pronouns: {config.get('accept_pronouns', True)}\n")
+                structure_filters = config.get('structure_filters', None)
+                structure_filters_str = ", ".join(structure_filters) if structure_filters else "None"
+                f.write(f"Structure Filters: {structure_filters_str}\n")
+                f.write(f"Newline Breaks: {config.get('newline_breaks', True)}\n")
+                f.write(f"Spacy Model Used: {config.get('spacy_model_used', 'unknown')}\n")
+                f.write(f"Benepar Model Used: {config.get('benepar_model_used', 'unknown')}\n")
+                f.write("--------------------------\n")
+
+                f.write("\n--- Extraction Results ---\n")
+                if not data.get('results'):
+                    f.write("(No noun phrases extracted with the given configuration.)\n")
                 else:
-                    f.write("No noun phrases extracted.\n")
+                    for item in data['results']:
+                        self._write_txt_item(f, item, metadata=metadata_requested, include_nested=nested_requested)
             
-            self.logger.info(f"Successfully exported to text file: {output_filepath}")
             return output_filepath
-            
-        except Exception as e:
-            self.logger.error(f"Error exporting to text file: {str(e)}")
+        except IOError as e:
+            logger.error(f"Error writing to text file {output_filepath}: {e}") # Use module logger
             raise
     
-    def _write_np_to_txt(self, file, np_item, level=0):
+    def _write_txt_item(self, file, np_item, metadata=False, include_nested=False):
         """Write a noun phrase and its children to a text file with proper indentation."""
-        # Determine bullet type based on level
-        bullet = "•" if level == 0 else "◦"
-        indent = "  " * level
+        # --- Add check: Ensure np_item is a dictionary ---
+        if not isinstance(np_item, dict):
+            logger.error(f"_write_txt_item expected a dict but received {type(np_item)}: {np_item}") # Use module logger
+            return # Skip this item
+        # --- End check ---
+
+        # Determine bullet type based on level (Safely get level, default to 1 if missing)
+        level = np_item.get("level", 1)
+        bullet = "•" if level == 1 else "◦"
+        indent = "  " * (level - 1) # Indentation starts from 0 for level 1
         
         # Write NP with ID (always included for reference)
-        file.write(f"{indent}{bullet} [{np_item['id']}] {np_item['noun_phrase']}\n")
+        file.write(f"{indent}{bullet} [{np_item.get('id', 'N/A')}] {np_item.get('noun_phrase', '(Error: Missing Text)')}\n")
         
-        # Write metadata if present
-        if "metadata" in np_item:
-            metadata = np_item["metadata"]
-            if "length" in metadata:
-                file.write(f"{indent}  Length: {metadata['length']}\n")
-            if "structures" in metadata:
-                structures_str = ", ".join(metadata['structures']) if isinstance(metadata['structures'], list) else metadata['structures']
-                file.write(f"{indent}  Structures: [{structures_str}]\n")
+        # Write metadata if present and requested
+        # Check if metadata key exists and its value is a dictionary
+        metadata_dict = np_item.get("metadata")
+        if metadata and isinstance(metadata_dict, dict):
+            if "length" in metadata_dict:
+                file.write(f"{indent}  Length: {metadata_dict['length']}\n")
+            if "structures" in metadata_dict:
+                structures = metadata_dict.get('structures', []) # Safely get structures list
+                structures_str = ", ".join(structures) if isinstance(structures, list) else str(structures)
+                file.write(f"{indent}  Structures: {structures_str}\n")
         
         # Write children recursively
-        for child in np_item.get("children", []):
-            self._write_np_to_txt(file, child, level + 1)
-            
+        children_list = np_item.get("children", [])
+        if isinstance(children_list, list): # Ensure children is a list
+            for child in children_list:
+                # Recursive call already has the type check at the beginning
+                self._write_txt_item(file, child, metadata=metadata, include_nested=include_nested)
+        elif children_list: # Log if children exists but is not a list
+             logger.warning(f"Expected 'children' to be a list but found {type(children_list)} for item ID {np_item.get('id')}") # Use module logger
+        
         # Add a blank line after top-level NPs
-        if level == 0:
+        if level == 1:
             file.write("\n")
     
     def _export_csv(self, data, output_filepath):
         """Export to CSV file with flattened hierarchy."""
-        self.logger.debug(f"Exporting to CSV file: {output_filepath}")
+        logger.debug(f"Exporting to CSV file: {output_filepath}") # Use module logger
         
         try:
             # Flatten the hierarchical structure
@@ -196,11 +198,10 @@ class ANPEExporter:
                             np["noun_phrase"]
                         ])
             
-            self.logger.info(f"Successfully exported to CSV file: {output_filepath}")
             return output_filepath
             
         except Exception as e:
-            self.logger.error(f"Error exporting to CSV file: {str(e)}")
+            logger.error(f"Error exporting to CSV file: {str(e)}") # Use module logger
             raise
     
     def _flatten_np_hierarchy(self, np_structure, parent_id=None, flattened_list=None):
@@ -210,36 +211,47 @@ class ANPEExporter:
         if flattened_list is None:
             flattened_list = []
             
-        # Create flat representation of current NP
+        # --- Add check: Ensure np_structure is a dictionary ---
+        if not isinstance(np_structure, dict):
+            logger.error(f"_flatten_np_hierarchy expected a dict but received {type(np_structure)}: {np_structure}") # Use module logger
+            return # Skip this item
+        # --- End check ---
+
+        # Create flat representation of current NP using .get for safety
         flat_np = {
-            "id": np_structure["id"],
-            "level": np_structure["level"],
-            "parent_id": parent_id,
-            "noun_phrase": np_structure["noun_phrase"]
+            "id": np_structure.get("id", "N/A"),
+            "level": np_structure.get("level", -1),
+            "noun_phrase": np_structure.get("noun_phrase", "(Error: Missing Text)"),
+            "parent_id": parent_id
         }
         
-        # Add metadata if present
-        if "metadata" in np_structure:
-            if "length" in np_structure["metadata"]:
-                flat_np["length"] = np_structure["metadata"]["length"]
-            if "structures" in np_structure["metadata"]:
-                flat_np["structures"] = np_structure["metadata"]["structures"]
-            
+        # Add metadata if present and is a dictionary
+        metadata_dict = np_structure.get("metadata")
+        if isinstance(metadata_dict, dict):
+            flat_np["length"] = metadata_dict.get("length", "")
+            flat_np["structures"] = metadata_dict.get("structures", [])
+        else:
+            # Ensure keys exist even if metadata is missing/malformed
+            flat_np["length"] = ""
+            flat_np["structures"] = []
+
         flattened_list.append(flat_np)
         
-        # Process children recursively
-        for child in np_structure.get("children", []):
-            self._flatten_np_hierarchy(
-                child, 
-                parent_id=np_structure["id"], 
-                flattened_list=flattened_list
-            )
+        # Recursively process children if it's a list
+        children_list = np_structure.get("children", [])
+        if isinstance(children_list, list):
+            current_np_id = np_structure.get("id", "N/A") # Get ID for parent_id reference
+            for child in children_list:
+                # Recursive call already has the type check
+                self._flatten_np_hierarchy(child, current_np_id, flattened_list)
+        elif children_list:
+             logger.warning(f"Expected 'children' to be a list but found {type(children_list)} for item ID {np_structure.get('id')}") # Use module logger
             
         return flattened_list
     
     def _export_json(self, data, output_filepath):
         """Export to JSON file with hierarchical structure."""
-        self.logger.debug(f"Exporting to JSON file: {output_filepath}")
+        logger.debug(f"Exporting to JSON file: {output_filepath}")
         
         try:
             # Clean up non-JSON-serializable objects if any
@@ -249,11 +261,10 @@ class ANPEExporter:
             with open(output_filepath, 'w', encoding='utf-8') as f:
                 json.dump(cleaned_data, f, indent=2)
             
-            self.logger.info(f"Successfully exported to JSON file: {output_filepath}")
             return output_filepath
             
         except Exception as e:
-            self.logger.error(f"Error exporting to JSON file: {str(e)}")
+            logger.error(f"Error exporting to JSON file: {str(e)}")
             raise
             
     def _clean_for_json(self, obj):

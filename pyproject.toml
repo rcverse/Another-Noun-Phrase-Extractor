@@ -52,3 +52,23 @@ include = [
     "LICENSE",
     "MANIFEST.in",
 ]
+
+# Add pytest configuration section
+[tool.pytest.ini_options]
+markers = [
+    "e2e: marks tests as end-to-end (potentially slow, requires models)",
+]
+addopts = [
+    "--import-mode=importlib",
+]
+testpaths = [
+    "tests", # Corrected path
+]
+# You might add other options here later, like log levels, etc.
+
+[tool.coverage.run]
+omit = [
+    "*/tests/*",
+    "*/__init__.py",
+    "*/__main__.py",
+]

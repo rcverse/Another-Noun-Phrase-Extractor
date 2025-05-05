@@ -51,3 +51,4 @@ htmlcov/
 Archive/
 /archive_docs
 /debug_scripts
+/anpe_test_outputs*

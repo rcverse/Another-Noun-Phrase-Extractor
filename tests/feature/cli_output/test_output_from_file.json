@@ -1,0 +1,33 @@
+{
+  "timestamp": "2025-05-05 23:38:08",
+  "processing_duration_seconds": 0.031,
+  "configuration": {
+    "accept_pronouns": true,
+    "structure_filters": [],
+    "newline_breaks": true,
+    "spacy_model_used": "core_web_md",
+    "benepar_model_used": "benepar_en3",
+    "metadata_requested": false,
+    "nested_requested": false
+  },
+  "results": [
+    {
+      "noun_phrase": "The quick brown fox",
+      "id": "1",
+      "level": 1,
+      "children": []
+    },
+    {
+      "noun_phrase": "the lazy dog",
+      "id": "2",
+      "level": 1,
+      "children": []
+    },
+    {
+      "noun_phrase": "Another sentence in the file.",
+      "id": "3",
+      "level": 1,
+      "children": []
+    }
+  ]
+}

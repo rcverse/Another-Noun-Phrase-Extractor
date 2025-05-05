@@ -1,0 +1,28 @@
+{
+  "timestamp": "2025-05-05 23:38:00",
+  "processing_duration_seconds": 0.077,
+  "configuration": {
+    "accept_pronouns": true,
+    "structure_filters": [],
+    "newline_breaks": true,
+    "spacy_model_used": "core_web_md",
+    "benepar_model_used": "benepar_en3",
+    "metadata_requested": true,
+    "nested_requested": false
+  },
+  "results": [
+    {
+      "noun_phrase": "The large green book",
+      "id": "1",
+      "level": 1,
+      "metadata": {
+        "length": 4,
+        "structures": [
+          "determiner",
+          "adjectival_modifier"
+        ]
+      },
+      "children": []
+    }
+  ]
+}
