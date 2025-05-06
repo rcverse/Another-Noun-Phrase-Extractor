@@ -188,9 +188,11 @@ def test_feature_cli_extract_txt_output(mock_exit): # Remove tmp_path, keep mock
         assert exit_code == 0, f"CLI main exited with code {exit_code}"
         mock_exit.assert_not_called() # Ensure sys.exit wasn't called unexpectedly
         assert output_file.exists()
-        content = output_file.read_text()
-        # More flexible assertions for TXT format
-        assert "The quick brown fox" in content  # Check for expected NPs
+        # Specify UTF-8 encoding when reading the file
+        content = output_file.read_text(encoding='utf-8')
+
+        # Assert that the expected NPs are present in the output
+        assert "The quick brown fox" in content
         assert "the lazy dog" in content
 
 def test_feature_cli_extract_nested_json_output(): # Removed runner, tmp_path

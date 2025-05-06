@@ -1,6 +1,6 @@
 {
-  "timestamp": "2025-05-05 23:37:38",
-  "processing_duration_seconds": 0.066,
+  "timestamp": "2025-05-06 11:14:00",
+  "processing_duration_seconds": 0.029,
   "configuration": {
     "accept_pronouns": true,
     "structure_filters": [],

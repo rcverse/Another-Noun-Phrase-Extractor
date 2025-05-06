@@ -89,6 +89,9 @@ class ANPEExtractor:
 
         # --- Determine spaCy model to load ---
         try:
+            # Store whether user specified a model *before* potential fallback assignment
+            _user_specified_spacy_initially = self.config.get("spacy_model") is not None
+            
             # Determine spacy model to use
             spacy_model_to_use = self.config.get("spacy_model")
             if spacy_model_to_use:
@@ -165,7 +168,8 @@ class ANPEExtractor:
                 if spacy_model_to_use.endswith('_trf'):
                     logger.error("Ensure the 'spacy-transformers' library is also installed: pip install 'spacy[transformers]'")
                 # Attempt setup *only* if auto-detection failed and we used the default fallback
-                if not self.config.get("spacy_model") and spacy_model_to_use == SPACY_MODEL_MAP['md']:
+                # Use the initial user specification status for the check
+                if not _user_specified_spacy_initially and spacy_model_to_use == SPACY_MODEL_MAP['md']:
                     logger.info("Attempting to install default spaCy model...")
                     if setup_models(spacy_model_alias='md', benepar_model_alias='default'): # Attempt default setup
                          logger.info("Default models installed. Re-initializing extractor...")

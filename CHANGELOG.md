@@ -2,6 +2,17 @@
 
 All notable changes to the ANPE project will be documented in this file.
 
+## [1.0.0] - 2025-05-06
+### Changed
+- **Breaking:** Overhauled the logging system to use Python's standard `logging` module.
+    - Removed the custom `anpe.utils.anpe_logger.ANPELogger`.
+    - `ANPEExtractor` no longer accepts `log_level`, `log_dir`, or `log_file` in its configuration dictionary. Logging configuration is now the responsibility of the application using the library.
+- **Breaking:** Removed logging configuration parameters (`log_level`, `log_dir`) from the `anpe.extract()` and `anpe.export()` convenience functions' `**kwargs`.
+- Refactored internal noun phrase processing logic within `ANPEExtractor` to primarily use spaCy `Span` objects, improving integration and maintainability.
+
+### Added
+- Added standard `logging.NullHandler()` to the package logger (`anpe`) to prevent warnings when the library is used without application-level logging configuration.
+
 ## [0.5.0] - 2025-05-03
 ### Added
 - Detailed configuration settings used for extraction are now included in the results dictionary (`configuration` key).

@@ -2,9 +2,10 @@ import anpe
 from pathlib import Path
 import datetime
 import shutil
+import logging
 
 # --- Configuration ---
-INPUT_TEXT_FILE = Path("complex_test_text.txt")
+INPUT_TEXT_FILE = Path("nptest.txt")
 OUTPUT_DIR = Path("./anpe_test_outputs_v2")
 TIMESTAMP = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
 
@@ -46,6 +47,9 @@ def run_test_config(config_name: str, extractor_config: dict, extract_params: di
 
 # --- Main Execution ---
 if __name__ == "__main__":
+    # Configure basic logging for the test script
+    logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+
     # Ensure input file exists
     if not INPUT_TEXT_FILE.exists():
         print(f"Error: Input file '{INPUT_TEXT_FILE}' not found.")
@@ -64,14 +68,14 @@ if __name__ == "__main__":
     # Config 1: Default behavior + Metadata
     run_test_config(
         config_name="default_meta",
-        extractor_config={"log_level": "INFO"}, # Minimal config
+        extractor_config={}, # Minimal config - removed log_level
         extract_params={"metadata": True, "include_nested": False}
     )
 
     # Config 2: Include Nested + Metadata
     run_test_config(
         config_name="nested_meta",
-        extractor_config={"log_level": "INFO"},
+        extractor_config={}, # Removed log_level
         extract_params={"metadata": True, "include_nested": True}
     )
 
@@ -79,7 +83,7 @@ if __name__ == "__main__":
     run_test_config(
         config_name="filtered",
         extractor_config={
-            "log_level": "INFO",
+            # Removed log_level
             "min_length": 3,
             "max_length": 7,
             "accept_pronouns": False,
@@ -92,7 +96,7 @@ if __name__ == "__main__":
     run_test_config(
         config_name="with_newline_breaks",
         extractor_config={
-            "log_level": "INFO",
+            # Removed log_level
             "newline_breaks": True # Explicitly True (or rely on default)
         },
         extract_params={"metadata": True, "include_nested": False}
@@ -102,7 +106,7 @@ if __name__ == "__main__":
     run_test_config(
         config_name="no_newline_breaks",
         extractor_config={
-            "log_level": "INFO",
+            # Removed log_level
             "newline_breaks": False
         },
         extract_params={"metadata": False, "include_nested": False}
@@ -116,7 +120,7 @@ if __name__ == "__main__":
     run_test_config(
         config_name="spacy_lg_benepar_default",
         extractor_config={
-            "log_level": "INFO",
+            # Removed log_level
             "spacy_model": "lg", 
             "benepar_model": "default"
         },
@@ -127,7 +131,7 @@ if __name__ == "__main__":
     run_test_config(
         config_name="spacy_trf_benepar_default",
         extractor_config={
-            "log_level": "INFO",
+            # Removed log_level
             "spacy_model": "trf",
             "benepar_model": "default"
         },
@@ -138,7 +142,7 @@ if __name__ == "__main__":
     run_test_config(
         config_name="spacy_md_benepar_large",
         extractor_config={
-            "log_level": "INFO",
+            # Removed log_level
             "spacy_model": "md", # Explicitly specify default md
             "benepar_model": "large"
         },
@@ -149,7 +153,7 @@ if __name__ == "__main__":
     run_test_config(
         config_name="spacy_lg_benepar_large",
         extractor_config={
-            "log_level": "INFO",
+            # Removed log_level
             "spacy_model": "lg",
             "benepar_model": "large"
         },

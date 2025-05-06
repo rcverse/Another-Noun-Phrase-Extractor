@@ -9,7 +9,7 @@
 
 ANPE (*Another Noun Phrase Extractor*) is a Python library for **directly extracting complete noun phrases from text**. This library leverages the [Berkeley Neural Parser](https://github.com/nikitakit/self-attentive-parser) (via the `benepar` package) integrated with [spaCy](https://spacy.io/) for precise parsing. The resulting constituency trees are then processed (using [NLTK](https://www.nltk.org/) tree structures) for NP extraction. On top of that, the library provides flexible configuration options to **include nested NP**, **filter specific structural types of NP**, or **taget length requirements**, as well as options to **export to files** in multiple structured formats directly.
 
-Currently, ANPE is only tested on **English** and compatible with Python **3.9** through **3.12**.
+Currently, ANPE only supports **English** and is compatible with Python **3.9** through **3.12**.
 
 ## **Key Features**:
 1. **✅Precision Extraction**: Accurate noun phrase identification using modern parsing techniques
@@ -40,14 +40,20 @@ Currently, ANPE is only tested on **English** and compatible with Python **3.9**
    anpe setup
    ```
 3. **Extract Noun Phrases**:
-```python
-import anpe
+   ```python
+   import anpe
 
-text = "Your texts here"
-result = anpe.extract(text)
+   text = "Your texts here"
+   result = anpe.extract(text)
 
-print(result)
-```
+   print(result)
+   ```
+    Or with CLI:
+    ```bash
+    anpe extract "Your text here"
+    ```
+
+
 
 ### GUI App
 [To be released]
@@ -68,11 +74,11 @@ ANPE relies on several pre-trained models for its functionality. The default set
 1.  **spaCy Model**: `en_core_web_md` (English language model for tokenization and sentence segmentation).
 2.  **Benepar Model**: `benepar_en3` (English constituency parser for syntactic analysis).
 
-ANPE also supports using alternative spaCy models (`en_core_web_sm`, `en_core_web_lg`, `en_core_web_trf`) and a larger Benepar model (`benepar_en3_large`) for different performance/accuracy trade-offs. These can be selected and managed via the GUI application or potentially future updates to the CLI/library API.
+ANPE also supports using alternative spaCy models (`en_core_web_sm`, `en_core_web_lg`, `en_core_web_trf`) and a larger Benepar model (`benepar_en3_large`) for different performance/accuracy trade-offs. These can be designated for extraction via configuration.
 
 #### **Automatic Setup**
 
-ANPE provides a built-in tool to setup the necessary **default** models (`en_core_web_md` and `benepar_en3`). When you run the extractor, the package will automatically check if the default models are installed and install them if they're not. However, it is **recommended** to run the setup utility before you start using the extractor for the first time.
+ANPE provides a built-in tool to setup the necessary models. When you run the extractor, the package will automatically check if the default models are installed and install them if they're not. However, it is **recommended** to run the setup utility before you start using the extractor for the first time.
 To setup the **default** models, simply run the following command in terminal (Please refer to [CLI usage](#command-line-interface) for more options.):
 ```bash
 anpe setup
@@ -153,8 +159,6 @@ extractor = ANPEExtractor({
     "max_length": 5,
     "accept_pronouns": False,
     "structure_filters": ["compound", "appositive"],
-    "log_level": "DEBUG",
-    "log_dir": "dir/to/your/log", # Save logs to a file instead of console
     "newline_breaks": False,
     "spacy_model": "lg",         # Use 'lg' spaCy model for this extraction
     "benepar_model": "default"   # Use default Benepar model for this extraction
@@ -222,8 +226,6 @@ custom_extractor = ANPEExtractor({
     "max_length": 5,                # Only NPs with 5 or fewer words
     "accept_pronouns": False,       # Exclude single-word pronouns
     "structure_filters": ["determiner"],  # Only include NPs with these structures
-    "log_level": "DEBUG",           # Detailed logging
-    "log_dir": "dir/to/your/log",    # Enable log file by providing a dir to save the file
     "newline_breaks": False,         # Don't treat newlines as sentence boundaries
     "spacy_model": "lg",             # Explicitly use the large spaCy model
     "benepar_model": "default"        # Explicitly use the default Benepar model
@@ -282,7 +284,6 @@ result = anpe.extract(
     min_length=2,
     max_length=5,
     accept_pronouns=False,
-    log_level="DEBUG",
     spacy_model="lg" # Use large spaCy model for this call
 )
 print(result)
@@ -399,7 +400,7 @@ anpe.export(
     min_length=2,
     max_length=5,
     accept_pronouns=False,
-    log_level="DEBUG"
+    spacy_model="lg"
 )
 ```
 
@@ -619,29 +620,29 @@ This makes it easy to identify related noun phrases across different output form
 
 ANPE's structural labeling system analyzes noun phrases to identify their syntactic patterns. This is achieved through:
 1. **Constituency Parsing**: Using the Berkeley Neural Parser to identify phrase structures
-2. **Pattern Matching**: Applying rules to detect specific syntactic constructions
-3. **Feature Extraction**: Identifying determiners, modifiers, and other grammatical features
+2. **Pattern Matching**: Applying rules based on spaCy dependency parsing to detect specific syntactic constructions within the identified NPs.
 
-The system categorizes patterns into fundamental types, organized from simple to complex. For a comprehensive explanation of all structure patterns and their detection logic, please refer to the [structure_patterns.md](docs/structure_patterns.md) file included in the repository.
+When using the `structure_filters` configuration option, use the identifier listed in the `Config Key` column below to target specific NP types.
 
-| Type | Description | Example |
-|------|-------------|---------|
-| **Determiner** | Contains determiners (the, a, an, this, that, these, those) | "the summer" |
-| **Adjectival Modifier** | Contains adjective modifiers | "unrealised love" |
-| **Prepositional Modifier** | Prepositional phrase modifiers | "butler at Darlington Hall" |
-| **Compound** | Compound nouns forming a single conceptual unit | "Darlington Hall" |
-| **Possessive** | Possessive constructions with markers or pronouns | "his housekeeper" |
-| **Quantified** | Quantified NPs with numbers or quantity words | "two world wars" |
-| **Coordinated** | Coordinated elements joined by conjunctions | "Stevens and England" |
-| **Appositive** | One NP renames or explains another | "Stevens, a long-serving butler" |
-| **Relative Clause** | Clause that modifies a noun | "a past that takes in fascism" |
-| **Nonfinite Complement** | Nonfinite clause acting as a complement | "a plan *to succeed*" (NP: 'a plan to succeed') |
-| **Standalone Noun** | Single common or proper noun | "Stevens", "butler" |
-| **Pronoun** | Single pronoun (if `accept_pronouns` is True) | "it", "they" |
-| **Named Entity** | Recognized named entity (often overlaps with other types) | "Darlington Hall" |
-| **others** | Other valid NP structures not matching specific patterns | (Various complex or simple NPs) |
+| Type                     | Config Key                | Description                                                                                         | Example                                                         |
+|--------------------------|---------------------------|-----------------------------------------------------------------------------------------------------|-----------------------------------------------------------------|
+| **Pronoun**              | `pronoun`                 | Single pronoun (if `accept_pronouns` is True)                                                         | "it", "they"                                                  |
+| **Standalone Noun**      | `standalone_noun`         | Single common or proper noun                                                                        | "Stevens", "butler"                                           |
+| **Determiner**           | `determiner`              | Contains determiners (the, a, an, this, etc.)                                                       | "the summer"                                                  |
+| **Adjectival Modifier**  | `adjectival_modifier`   | Contains adjective modifiers (or verbs acting as adjectives)                                          | "unrealised love", "intricately carved altars"                  |
+| **Prepositional Modifier**| `prepositional_modifier`| Contains prepositional phrase modifiers                                                             | "butler *at Darlington Hall*"                                 |
+| **Compound**             | `compound`                | Contains compound nouns forming a single conceptual unit                                              | "Darlington Hall"                                               |
+| **Possessive**           | `possessive`              | Contains possessive constructions ('s marker or possessive pronouns)                                 | "his housekeeper", "farmer's plot"                             |
+| **Quantified**           | `quantified`              | Contains numeric quantifiers modifying a noun                                                       | "two world wars"                                                |
+| **Coordinated**          | `coordinated`             | Contains coordinated elements joined by conjunctions (within the NP)                                | "Stevens and England"                                           |
+| **Appositive**           | `appositive`              | Contains one NP renames or explains another                                                         | "Stevens, *a long-serving butler*"                            |
+| **Relative Clause**      | `relative_clause`         | Contains a clause modifying a noun, typically introduced by a relative pronoun (who, which, that) | "a past *that takes in fascism*"                              |
+| **Reduced Relative Clause**| `reduced_relative_clause` | Contains a clause modifying a noun where the relative pronoun is omitted (often using a participle) | "a tapestry *woven with simple joys*"                         |
+| **Finite Complement**    | `finite_complement`       | Contains a finite clause acting as a complement to specific types of nouns (fact, idea, etc.)       | "the idea *that he might leave*"                              |
+| **Nonfinite Complement** | `nonfinite_complement`    | Contains a nonfinite clause (infinitive or gerund phrase) acting as a complement to a noun          | "a plan *to succeed*", "the possibility *of leaving*"          |
+| **others**               | `others`                  | Other valid NP structures not matching specific patterns                                            | (Various complex or simple NPs)                                 |
 
-For a comprehensive explanation of all structure patterns and their detection logic, please refer to the [structure_patterns.md](docs/structure_patterns.md) file included in the repository. This system enables precise identification of noun phrase structures while maintaining high processing efficiency.
+For a comprehensive explanation of all structure patterns and their detection logic, please refer to the [structure_patterns.md](docs/structure_patterns.md).
 
 ## GUI Application
 >*❗[Under development]*
@@ -692,7 +693,6 @@ To run the tests, first install the development dependencies:
 
 ```bash
 pip install -r requirements-dev.txt
-# Or if using pip install .[dev]
 ```
 
 Then, you can run the tests from the project root directory with:
@@ -712,24 +712,15 @@ The test suite is organized to separate different testing levels:
     - `test_feature_cli.py`: Tests the CLI commands (`extract`, `setup`, `clean`) by invoking the CLI entry point, mocking external actions (like actual downloads or file writes where necessary), and asserting expected outcomes or mock calls.
     - `test_feature_extractor.py`: Tests the `ANPEExtractor` API by creating instances and calling `extract` or `export` with various configurations on sample texts, asserting the correctness of the output structure and content.
 
-#### Adding New Tests
-
-When contributing to ANPE, please add tests for your changes:
-- For new or modified functions within a single module, add unit tests to the corresponding file in `tests/unit/`.
-- For changes affecting CLI behavior or interactions between CLI components, add or modify tests in `tests/integration/test_cli.py` or `tests/feature/test_feature_cli.py`.
-- For changes affecting the core extraction logic or API behavior, add or modify tests in `tests/feature/test_feature_extractor.py`.
-
-Use `pytest` fixtures (`conftest.py`) for shared setup and mocking (`unittest.mock`) where appropriate to isolate tests.
-
 ## **Troubleshooting**
 If you encounter issues with model setup, cleanup, or extraction:
 
 1.  **Check the Basics**: Ensure you have an active internet connection (for downloading models) and sufficient disk space (models can be large).
-2.  **Run with Detailed Logging**: Execute the command (e.g., `anpe setup` or `anpe extract`) with debug logging enabled. Use `--log-dir` to save logs to a file for easier review:
+2.  **Run with Detailed Logging**: Execute the command (e.g., `anpe setup` or `anpe extract`) with debug logging enabled using CLI arguments. Use `--log-dir` to save logs to a file for easier review:
     ```bash
-    anpe setup --log-level DEBUG --log-dir ./logs
-    # or
     anpe extract "Some text" --log-level DEBUG --log-dir ./logs
+    # or for setup:
+    anpe setup --log-level DEBUG --log-dir ./logs
     ```
     Carefully examine the console output and the generated log file in the `logs` directory for specific error messages from ANPE, spaCy, or Benepar.
 3.  **Check File Permissions**: ANPE needs write access to install models. Ensure your user has permission to write to:
@@ -766,10 +757,10 @@ If you use ANPE in your research or projects, please cite it as follows:
   author = {Chen, Nuo},
   title = {{ANPE: Another Noun Phrase Extractor}},
   url = {https://github.com/rcverse/another-noun-phrase-extractor},
-  version = {0.5.0},
+  version = {1.0.0},
   year = {2025}
 }
 ```
 
 ### Plain Text (APA style)
-Chen, N. (2025). *ANPE: Another Noun Phrase Extractor* (Version 0.5.0) [Computer software]. Retrieved from https://github.com/rcverse/another-noun-phrase-extractor
+Chen, N. (2025). *ANPE: Another Noun Phrase Extractor* (Version 1.0.0) [Computer software]. Retrieved from https://github.com/rcverse/another-noun-phrase-extractor
