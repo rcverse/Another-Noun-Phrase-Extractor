@@ -28,6 +28,9 @@ jobs:
         # Install PyTorch (CPU only)
         pip install torch --extra-index-url https://download.pytorch.org/whl/cpu
       timeout-minutes: 15
+    - name: Install development dependencies
+      run: |
+        pip install -r requirements-dev.txt
     - name: Install spaCy, NLTK, and benepar
       run: |
         pip install spacy nltk benepar
