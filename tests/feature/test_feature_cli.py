@@ -39,8 +39,14 @@ def manage_output_dir():
         if item.is_file(): # Ensure it's a file before unlinking
              item.unlink()
     yield
-    # Optional: Cleanup after tests run (or add to .gitignore)
-    # shutil.rmtree(OUTPUT_DIR)
+    # Clean up test files after tests complete
+    for item in OUTPUT_DIR.glob('test_output_*'):
+        if item.is_file():
+            item.unlink()
+    # Also clean up test input files
+    for item in OUTPUT_DIR.glob('test_input_*'):
+        if item.is_file():
+            item.unlink()
 
 # Helper to get expected NLTK data directory (mirroring setup_models logic)
 # Avoid importing directly from setup_models to prevent potential side effects

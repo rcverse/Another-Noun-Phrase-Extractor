@@ -52,3 +52,4 @@ Archive/
 /archive_docs
 /debug_scripts
 /anpe_test_outputs*
+/tests/feature/cli_output

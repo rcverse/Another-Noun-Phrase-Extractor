@@ -212,7 +212,7 @@ ANPE provides a flexible configuration system to further customize the extractio
 | `max_length` | Integer | `None` | Maximum token length for NPs. NPs with more tokens will be excluded. |
 | `accept_pronouns` | Boolean | `True` | Whether to include single-word pronouns as valid NPs. When set to `False`, NPs that consist of a single pronoun will be excluded. |
 | `structure_filters` | List[str] | `[]` | List of structure types to include. Only NPs containing at least one of these structures will be included. If empty, all NPs are accepted. |
-| `newline_breaks` | Boolean | `True` | Whether to treat newlines as sentence boundaries. This can be helpful if you are processing text resources with inconsistent line breaking. |
+| `newline_breaks` | Boolean | `True` | Whether to treat newlines as sentence boundaries. Setting to `False` treats text as continuous across line breaks. See [Newline Handling](#newline-handling) for details on ANPE's newline processing behavior. |
 | `spacy_model` | Optional[str] | `None` | Specify the spaCy model alias/name to *use* for extraction. Accepts aliases (`"sm"`, `"md"`, `"lg"`, `"trf"`) or full names (e.g., `"en_core_web_lg"`). If `None`, ANPE attempts to auto-detect the best installed model. |
 | `benepar_model` | Optional[str] | `None` | Specify the Benepar model alias/name to *use* for extraction. Accepts aliases (`"default"`, `"large"`) or full names (e.g., `"benepar_en3_large"`). If `None`, ANPE attempts to auto-detect the best installed model. |
 
@@ -248,8 +248,9 @@ Structure filtering allows you to target specific types of noun phrases in your 
 > Note that structure filtering requires analyzing the structure of each NP, which is done automatically even if `metadata=False` in the extract call. However, the structure information will only be included in the results if `metadata=True`.
 
 **Newline Handling**
-The `newline_breaks` option determines whether newlines should be treated as sentence boundaries. When set to `True` (default), newlines are treated as sentence boundaries. You may want to disable this option if you want to treat the text as a continuous paragraph, ignoring line breaks, which can be useful when processing text with irregular formatting.
+The `newline_breaks` option determines whether newlines should be treated as sentence boundaries. When set to `True` (default), newlines are treated as sentence boundaries. When set to `False`, the text is treated as continuous, ignoring line breaks, which can be useful when processing text with irregular arbitrary line breaks (e.g., PDF extractions).
 
+ANPE includes preprocessing to maximize compatibility with Benepar's tokenization requirements. However, it is *strongly recommended* that beforehand cleaning should be performed before processing.
 
 **Model Selection for Usage**
 

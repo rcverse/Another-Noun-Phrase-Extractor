@@ -5,7 +5,7 @@ import shutil
 import logging
 
 # --- Configuration ---
-INPUT_TEXT_FILE = Path("nptest.txt")
+INPUT_TEXT_FILE = Path("complex_test_text.txt")
 OUTPUT_DIR = Path("./anpe_test_outputs_v2")
 TIMESTAMP = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
 

@@ -10,6 +10,11 @@ All notable changes to the ANPE project will be documented in this file.
 - **Breaking:** Removed logging configuration parameters (`log_level`, `log_dir`) from the `anpe.extract()` and `anpe.export()` convenience functions' `**kwargs`.
 - Refactored internal noun phrase processing logic within `ANPEExtractor` to primarily use spaCy `Span` objects, improving integration and maintainability.
 
+### Fixed
+- Resolved Benepar tokenization assertion errors when processing text with complex newline patterns
+- Improved text preprocessing to better handle newlines while respecting the `newline_breaks` configuration setting
+- Enhanced error reporting when text cannot be processed, providing clearer guidance on text formatting requirements
+
 ### Added
 - Added standard `logging.NullHandler()` to the package logger (`anpe`) to prevent warnings when the library is used without application-level logging configuration.
 

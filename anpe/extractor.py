@@ -45,21 +45,68 @@ class ANPEExtractor:
         Initialize the extractor.
 
         Args:
-            config: Configuration dictionary with options:
-                - accept_pronouns: Whether to include pronouns as valid NPs
-                - min_length: Minimum token length for NPs
-                - max_length: Maximum token length for NPs
-                - newline_breaks: Whether to treat newlines as sentence boundaries
-                - structure_filters: List of structure types to include (empty=all)
+            config: Configuration dictionary (excluding logging options).
         """
-        # --- Use Standard Logger ---
         logger.debug("ANPEExtractor initializing...")
-        # --- End Logger Setup ---
+        # --- Step 1: Initialize Config ---
+        self._initialize_config(config)
 
-        # Initialize default config
+        # --- Step 2: Setup Environment ---
+        self._setup_environment()
+
+        # Keep track of initial user preference for setup/fallback logic
+        _user_specified_spacy_initially = self.config.get("spacy_model") is not None
+        _user_specified_benepar_initially = self.config.get("benepar_model") is not None
+
+        # --- Step 3: Resolve Model Names ---
+        logger.info("Resolving model names...")
+        spacy_model_to_load = self._resolve_spacy_model_name()
+        benepar_model_to_load = self._resolve_benepar_model_name()
+
+        # --- Steps 4-7: Load and Configure NLP Pipeline ---
+        logger.info("Loading and configuring NLP pipeline...")
+        try:
+            # Step 7 (Moved): Check Transformer Dependency (before loading)
+            self._check_transformer_dependency(spacy_model_to_load)
+
+            # Step 4: Load spaCy Pipeline (handles auto-install)
+            self._load_spacy_pipeline(spacy_model_to_load, _user_specified_spacy_initially)
+            # self.nlp is now assigned if successful
+
+            # Step 5: Configure spaCy Pipeline (sentencizer, etc.)
+            self._configure_spacy_pipeline()
+
+            # Step 6: Add Benepar to Pipeline (handles fallback loading)
+            loaded_benepar_name = self._add_benepar_to_pipeline(benepar_model_to_load, _user_specified_benepar_initially)
+            self._loaded_benepar_model_name = loaded_benepar_name # Store the actually loaded name
+
+        except (RuntimeError, OSError, ValueError, ImportError) as e:
+             # Catch specific, critical errors raised by helpers
+             logger.critical(f"Fatal error during pipeline initialization: {str(e)}", exc_info=True)
+             raise # Re-raise critical errors
+        except Exception as e:
+            # Catch any other unexpected errors during pipeline setup
+            logger.critical(f"Unexpected fatal error during ANPEExtractor initialization: {str(e)}", exc_info=True)
+            raise RuntimeError("Unexpected initialization failure") from e
+
+        # --- Initialize Analyzer ---
+        try:
+            self.analyzer = ANPEAnalyzer(self.nlp)
+        except Exception as e:
+             logger.critical(f"Fatal error initializing ANPEAnalyzer: {str(e)}", exc_info=True)
+             raise RuntimeError("Failed to initialize structure analyzer") from e
+
+        logger.info("ANPEExtractor initialized successfully")
+
+    # --------------------------------------------------------------------------
+    # Private Helper Methods for Initialization
+    # --------------------------------------------------------------------------
+
+    def _initialize_config(self, config: Optional[Dict[str, Any]]) -> None:
+        """Initializes the extractor configuration by merging defaults and user input."""
+        logger.debug("Initializing configuration...")
         self.config = DEFAULT_CONFIG.copy()
         if config:
-            # Filter out any potential logger keys passed inadvertently
             logger_keys = ['log_level', 'log_file', 'log_dir']
             provided_config = {k: v for k, v in config.items() if k not in logger_keys}
             self.config.update(provided_config)
@@ -67,240 +114,248 @@ class ANPEExtractor:
         else:
              logger.debug("Using default config, no overrides provided.")
 
-        # Initialize other user configuration
-        logger.info("Initializing Extractor Config...")
+        # Set instance attributes from config
         self.min_length = self.config.get("min_length")
         self.max_length = self.config.get("max_length")
         self.accept_pronouns = self.config.get("accept_pronouns")
         self.structure_filters = self.config.get("structure_filters", [])
         self.newline_breaks = self.config.get("newline_breaks")
+        logger.debug("Extractor attributes set from config.")
 
-        # Add environment variables to suppress advisory warnings
+    def _setup_environment(self) -> None:
+        """Sets environment variables and warning filters."""
+        logger.debug("Setting up environment variables and warning filters...")
         os.environ['TRANSFORMERS_NO_ADVISORY_WARNINGS'] = 'true'
         os.environ['TOKENIZERS_PARALLELISM'] = 'false'
-
-        # Suppress specific PyTorch warnings
         warnings.filterwarnings("ignore", category=UserWarning, module="torch.distributions")
         warnings.filterwarnings("ignore", message="Passing a tuple of `past_key_values`")
         warnings.filterwarnings("ignore", message=".*default legacy behaviour.*")
         warnings.filterwarnings("ignore", message=".*EncoderDecoderCache.*")
+        logger.debug("Environment setup complete.")
 
-        logger.info("Loading NLP Models...")
-
-        # --- Determine spaCy model to load ---
-        try:
-            # Store whether user specified a model *before* potential fallback assignment
-            _user_specified_spacy_initially = self.config.get("spacy_model") is not None
-            
-            # Determine spacy model to use
-            spacy_model_to_use = self.config.get("spacy_model")
+    def _resolve_spacy_model_name(self) -> str:
+        """Resolves the spaCy model name to load based on config, auto-detect, or default."""
+        logger.debug("Resolving spaCy model name...")
+        spacy_model_to_use = self.config.get("spacy_model")
+        if spacy_model_to_use:
+            if spacy_model_to_use not in SPACY_MODEL_MAP:
+                 logger.warning(f"Specified spaCy model '{spacy_model_to_use}' is not a recognized alias/name.")
+            else:
+                 spacy_model_to_use = SPACY_MODEL_MAP.get(spacy_model_to_use, spacy_model_to_use)
+            logger.info(f"Using specified spaCy model (resolved): {spacy_model_to_use}")
+        else:
+            logger.debug("No spaCy model specified, attempting auto-detection...")
+            installed_spacy = find_installed_spacy_models()
+            spacy_model_to_use = select_best_spacy_model(installed_spacy)
             if spacy_model_to_use:
-                # Validate if the user provided a known model name/alias
-                if spacy_model_to_use not in SPACY_MODEL_MAP:
-                     logger.warning(f"Specified spaCy model '{spacy_model_to_use}' is not a recognized alias/name. Attempting to use it anyway.")
-                     # Map might not be exhaustive, let spacy.load handle unknown models later
-                else:
-                     # If it's an alias, map it to the actual name
-                     spacy_model_to_use = SPACY_MODEL_MAP.get(spacy_model_to_use, spacy_model_to_use)
-                logger.info(f"Using specified spaCy model: {spacy_model_to_use}")
+                logger.info(f"Auto-detected best available spaCy model: {spacy_model_to_use}")
             else:
-                logger.debug("No spaCy model specified in config, attempting auto-detection...")
-                installed_spacy = find_installed_spacy_models()
-                spacy_model_to_use = select_best_spacy_model(installed_spacy)
-                if spacy_model_to_use:
-                    logger.info(f"Auto-detected best available spaCy model: {spacy_model_to_use}")
-                else:
-                    # Fallback to default if none detected
-                    spacy_model_to_use = SPACY_MODEL_MAP['md'] # Default: en_core_web_md
-                    logger.warning(f"Could not auto-detect any installed spaCy models. Falling back to default: {spacy_model_to_use}")
-            self.config["spacy_model"] = spacy_model_to_use
+                spacy_model_to_use = SPACY_MODEL_MAP['md']
+                logger.warning(f"Could not auto-detect installed spaCy models. Falling back to default: {spacy_model_to_use}")
+        # Update config for reference (consistent with original logic)
+        self.config["spacy_model"] = spacy_model_to_use
+        logger.debug(f"Resolved spaCy model name to load: {spacy_model_to_use}")
+        return spacy_model_to_use
 
-            # --- Determine Benepar model to use ---
-            _user_specified_benepar_initially = self.config.get("benepar_model") is not None
-            benepar_model_to_load = self.config.get("benepar_model") # Get user preference
-
-            if not benepar_model_to_load:
-                logger.debug("No Benepar model specified in config, attempting auto-detection...")
-                installed_benepar = find_installed_benepar_models()
-                benepar_model_to_load = select_best_benepar_model(installed_benepar)
-                if benepar_model_to_load:
-                    logger.info(f"Auto-detected best available Benepar model: {benepar_model_to_load}")
-                else:
-                    benepar_model_to_load = BENEPAR_MODEL_MAP['default']
-                    logger.warning(f"Could not auto-detect any installed Benepar models. Falling back to default: {benepar_model_to_load}")
+    def _resolve_benepar_model_name(self) -> str:
+        """Resolves the Benepar model name to load based on config, auto-detect, or default."""
+        logger.debug("Resolving Benepar model name...")
+        benepar_model_to_load = self.config.get("benepar_model")
+        if not benepar_model_to_load:
+            logger.debug("No Benepar model specified, attempting auto-detection...")
+            installed_benepar = find_installed_benepar_models()
+            benepar_model_to_load = select_best_benepar_model(installed_benepar)
+            if benepar_model_to_load:
+                logger.info(f"Auto-detected best available Benepar model: {benepar_model_to_load}")
             else:
-                # User specified a model, potentially an alias - resolve it
-                if benepar_model_to_load not in BENEPAR_MODEL_MAP:
-                     logger.warning(f"Specified Benepar model '{benepar_model_to_load}' is not a recognized alias/name. Attempting to use it anyway.")
-                else:
-                     benepar_model_to_load = BENEPAR_MODEL_MAP.get(benepar_model_to_load, benepar_model_to_load)
-                logger.info(f"Using specified Benepar model (resolved): {benepar_model_to_load}")
-
-            # Store the *intended* model back in config for reference
-            self.config["benepar_model"] = benepar_model_to_load
-            self._loaded_benepar_model_name = "unknown" # Initialize loaded name
-
-            # --- Check spacy-transformers dependency (SIMPLIFIED) ---
-            self.use_transformers = False # Initialize flag
-            if spacy_model_to_use and spacy_model_to_use.endswith('_trf'):
-                self.use_transformers = True
-                logger.info(f"Using a spaCy transformer model ('{spacy_model_to_use}'). Underlying transformer handled by spaCy.")
-                # Ensure library is installed
-                try:
-                    import spacy_transformers
-                    logger.debug("'spacy-transformers' library found.")
-                except ImportError:
-                    logger.critical(f"The spaCy model '{spacy_model_to_use}' requires 'spacy-transformers', but it is not installed.")
-                    logger.critical(f"Please install it: pip install 'spacy[transformers]'")
-                    raise RuntimeError(f"Missing required library 'spacy-transformers' for model '{spacy_model_to_use}'.")
+                benepar_model_to_load = BENEPAR_MODEL_MAP['default']
+                logger.warning(f"Could not auto-detect installed Benepar models. Falling back to default: {benepar_model_to_load}")
+        else:
+            if benepar_model_to_load not in BENEPAR_MODEL_MAP:
+                 logger.warning(f"Specified Benepar model '{benepar_model_to_load}' is not a recognized alias/name.")
             else:
-                logger.info(f"Not using a spaCy transformer model (resolved model: '{spacy_model_to_use}').")
-            # --- End Simplified Transformer Check ---
+                 benepar_model_to_load = BENEPAR_MODEL_MAP.get(benepar_model_to_load, benepar_model_to_load)
+            logger.info(f"Using specified Benepar model (resolved): {benepar_model_to_load}")
+        # Store the *intended* model back in config for reference
+        self.config["benepar_model"] = benepar_model_to_load
+        self._loaded_benepar_model_name = "unknown" # Initialize; set properly after loading
+        logger.debug(f"Resolved Benepar model name to load: {benepar_model_to_load}")
+        return benepar_model_to_load
 
-            # --- Load Models ---
-            logger.info(f"Loading spaCy model: '{spacy_model_to_use}'")
+    def _check_transformer_dependency(self, spacy_model_name: str) -> None:
+        """Checks if spacy-transformers library is needed and installed."""
+        logger.debug(f"Checking transformer dependency for spaCy model: {spacy_model_name}")
+        if spacy_model_name and spacy_model_name.endswith('_trf'):
+            logger.info(f"Using a spaCy transformer model ('{spacy_model_name}').")
             try:
-                self.nlp = spacy.load(spacy_model_to_use)
-                logger.info("spaCy model loaded successfully.")
-            except OSError as e:
-                logger.error(f"Failed to load spaCy model '{spacy_model_to_use}'. Is it installed? Error: {e}")
-                # Add specific hint for transformer models
-                if spacy_model_to_use.endswith('_trf'):
-                    logger.error("Ensure the 'spacy-transformers' library is also installed: pip install 'spacy[transformers]'")
-                # Attempt setup *only* if auto-detection failed and we used the default fallback
-                # Use the initial user specification status for the check
-                if not _user_specified_spacy_initially and spacy_model_to_use == SPACY_MODEL_MAP['md']:
-                    logger.info("Attempting to install default spaCy model...")
-                    if setup_models(spacy_model_alias='md', benepar_model_alias='default'): # Attempt default setup
-                         logger.info("Default models installed. Re-initializing extractor...")
-                         self.__init__(config) # Re-run init
-                         return # Exit current init call
+                import spacy_transformers
+                logger.debug("'spacy-transformers' library found.")
+            except ImportError:
+                msg = f"Missing required library 'spacy-transformers' for model '{spacy_model_name}'. Please install it: pip install 'spacy[transformers]'"
+                logger.critical(msg)
+                raise ImportError(msg) # Raise ImportError to be caught
+        else:
+            logger.debug(f"Not using a spaCy transformer model (resolved model: '{spacy_model_name}').") # Changed log level
+
+    def _load_spacy_pipeline(self, spacy_model_name: str, user_specified_spacy: bool) -> None:
+        """Loads the spaCy pipeline, handling errors and potential auto-installation."""
+        logger.info(f"Loading spaCy model: '{spacy_model_name}'")
+        try:
+            self.nlp = spacy.load(spacy_model_name)
+            logger.info("spaCy model loaded successfully.")
+            return # Success
+
+        except OSError as e:
+            logger.error(f"Failed to load spaCy model '{spacy_model_name}'. Is it installed? Error: {e}")
+            if spacy_model_name.endswith('_trf'):
+                logger.error("Ensure 'spacy-transformers' library is also installed: pip install 'spacy[transformers]'")
+
+            # Attempt setup only if default failed AND wasn't user-specified
+            is_default_md = (spacy_model_name == SPACY_MODEL_MAP['md'])
+            if not user_specified_spacy and is_default_md:
+                logger.info("Attempting to install default models (spaCy 'md', Benepar 'default')...")
+                try:
+                    if setup_models(spacy_model_alias='md', benepar_model_alias='default'):
+                        logger.info("Default models installed. Attempting to reload spaCy model...")
+                        self.nlp = spacy.load(spacy_model_name) # Retry load
+                        logger.info("spaCy model loaded successfully after installation.")
+                        return # Success after install and reload
                     else:
-                         logger.critical("Failed to install default models after loading error. Cannot proceed.")
-                         raise RuntimeError(f"Failed to load or install required spaCy model '{spacy_model_to_use}'") from e
-                else:
-                     # If user specified a model or auto-detect found something else that failed to load
-                     logger.critical(f"Specified/detected spaCy model '{spacy_model_to_use}' could not be loaded. Please ensure it is installed correctly.")
-                     raise RuntimeError(f"Failed to load required spaCy model '{spacy_model_to_use}'") from e
-
-
-            # --- Add and Configure the Rule-Based Sentencizer ---
-            # Always add the sentencizer to ensure consistent, controllable sentence boundary rules.
-            # Add it before the parser if the parser exists, otherwise add it first.
-            if "parser" in self.nlp.pipe_names:
-                logger.debug("Adding 'sentencizer' component before 'parser'.")
-                # Check if it already exists to avoid errors on re-init
-                if "sentencizer" not in self.nlp.pipe_names:
-                    self.nlp.add_pipe("sentencizer", before="parser")
-                else:
-                    logger.debug("'sentencizer' already in pipeline.")
+                        logger.critical("Automatic installation of default models failed. Cannot proceed.")
+                        raise RuntimeError(f"Failed to load or install required spaCy model '{spacy_model_name}'") from e
+                except Exception as setup_e:
+                    logger.critical(f"Error during automatic setup or reload attempt: {setup_e}", exc_info=True)
+                    raise RuntimeError(f"Failed during automatic setup/reload for spaCy model '{spacy_model_name}'") from setup_e
             else:
-                logger.debug("Adding 'sentencizer' component first (no parser found).")
-                # Check if it already exists
-                if "sentencizer" not in self.nlp.pipe_names:
-                    self.nlp.add_pipe("sentencizer", first=True)
-                else:
-                    logger.debug("'sentencizer' already in pipeline.")
-            
-            # Get the sentencizer pipe
+                 # Conditions for auto-install not met
+                 logger.critical(f"SpaCy model '{spacy_model_name}' could not be loaded. Please ensure it is installed correctly.")
+                 raise RuntimeError(f"Failed to load required spaCy model '{spacy_model_name}'") from e
+        except Exception as load_e: # Catch other load errors
+            logger.critical(f"Unexpected error loading spaCy model '{spacy_model_name}': {load_e}", exc_info=True)
+            raise RuntimeError(f"Unexpected error loading spaCy model '{spacy_model_name}'") from load_e
+
+    def _configure_spacy_pipeline(self) -> None:
+        """Adds and configures components in the loaded spaCy pipeline (e.g., sentencizer)."""
+        logger.debug("Configuring spaCy pipeline components...")
+        if not hasattr(self, 'nlp') or self.nlp is None:
+            raise RuntimeError("Cannot configure spaCy pipeline: nlp object not initialized.")
+
+        # Add sentencizer
+        if "parser" in self.nlp.pipe_names:
+            if "sentencizer" not in self.nlp.pipe_names:
+                self.nlp.add_pipe("sentencizer", before="parser")
+                logger.debug("Added 'sentencizer' component before 'parser'.")
+            else: logger.debug("'sentencizer' already in pipeline.")
+        else:
+            if "sentencizer" not in self.nlp.pipe_names:
+                self.nlp.add_pipe("sentencizer", first=True)
+                logger.debug("Added 'sentencizer' component first.")
+            else: logger.debug("'sentencizer' already in pipeline.")
+
+        # Configure sentencizer newline breaks
+        try:
             sbd_pipe = self.nlp.get_pipe("sentencizer")
-            sbd_component_name = "sentencizer" # We know the name now
-            logger.debug(f"Using '{sbd_component_name}' component for sentence boundary detection.")
-
-            # Apply newline breaking control based on configuration
-            if self.newline_breaks:
-                logger.info(f"Configuring '{sbd_component_name}' to treat newlines as sentence boundaries")
-                # Add check before accessing punct_chars
-                if hasattr(sbd_pipe, 'punct_chars'):
-                    if '\\n' not in sbd_pipe.punct_chars:
-                        sbd_pipe.punct_chars.add('\\n')
-                        logger.debug(f"Added '\\n' to punct_chars for '{sbd_component_name}'")
-                    else: # '\\n' already in punct_chars
-                        logger.debug(f"'\\n' already present in punct_chars for '{sbd_component_name}'")
+            sbd_component_name = "sentencizer"
+            logger.debug(f"Configuring sentence boundary detection using '{sbd_component_name}'.")
+            if hasattr(sbd_pipe, 'punct_chars'):
+                if self.newline_breaks:
+                    # Ensure newlines are treated as sentence boundaries
+                    if '\n' not in sbd_pipe.punct_chars:
+                        sbd_pipe.punct_chars.add('\n')
+                        logger.info(f"Configured '{sbd_component_name}' to treat newlines as sentence boundaries.")
+                    else: logger.debug(f"'\n' already present in punct_chars for '{sbd_component_name}'.")
                 else:
-                     logger.warning(f"Component '{sbd_component_name}' does not have 'punct_chars' attribute. Cannot add newline break rule.")
+                    # Ensure newlines are NOT treated as sentence boundaries
+                    if '\n' in sbd_pipe.punct_chars:
+                        sbd_pipe.punct_chars.remove('\n')
+                        logger.info(f"Configured '{sbd_component_name}' to NOT treat newlines as sentence boundaries.")
+                    else: logger.debug(f"'\n' not found in punct_chars for '{sbd_component_name}'.")
             else:
-                logger.info(f"Configuring '{sbd_component_name}' to NOT treat newlines as sentence boundaries")
-                # Add check before accessing punct_chars
-                if hasattr(sbd_pipe, 'punct_chars'):
-                    if '\\n' in sbd_pipe.punct_chars:
-                        sbd_pipe.punct_chars.remove('\\n')
-                        logger.debug(f"Removed '\\n' from punct_chars for '{sbd_component_name}'")
-                    else: # '\\n' not in punct_chars
-                        logger.debug(f"'\\n' not found in punct_chars for '{sbd_component_name}'.")
-                else:
-                     logger.warning(f"Component '{sbd_component_name}' does not have 'punct_chars' attribute. Cannot remove newline break rule.")
-
-
-            # --- Add Benepar to spaCy pipeline ---
-            logger.debug(f"Ensuring Benepar component is added...")
-            # --- Check if user specified the model *before* potentially overwriting config ---
-            # Store the initial user specification status
-            # _user_specified_benepar_initially is now determined above
-            # --- End Check ---
-            default_benepar_model = BENEPAR_MODEL_MAP['default']
-            
-            if "benepar" not in self.nlp.pipe_names:
-                benepar_loaded = False
-                try:
-                    logger.info(f"Attempting to add Benepar component with model: '{benepar_model_to_load}'")
-                    self.nlp.add_pipe("benepar", config={"model": benepar_model_to_load})
-                    logger.info(f"Benepar component ('{benepar_model_to_load}') added successfully.")
-                    self._loaded_benepar_model_name = benepar_model_to_load # Store the name that loaded
-                    benepar_loaded = True
-                except ValueError as e:
-                    logger.warning(f"Failed to load Benepar model '{benepar_model_to_load}': {e}")
-                    # More robust check for the specific errors indicating a missing model package/plugin
-                    e_str = str(e).lower()
-                    is_load_error = isinstance(e, ValueError) and \
-                                    ("can't find package" in e_str or "can't load plugin" in e_str)
-                    # Simplified condition: Fallback if load error and model wasn't user-specified.
-                    # Use the initially stored status for the check
-                    if is_load_error and not _user_specified_benepar_initially:
-                        logger.info(f"Attempting fallback to default Benepar model: '{default_benepar_model}'")
-                        try:
-                            self.nlp.add_pipe("benepar", config={"model": default_benepar_model})
-                            logger.info(f"Benepar component ('{default_benepar_model}') added successfully via fallback.")
-                            self._loaded_benepar_model_name = default_benepar_model # Store the name that loaded
-                            self.config["benepar_model"] = default_benepar_model # Update config
-                            benepar_loaded = True
-                        except ValueError as fallback_e:
-                            logger.critical(f"Fallback attempt with default Benepar model '{default_benepar_model}' also failed: {fallback_e}")
-                            # Error message includes both attempts if fallback was tried
-                            raise RuntimeError(f"Failed to add required Benepar component. Attempted '{benepar_model_to_load}' and fallback '{default_benepar_model}'.") from fallback_e
-                        except Exception as fallback_ex:
-                             logger.critical(f"Unexpected error during Benepar fallback: {fallback_ex}")
-                             raise RuntimeError(f"Unexpected error during Benepar fallback attempt for model '{default_benepar_model}'") from fallback_ex
-                    else:
-                        # Error if primary model failed and no fallback was attempted/successful
-                        logger.critical(f"Failed to load required Benepar model '{benepar_model_to_load}' (either specified or auto-detected). Fallback not applicable or failed. Cannot proceed.")
-                        raise RuntimeError(f"Failed to add required Benepar component with model '{benepar_model_to_load}'.") from e
-                except Exception as ex: # Catch other potential errors during initial add_pipe
-                    logger.critical(f"Unexpected error adding Benepar component '{benepar_model_to_load}': {ex}")
-                    raise RuntimeError(f"Unexpected error adding Benepar component for model '{benepar_model_to_load}'") from ex
-
-                if not benepar_loaded:
-                     # Should be unreachable if errors raise correctly, but acts as a final check
-                     raise RuntimeError(f"Benepar component could not be loaded for model '{benepar_model_to_load}' or its fallback.")
-            else:
-                logger.info("Benepar component already found in the pipeline.")
-                # Attempt to get the name from the existing pipe if possible
-                try:
-                    benepar_pipe = self.nlp.get_pipe("benepar")
-                    # Accessing config might be fragile, depends on how benepar stores it
-                    loaded_name = benepar_pipe.cfg.get("model", self.config.get("benepar_model", "existing/unknown"))
-                    self._loaded_benepar_model_name = loaded_name
-                except: # Broad except as getting config might fail
-                     self._loaded_benepar_model_name = self.config.get("benepar_model", "existing/unknown")
-                logger.debug(f"Existing Benepar component assumed model: {self._loaded_benepar_model_name}")
-
+                 logger.warning(f"Component '{sbd_component_name}' lacks 'punct_chars'. Cannot configure newline breaks.")
+        except KeyError:
+            raise RuntimeError("Failed to get 'sentencizer' pipe after adding it.")
         except Exception as e:
-             logger.critical(f"Fatal error during ANPEExtractor initialization: {str(e)}", exc_info=True)
-             raise
+            raise RuntimeError("Unexpected error during sentencizer configuration.") from e
+        
+        # Add custom token matching patterns to enhance sentence boundary detection based on newline_breaks
+        try:
+            if "token_matcher" not in self.nlp.pipe_names:
+                # Add a custom pipe to further enhance sentence boundary handling
+                from spacy.language import Language
+                
+                @Language.component("newline_handler")
+                def newline_handler(doc):
+                    # If newline_breaks is True, ensure every token that ends with a newline 
+                    # also ends a sentence
+                    if self.newline_breaks:
+                        for i, token in enumerate(doc[:-1]):  # Skip the last token
+                            if '\n' in token.text or token.text.endswith('\n'):
+                                doc[i].is_sent_start = False  # Reset
+                                if i + 1 < len(doc):
+                                    doc[i + 1].is_sent_start = True
+                    return doc
+                
+                self.nlp.add_pipe("newline_handler", after="sentencizer")
+                logger.debug("Added custom 'newline_handler' pipe to enhance newline handling.")
+        except Exception as e:
+            logger.warning(f"Could not add custom newline handler: {str(e)}")
+        
+        logger.debug("spaCy pipeline component configuration complete.")
 
-        # Initialize Analyzer after nlp pipeline is fully set up
-        self.analyzer = ANPEAnalyzer(self.nlp) # Pass the fully configured nlp object
-        logger.info("ANPEExtractor initialized successfully")
+    def _add_benepar_to_pipeline(self, benepar_model_to_load: str, user_specified_benepar: bool) -> str:
+        """Adds the Benepar component to the spaCy pipeline, handling fallback loading."""
+        logger.debug(f"Ensuring Benepar component is added (attempting '{benepar_model_to_load}')...")
+        if not hasattr(self, 'nlp') or self.nlp is None:
+            raise RuntimeError("Cannot add Benepar component: spaCy nlp object not initialized.")
+
+        if "benepar" in self.nlp.pipe_names:
+            logger.info("Benepar component already found in pipeline.")
+            try: # Attempt to get loaded name from existing pipe
+                return self.nlp.get_pipe("benepar").cfg.get("model", "existing/unknown")
+            except: return "existing/unknown"
+
+        loaded_model_name = "unknown"
+        try:
+            logger.info(f"Attempting to add Benepar component with model: '{benepar_model_to_load}'")
+            self.nlp.add_pipe("benepar", config={"model": benepar_model_to_load})
+            logger.info(f"Benepar component ('{benepar_model_to_load}') added successfully.")
+            loaded_model_name = benepar_model_to_load
+
+        except ValueError as e:
+            logger.warning(f"Failed to load Benepar model '{benepar_model_to_load}': {e}")
+            e_str = str(e).lower()
+            is_load_error = "can't find package" in e_str or "can't load plugin" in e_str
+            default_benepar_model = BENEPAR_MODEL_MAP['default']
+
+            if is_load_error and not user_specified_benepar:
+                logger.info(f"Attempting fallback to default Benepar model: '{default_benepar_model}'")
+                try:
+                    self.nlp.add_pipe("benepar", config={"model": default_benepar_model})
+                    logger.info(f"Benepar component ('{default_benepar_model}') added successfully via fallback.")
+                    loaded_model_name = default_benepar_model
+                except Exception as fallback_e: # Catch ValueError or others during fallback
+                    logger.critical(f"Fallback attempt with default Benepar model '{default_benepar_model}' also failed: {fallback_e}")
+                    raise RuntimeError(f"Failed to add required Benepar component. Attempted '{benepar_model_to_load}' and fallback '{default_benepar_model}'.") from fallback_e
+            else: # Primary load failed, and no fallback applicable/attempted
+                logger.critical(f"Failed to load Benepar model '{benepar_model_to_load}'. Cannot proceed.")
+                raise RuntimeError(f"Failed to add required Benepar component with model '{benepar_model_to_load}'.") from e
+        except ImportError as imp_e:
+            msg = f"Missing required library 'benepar'. Please install it (e.g., pip install benepar)."
+            logger.critical(msg)
+            raise RuntimeError(msg) from imp_e
+        except Exception as ex: # Catch other add_pipe errors
+            logger.critical(f"Unexpected error adding Benepar component '{benepar_model_to_load}': {ex}")
+            raise RuntimeError(f"Unexpected error adding Benepar component for model '{benepar_model_to_load}'") from ex
+
+        # If we reach here, loading must have succeeded (directly or via fallback)
+        if loaded_model_name == "unknown": # Sanity check
+             raise RuntimeError("Benepar loading logic error: loaded_model_name not set after successful load.")
+
+        return loaded_model_name
+
+    # --------------------------------------------------------------------------
+    # Public Methods (extract, export) - Kept Original
+    # --------------------------------------------------------------------------
 
     def extract(self, text: str, metadata: bool = False, include_nested: bool = False) -> Dict:
         """
@@ -344,26 +399,57 @@ class ANPEExtractor:
             }
 
         # --- Pre-process text for internal newlines --- 
-        processed_text = text
-        if not self.newline_breaks:
-            # If not treating newlines as breaks, replace single newlines with spaces
-            # to help Benepar parse correctly. Keep double newlines as potential para breaks.
-            logger.debug("Replacing single internal newlines with spaces before parsing (newline_breaks=False)")
-            # Avoid replacing \n\n - use a lookahead/lookbehind or simpler replace sequence
-            processed_text = processed_text.replace('\r\n', '\n') # Normalize line endings first
-            processed_text = processed_text.replace('\n\n', '__PARABREAK__') # Temporarily mark real breaks
-            processed_text = processed_text.replace('\n', ' ') # Replace remaining single newlines
-            processed_text = processed_text.replace('__PARABREAK__', '\n\n') # Restore real breaks
-        else:
-            logger.debug("Keeping newlines as potential sentence breaks (newline_breaks=True)")
-            # Optional: Normalize line endings anyway?
-            processed_text = processed_text.replace('\r\n', '\n')
+        processed_text = self._preprocess_text_for_benepar(text)
 
         # Parse the entire text with the full pipeline (spaCy + Benepar)
         try:
             logger.debug("Parsing text with spaCy+Benepar...")
             doc = self.nlp(processed_text)
             logger.debug("Text parsed successfully.")
+        except AssertionError as e:
+            # This is likely the Benepar retokenization assertion error
+            logger.warning(f"Benepar tokenization assertion error: {str(e)}. Trying alternative preprocessing...")
+            
+            # Try a more aggressive preprocessing approach
+            try:
+                logger.debug("Attempting alternative preprocessing while respecting newline_breaks setting...")
+                
+                # Process text differently based on newline_breaks setting
+                if self.newline_breaks:
+                    # When newlines should break sentences, replace them with period+space
+                    # This helps preserve sentence boundaries while fixing tokenization
+                    simplified_text = text.replace('\n', '. ').replace('..', '.')
+                else:
+                    # When newlines shouldn't break sentences, replace with simple spaces
+                    simplified_text = text.replace('\n', ' ')
+                    
+                # Normalize spacing and ensure a trailing space
+                simplified_text = ' '.join(simplified_text.split()) + ' '
+                
+                logger.debug("Attempting parse with simplified text...")
+                doc = self.nlp(simplified_text)
+                logger.info("Successfully parsed text with alternative preprocessing.")
+            except Exception as alt_e:
+                logger.error(f"Alternative preprocessing also failed: {str(alt_e)}")
+                # Instead of disabling Benepar, raise a helpful error
+                error_msg = (
+                    "ANPE could not process this text with Benepar's constituency parser despite "
+                    "multiple preprocessing attempts. This is likely due to:\n"
+                    "1. Irregular sentence boundaries or chaotic text structure\n"
+                    "2. Unusual newline patterns or inconsistent paragraph formatting\n"
+                    "3. Text that exceeds Benepar's tokenization capabilities\n\n"
+                    "Please try providing more cleanly structured text with standard sentence "
+                    "patterns and consistent formatting. For best results, ensure text has:\n"
+                    "- Clear sentence boundaries (periods followed by spaces)\n"
+                    "- Consistent paragraph breaks\n"
+                    "- Standard punctuation and spacing\n\n"
+                    f"Note: Your 'newline_breaks' setting is currently set to {self.newline_breaks}. "
+                    "Complex text formatting may sometimes require standardizing newlines, which can "
+                    "override this setting. If newline handling is critical for your use case, "
+                    "consider pre-processing your text to have clearer sentence boundaries."
+                )
+                logger.critical(error_msg)
+                raise ValueError(f"Text preprocessing failure: {error_msg}")
         except Exception as e:
             logger.error(f"Error parsing text with spaCy pipeline: {str(e)}", exc_info=True)
             raise RuntimeError(f"Failed during text parsing: {e}") from e
@@ -640,6 +726,77 @@ class ANPEExtractor:
     # --------------------------------------------------------------------------
     # Private Helper Methods for Extraction Logic
     # --------------------------------------------------------------------------
+    def _preprocess_text_for_benepar(self, text: str) -> str:
+        """
+        Preprocess text to ensure compatibility with Benepar tokenization and parsing.
+        This is particularly important for handling newlines which can cause 
+        retokenization errors in Benepar.
+        
+        Args:
+            text: Input text to preprocess
+            
+        Returns:
+            str: Preprocessed text ready for Benepar parsing
+        """
+        if not text:
+            return text
+        
+        # Always normalize line endings first
+        processed_text = text.replace('\r\n', '\n')
+        
+        if not self.newline_breaks:
+            # When newlines AREN'T sentence breaks, we ensure sentences continue across lines
+            logger.debug("Preprocessing text with newline_breaks=False (treating newlines as spaces)")
+            
+            # Step 1: Identify and preserve paragraph breaks (double newlines)
+            processed_text = processed_text.replace('\n\n', '\uE000')  # Unicode private use character
+            
+            # Step 2: Carefully handle single newlines to maintain sentence continuity
+            # Convert all remaining newlines to spaces to ensure sentences continue
+            processed_text = processed_text.replace('\n', ' ')
+            
+            # Step 3: Restore paragraph breaks with actual double newlines
+            processed_text = processed_text.replace('\uE000', '\n\n')
+            
+            # Step 4: Fix any accidental period-space-space sequences from previous operations
+            processed_text = processed_text.replace('.  ', '. ')
+            
+            # Step 5: Normalize multiple spaces and ensure clean spacing
+            processed_text = ' '.join(processed_text.split())
+            
+            # Step 6: Add trailing space for Benepar's tokenizer
+            processed_text += ' '
+            
+        else:
+            # When newlines ARE sentence breaks, we make them explicit sentence boundaries
+            logger.debug("Preprocessing text with newline_breaks=True (treating newlines as sentence boundaries)")
+            
+            # Step 1: Ensure each newline creates a clear sentence boundary by adding a period if needed
+            lines = processed_text.split('\n')
+            
+            # Step 2: Process each line to ensure it ends with a proper sentence boundary
+            for i in range(len(lines)):
+                line = lines[i].strip()
+                if not line:  # Skip empty lines
+                    continue
+                    
+                # If the line doesn't end with a sentence-ending punctuation, add a period
+                if line and not line[-1] in '.?!':
+                    lines[i] = line + '.'
+            
+            # Step 3: Rejoin with newlines to preserve the line structure
+            processed_text = '\n'.join(lines)
+            
+            # Step 4: Ensure proper spacing before and after newlines for tokenization
+            processed_text = processed_text.replace('\n', ' \n ')
+            
+            # Step 5: Clean up multiple spaces
+            processed_text = ' '.join(processed_text.split())
+            
+            # Step 6: Add trailing space for Benepar
+            processed_text += ' '
+        
+        return processed_text
 
     def _tree_to_text(self, tree: Tree) -> str:
         """
