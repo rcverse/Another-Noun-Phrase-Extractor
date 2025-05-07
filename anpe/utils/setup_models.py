@@ -17,6 +17,7 @@ import zipfile
 import importlib.metadata
 from typing import Callable, Optional  # Add import for callback types
 import site
+import importlib # Added import
 
 # --- Model Name Mappings ---
 # Map user-friendly aliases to actual spaCy model names
@@ -264,214 +265,204 @@ def _extract_zip_archive(zip_path: str, destination_dir: str, archive_name: str,
         return False
 
 def install_spacy_model(model_name: str = "en_core_web_md", log_callback: Optional[Callable[[str], None]] = None) -> bool:
-    """Install the specified spaCy model.
-    
+    """Install the specified spaCy model using pip and spacy download.
+
+    This function first checks if the model is a transformer model. If so, it attempts
+    to install `spacy[transformers]` via pip. Then, it proceeds to download the
+    specified spaCy model using `python -m spacy download`.
+
     Args:
-        model_name (str): Name of the spaCy model to install.
-        log_callback (Optional[Callable[[str], None]]): Optional callback function to receive real-time log output.
-            
+        model_name (str): The name of the spaCy model to install (e.g., "en_core_web_trf").
+        log_callback (Optional[Callable[[str], None]]): Optional callback for logging.
+
     Returns:
-        bool: True if installation was successful, False otherwise.
+        bool: True if installation (including spacy-transformers if needed) and download
+              were successful, False otherwise.
     """
-    if not model_name: # Basic validation
-        logger.error("No spaCy model name provided to install.")
-        if log_callback:
-            log_callback("Error: No spaCy model name provided to install.")
-        return False
+    full_model_name = SPACY_MODEL_MAP.get(model_name.lower(), model_name) # Ensure we use the full name
 
-    is_transformer_model = model_name.endswith("_trf")
-
-    # --- Check and install spacy-transformers if needed ---
+    # --- Step 1: Handle spacy-transformers dependency for _trf models ---
+    is_transformer_model = full_model_name.endswith("_trf")
     if is_transformer_model:
-        msg = f"Model '{model_name}' is a transformer model. Checking for 'spacy-transformers' package..."
+        msg = f"Model {full_model_name} is a transformer model. Ensuring spacy[transformers] is installed."
         logger.info(msg)
         if log_callback:
             log_callback(msg)
-            
+
         try:
-            importlib.metadata.version("spacy-transformers")
-            msg = "'spacy-transformers' is already installed."
-            logger.info(msg)
-            if log_callback:
-                log_callback(msg)
-        except importlib.metadata.PackageNotFoundError:
-            msg = "'spacy-transformers' package not found. Attempting installation..."
-            logger.warning(msg)
-            if log_callback:
-                log_callback(msg)
-                
-            try:
-                cmd = [sys.executable, '-m', 'pip', 'install', "spacy[transformers]"]
-                msg = f"Running command: {' '.join(cmd)}"
+            # Check if spacy-transformers is already effectively installed and usable
+            import spacy as spacy_check_initial
+            nlp_blank_initial = spacy_check_initial.blank("en")
+            if "transformer" in nlp_blank_initial.factories:
+                msg = "'transformer' factory already available in current spaCy runtime. Skipping pip install spacy[transformers]."
                 logger.info(msg)
                 if log_callback:
                     log_callback(msg)
-                    
-                # Use Popen instead of run for real-time output
-                process = subprocess.Popen(
-                    cmd,
-                    stdout=subprocess.PIPE,
-                    stderr=subprocess.STDOUT,
-                    text=True,
-                    encoding='utf-8',
-                    errors='replace',
-                    bufsize=1
-                )
-                
-                # Process output in real time
-                for line in process.stdout:
-                    line = line.strip()
-                    logger.debug(f"pip install stdout: {line}")
-                    if log_callback:
-                        log_callback(line)
-                
-                # Wait for process to complete and check return code
-                return_code = process.wait()
-                if return_code == 0:
-                    msg = "'spacy-transformers' installed successfully."
-                    logger.info(msg)
-                    if log_callback:
-                        log_callback(msg)
-                else:
-                    msg = f"Failed to install 'spacy-transformers'. Return code: {return_code}"
-                    logger.error(msg)
-                    if log_callback:
-                        log_callback(msg)
-                    # Continue anyway, but warn the user
-                    msg = "Will attempt to continue with spaCy model download, but it may fail later."
-                    logger.warning(msg)
-                    if log_callback:
-                        log_callback(msg)
-            except Exception as e:
-                msg = f"An unexpected error occurred during 'spacy-transformers' installation: {e}"
-                logger.error(msg)
-                if log_callback:
-                    log_callback(msg)
-                msg = "Will attempt to continue with spaCy model download, but it may fail later."
-                logger.warning(msg)
-                if log_callback:
-                    log_callback(msg)
-
-    # --- Download the spaCy model ---
-    try:
-        msg = f"Attempting to download and install spaCy model: {model_name}"
-        logger.info(msg)
-        if log_callback:
-            log_callback(msg)
-            
-        cmd = [sys.executable, '-m', 'spacy', 'download', model_name]
-        msg = f"Running command: {' '.join(cmd)}"
-        logger.info(msg)
-        if log_callback:
-            log_callback(msg)
-            
-        # Use Popen instead of run for real-time output
-        process = subprocess.Popen(
-            cmd,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.STDOUT,
-            text=True,
-            encoding='utf-8',
-            errors='replace',
-            bufsize=1
-        )
-        
-        # Process output in real time
-        for line in process.stdout:
-            line = line.strip()
-            logger.debug(f"spaCy download stdout: {line}")
-            if log_callback:
-                log_callback(line)
-        
-        # Wait for process to complete and check return code
-        return_code = process.wait()
-        if return_code == 0:
-            msg = f"spaCy model '{model_name}' download command finished successfully."
-            logger.info(msg)
-            if log_callback:
-                log_callback(msg)
-                
-            # --- Verification Step 1: Use importlib.util.find_spec --- 
-            msg = f"Verifying installation for '{model_name}' using importlib..."
-            logger.info(msg)
-            if log_callback:
-                log_callback(msg)
-
-            importlib.invalidate_caches()
-            importlib_verified = False
-            importlib_error = False
-            physical_path_verified = False # Added for secondary check
-            
-            try:
-                spec = importlib.util.find_spec(model_name)
-                if spec and spec.origin:
-                    msg = f"Verification Step 1 OK: '{model_name}' package found by importlib at {spec.origin}."
-                    logger.info(msg)
-                    if log_callback:
-                        log_callback(msg)
-                    importlib_verified = True
-                else:
-                    # This case means find_spec found something, but not a valid package origin
-                    msg = f"Verification Step 1 Failed: importlib found '{model_name}' but no valid origin/spec."
-                    logger.warning(msg) # Warning, as we'll do a secondary check
-                    if log_callback:
-                        log_callback(msg)
-                    # Proceed to physical path check
-            except ModuleNotFoundError:
-                # find_spec couldn't find the module via import system path
-                msg = f"Verification Step 1 Failed: ModuleNotFoundError for '{model_name}'."
-                logger.warning(msg) # Warning, as we'll do a secondary check
-                if log_callback:
-                    log_callback(msg)
-                # Proceed to physical path check
-            except Exception as find_err:
-                # Other errors during find_spec
-                msg = f"Verification Step 1 Error: An unexpected error occurred while trying to find spec for '{model_name}': {find_err}"
-                logger.error(msg, exc_info=True)
-                if log_callback:
-                    log_callback(msg)
-                importlib_error = True # Mark as error, skip physical check
-
-            # --- Verification Step 2: Physical Path Check (if importlib failed/was inconclusive) --- 
-            if not importlib_verified and not importlib_error:
-                msg = f"Verification Step 2: Checking physical path for '{model_name}' in site-packages..."
-                logger.info(msg)
-                if log_callback:
-                    log_callback(msg)
-                physical_path_verified = _check_spacy_physical_path(model_name)
-                if physical_path_verified:
-                    msg = f"Verification Step 2 OK: Physical directory found for '{model_name}'. Assuming OK for next run."
-                    logger.warning(msg) # Warn that importlib didn't verify, but files exist
-                    if log_callback:
-                        log_callback(msg)
-                else:
-                     msg = f"Verification Step 2 Failed: Physical directory for '{model_name}' not found in site-packages."
-                     logger.error(msg)
-                     if log_callback:
-                         log_callback(msg)
-            
-            # --- Final Decision --- 
-            if importlib_verified or physical_path_verified:
-                 return True # Consider it successful if either check passed
             else:
-                 # Only return False if both importlib failed/errored AND physical path check failed
-                 msg = f"Installation failed for '{model_name}': Could not verify via importlib or physical path."
-                 logger.error(msg)
-                 if log_callback:
-                     log_callback(msg)
-                 return False
-                 
-        else: # download return_code != 0
-            msg = f"Failed to download spaCy model '{model_name}'. Return code: {return_code}"
-            logger.error(msg)
+                # Attempt to install spacy[transformers]
+                pip_command = [sys.executable, "-m", "pip", "install", "spacy[transformers]"]
+                msg = f"Running pip install for spacy-transformers: {' '.join(pip_command)}"
+                logger.info(msg)
+                if log_callback:
+                    log_callback(msg)
+
+                process = subprocess.Popen(pip_command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+                stdout, stderr = process.communicate()
+                return_code = process.returncode
+
+                if return_code == 0:
+                    msg = "spacy[transformers] installed successfully via pip."
+                    logger.info(msg)
+                    if log_callback:
+                        log_callback(msg)
+
+                    # --- Verification for spacy-transformers ---
+                    logger.info("[Verification] Invalidating importlib caches before library/factory check...")
+                    importlib.invalidate_caches()
+                    
+                    spacy_transformers_import_ok = False
+                    try:
+                        # Try to get a fresh import of spacy_transformers
+                        if 'spacy_transformers' in sys.modules:
+                            logger.debug("[Verification] Temporarily removing 'spacy_transformers' from sys.modules.")
+                            original_spacy_transformers = sys.modules['spacy_transformers']
+                            del sys.modules['spacy_transformers']
+                            try:
+                                import spacy_transformers
+                                logger.debug("[Verification] Re-imported 'spacy_transformers' successfully.")
+                            finally:
+                                # Restore original, whether import succeeded or failed, to avoid breaking other code
+                                if 'spacy_transformers' not in sys.modules:
+                                     sys.modules['spacy_transformers'] = original_spacy_transformers
+                                     logger.debug("[Verification] Restored original 'spacy_transformers' to sys.modules.")
+                        else:
+                            import spacy_transformers # Standard import if not already in sys.modules
+                            logger.debug("[Verification] Imported 'spacy_transformers' freshly.")
+                        
+                        spacy_transformers_import_ok = True
+                        logger.info("[Verification OK] 'spacy-transformers' library imported successfully after pip install.")
+                        
+                        # Now, attempt the factory check (best effort, for logging/warning)
+                        fresh_spacy_module_for_check = None
+                        original_spacy_module_in_sys = sys.modules.get('spacy')
+                        if original_spacy_module_in_sys:
+                            logger.debug("[Verification Factory Check] Temporarily removing 'spacy' from sys.modules.")
+                            del sys.modules['spacy']
+                        
+                        try:
+                            import spacy as spacy_for_factory_check
+                            fresh_spacy_module_for_check = spacy_for_factory_check
+                            if original_spacy_module_in_sys:
+                                logger.debug("[Verification Factory Check] Re-imported 'spacy' for factory check.")
+                            else:
+                                logger.debug("[Verification Factory Check] Freshly imported 'spacy' for factory check.")
+                        except ImportError:
+                            logger.warning("[Verification Factory Check] Could not import spaCy to check factories.")
+                        finally:
+                            if original_spacy_module_in_sys and 'spacy' not in sys.modules:
+                                sys.modules['spacy'] = original_spacy_module_in_sys
+                                logger.debug("[Verification Factory Check] Restored original 'spacy' to sys.modules.")
+                            elif original_spacy_module_in_sys and fresh_spacy_module_for_check and id(fresh_spacy_module_for_check) != id(original_spacy_module_in_sys):
+                                sys.modules['spacy'] = original_spacy_module_in_sys
+                                logger.debug("[Verification Factory Check] Restored original 'spacy' to sys.modules after factory check.")
+
+                        if fresh_spacy_module_for_check:
+                            nlp_blank_check = fresh_spacy_module_for_check.blank("en")
+                            if "transformer" in nlp_blank_check.factories:
+                                logger.info("[Verification Note] 'transformer' factory IS present in current spaCy runtime.")
+                            else:
+                                logger.warning("[Verification Warning] 'transformer' factory is NOT (yet) present in current spaCy runtime. "
+                                               "A restart of the application might be needed to use transformer models.")
+                            if "curated_transformer" not in nlp_blank_check.factories:
+                                logger.warning("[Verification Note] 'curated_transformer' factory is NOT (yet) present in current spaCy runtime.")
+                        else:
+                            logger.warning("[Verification Warning] Could not get a spaCy instance to perform post-install factory check.")
+
+                    except ImportError:
+                        logger.error("[Verification Failed] CRITICAL: Could not import 'spacy-transformers' library even after pip reported successful installation.")
+                        if log_callback:
+                            log_callback("Failed to import 'spacy-transformers' post-install.")
+                        return False # This is a hard failure for the library itself.
+                    except Exception as e_fact: # Catch other errors during the factory check attempt
+                        logger.warning(f"[Verification Warning] Non-critical error during post-install factory check attempt: {e_fact}. Proceeding with model download.")
+
+                    # If spacy_transformers_import_ok is True (which it would be to reach here unless an exception above returned False),
+                    # we consider the spacy-transformers *dependency* itself "installed".
+                    # The final model loadability will be stringently checked after `spacy download`.
+
+                else: # pip install spacy[transformers] failed
+                    error_msg = f"Failed to install spacy[transformers]. Pip exit code: {return_code}.\nStdout: {stdout}\nStderr: {stderr}"
+                    logger.error(error_msg)
+                    if log_callback:
+                        log_callback(error_msg)
+                    return False # Failed to install spacy-transformers
+
+        except ImportError:
+            # This case handles if spacy itself is not installed, which shouldn't happen if ANPE is running.
+            # Or if the initial spacy_check_initial fails.
+            error_msg = "Failed to import spaCy to check for 'transformer' factory. Cannot proceed with transformer model setup."
+            logger.error(error_msg)
+            if log_callback:
+                log_callback(error_msg)
+            return False
+        except Exception as e:
+            error_msg = f"An unexpected error occurred during spacy-transformers pre-check or installation: {e}"
+            logger.error(error_msg)
+            if log_callback:
+                log_callback(error_msg)
+            return False
+
+    # --- Step 2: Download the spaCy model ---
+    # Proceed to download the model if spacy-transformers (if needed) is okay or not needed.
+    msg = f"Attempting to download spaCy model: {full_model_name}..."
+    logger.info(msg)
+    if log_callback:
+        log_callback(msg)
+
+    command = [sys.executable, "-m", "spacy", "download", full_model_name]
+    try:
+        process = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+        stdout, stderr = process.communicate()
+        return_code = process.returncode
+
+        if return_code == 0:
+            msg = f"spaCy model '{full_model_name}' downloaded successfully.\nStdout: {stdout}"
+            logger.info(msg)
             if log_callback:
                 log_callback(msg)
+                log_callback(f"stdout: {stdout}") # Pass stdout for GUI display
+            # Final check: ensure model is physically present (spaCy download can be weird)
+            # And also try to load it as the ultimate verification.
+            if _check_spacy_physical_path(full_model_name) and check_spacy_model(full_model_name):
+                msg = f"Verification successful: '{full_model_name}' is installed and loadable."
+                logger.info(msg)
+                if log_callback:
+                    log_callback(msg)
+                return True
+            else:
+                error_msg = f"Post-download verification failed for '{full_model_name}'. Model files might be missing or model is not loadable despite successful download command."
+                logger.error(error_msg)
+                if log_callback:
+                    log_callback(error_msg)
+                return False
+        else:
+            error_msg = f"Failed to download spaCy model '{full_model_name}'. Exit code: {return_code}.\nStdout: {stdout}\nStderr: {stderr}"
+            logger.error(error_msg)
+            if log_callback:
+                log_callback(error_msg)
+                log_callback(f"stderr: {stderr}") # Pass stderr for GUI display
             return False
-    except Exception as e:
-        msg = f"An unexpected error occurred during spaCy model installation for '{model_name}': {e}"
-        logger.error(msg, exc_info=True)
+    except FileNotFoundError:
+        error_msg = f"Error: The command 'python' or 'spacy' was not found. Make sure Python and spaCy are installed and in your PATH."
+        logger.error(error_msg)
         if log_callback:
-            log_callback(msg)
+            log_callback(error_msg)
+        return False
+    except Exception as e:
+        error_msg = f"An unexpected error occurred during spaCy model download: {e}"
+        logger.error(error_msg)
+        if log_callback:
+            log_callback(error_msg)
         return False
 
 def install_benepar_model(model_name: str = "benepar_en3", log_callback: Optional[Callable[[str], None]] = None) -> bool:

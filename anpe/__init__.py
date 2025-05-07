@@ -9,7 +9,7 @@ Accurate noun phrase extraction using the Berkeley Neural Parser.
 import logging
 
 # Define package version
-__version__ = "0.5.0"
+__version__ = "1.0.1"
 
 # Import key classes/functions for easier access
 from anpe.extractor import ANPEExtractor, extract, export

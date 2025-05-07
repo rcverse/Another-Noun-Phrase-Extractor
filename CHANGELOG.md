@@ -2,6 +2,14 @@
 
 All notable changes to the ANPE project will be documented in this file.
 
+## [1.0.1] - 2025-05-07
+### Fixed
+- Improved the robustness of `spacy-transformers` installation verification in `anpe.utils.setup_models.install_spacy_model`.
+    - The check now primarily ensures the `spacy-transformers` library is importable after `pip install`.
+    - A secondary, non-blocking check for the presence of the `'transformer'` factory is performed for logging and issues a warning if not immediately found, rather than failing the installation.
+    - The definitive test for model loadability (including factory availability) is now the final `spacy.load()` call after the model assets are downloaded.
+    - This resolves an issue where transformer model setup could prematurely fail in certain environments (e.g., within the ANPE GUI) due to transient factory registration issues, even if the model would be loadable after a restart or with a slightly different check timing.
+
 ## [1.0.0] - 2025-05-06
 ### Changed
 - **Breaking:** Overhauled the logging system to use Python's standard `logging` module.
