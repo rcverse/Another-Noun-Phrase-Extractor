@@ -726,6 +726,38 @@ class ANPEExtractor:
     # --------------------------------------------------------------------------
     # Private Helper Methods for Extraction Logic
     # --------------------------------------------------------------------------
+
+    def _normalize_text_for_matching(self, text: str) -> str:
+        """Normalizes a text string (from a tree leaf or a spaCy token) for robust comparison."""
+        original_text_for_logging = text # Keep the very original for logging comparison
+        
+        stripped_text = text.strip()
+
+        # Comprehensive normalization dictionary
+        # This maps various quote styles and PTB symbols to a canonical form.
+        NORMALIZATION_MAP = {
+            # PTB symbols to standard text
+            "-LRB-": "(", "-RRB-": ")",
+            "-LSB-": "[", "-RSB-": "]",
+            "-LCB-": "{", "-RCB-": "}",
+            "``":    '"',  # PTB double open
+            "''":    '"',  # PTB double close
+            "`":     "'",  # PTB single open/apostrophe
+        }
+
+        if stripped_text in NORMALIZATION_MAP:
+            normalized_output = NORMALIZATION_MAP[stripped_text]
+            # Log if the final output differs from the original input due to map lookup
+            if normalized_output != original_text_for_logging:
+                logger.debug(f"Text normalization (map): '{original_text_for_logging}' -> '{normalized_output}'")
+            return normalized_output
+        else:
+            # No rule in map applied, the output is the stripped text
+            # Log if stripping alone made a change compared to the original input
+            if stripped_text != original_text_for_logging:
+                logger.debug(f"Text normalization (strip): '{original_text_for_logging}' -> '{stripped_text}'")
+            return stripped_text
+
     def _preprocess_text_for_benepar(self, text: str) -> str:
         """
         Preprocess text to ensure compatibility with Benepar tokenization and parsing.
@@ -870,14 +902,14 @@ class ANPEExtractor:
             return None
 
 
-    def _find_token_indices_for_leaves(self, sent_tokens: List[Token], leaves: List[str]) -> Optional[Tuple[int, int]]:
+    def _find_token_indices_for_leaves(self, leaves: List[str], sent_tokens: List[Any]) -> Optional[Tuple[int, int]]:
         """
         Attempts to find the start and end token indices in a spaCy sentence
         that correspond to a given sequence of leaves from an NLTK tree.
 
         Args:
-            sent_tokens: List of spaCy Token objects for the sentence.
             leaves: List of leaf strings from the NLTK tree node.
+            sent_tokens: List of spaCy Token objects for the sentence.
 
         Returns:
             Optional[Tuple[int, int]]: Tuple of (start_token_idx, end_token_idx) inclusive,
@@ -896,7 +928,9 @@ class ANPEExtractor:
             match = True
             # Check if the sequence of token texts matches the leaves
             for j in range(num_leaves):
-                if leaves[j] != sent_tokens[i + j].text:
+                normalized_leaf = self._normalize_text_for_matching(leaves[j])
+                normalized_token_text = self._normalize_text_for_matching(sent_tokens[i + j].text)
+                if normalized_leaf != normalized_token_text:
                     match = False
                     break
             if match:
@@ -904,7 +938,12 @@ class ANPEExtractor:
                 return i, i + num_leaves - 1
 
         # If no match found after checking all possible start positions
-        logger.warning(f"Could not map leaves {leaves} to tokens in sentence. Span creation might fail.")
+        logger.warning(
+            f"Could not map leaves {leaves} to tokens in sentence.\n"
+            f"This might be due to the presence of special characters or punctuation that are not being normalized properly.\n"
+            f"Span creation might fail and related noun phrases might not be present in the output.\n"
+            f"ANPE expects clean texts. Please try normalize the text manually."
+        )
         return None # Indicate failure to map
 
     # --- Highest Level NP Extraction (include_nested=False) ---
@@ -942,7 +981,7 @@ class ANPEExtractor:
             # If this is an NP and its immediate parent was not an NP
             if is_np and not parent_is_np:
                 leaves = node.leaves()
-                indices = self._find_token_indices_for_leaves(sent_tokens, leaves)
+                indices = self._find_token_indices_for_leaves(leaves, sent_tokens)
 
                 if indices:
                     start_idx, end_idx = indices
@@ -1008,7 +1047,7 @@ class ANPEExtractor:
                     # 2. Attempt to map leaves to spaCy Span
                     np_span = None
                     leaves = node.leaves()
-                    indices = self._find_token_indices_for_leaves(sent_tokens, leaves)
+                    indices = self._find_token_indices_for_leaves(leaves, sent_tokens)
                     if indices:
                         np_span = self._get_span_from_token_indices(sent, indices[0], indices[1])
                         if not np_span:
