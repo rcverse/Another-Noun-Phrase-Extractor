@@ -758,10 +758,10 @@ If you use ANPE in your research or projects, please cite it as follows:
   author = {Chen, Nuo},
   title = {{ANPE: Another Noun Phrase Extractor}},
   url = {https://github.com/rcverse/another-noun-phrase-extractor},
-  version = {1.0.2},
+  version = {1.0.3},
   year = {2025}
 }
 ```
 
 ### Plain Text (APA style)
-Chen, N. (2025). *ANPE: Another Noun Phrase Extractor* (Version 1.0.2) [Computer software]. Retrieved from https://github.com/rcverse/another-noun-phrase-extractor
+Chen, N. (2025). *ANPE: Another Noun Phrase Extractor* (Version 1.0.3) [Computer software]. Retrieved from https://github.com/rcverse/another-noun-phrase-extractor

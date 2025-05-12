@@ -12,6 +12,7 @@ import sys
 # Add Span and Doc imports
 from spacy.tokens import Doc, Span, Token
 import time
+import re
 
 
 from anpe.config import DEFAULT_CONFIG
@@ -774,7 +775,9 @@ class ANPEExtractor:
             return text
         
         # Always normalize line endings first
-        processed_text = text.replace('\r\n', '\n')
+        # Original: processed_text = text.replace('\r\n', '\n')
+        # Ensure both \r\n and \r are handled, standardizing to \n
+        processed_text = text.replace('\r\n', '\n').replace('\r', '\n')
         
         if not self.newline_breaks:
             # When newlines AREN'T sentence breaks, we ensure sentences continue across lines
@@ -793,13 +796,10 @@ class ANPEExtractor:
             # Step 4: Fix any accidental period-space-space sequences from previous operations
             processed_text = processed_text.replace('.  ', '. ')
             
-            # Step 5: Normalize multiple spaces and ensure clean spacing
+            # Step 5: Normalize multiple spaces and ensure clean spacing (original logic)
             processed_text = ' '.join(processed_text.split())
-            
-            # Step 6: Add trailing space for Benepar's tokenizer
-            processed_text += ' '
-            
-        else:
+
+        else: # self.newline_breaks is True
             # When newlines ARE sentence breaks, we make them explicit sentence boundaries
             logger.debug("Preprocessing text with newline_breaks=True (treating newlines as sentence boundaries)")
             
@@ -808,27 +808,43 @@ class ANPEExtractor:
             
             # Step 2: Process each line to ensure it ends with a proper sentence boundary
             for i in range(len(lines)):
-                line = lines[i].strip()
-                if not line:  # Skip empty lines
+                current_line = lines[i].strip() # Use a different variable name to avoid confusion
+                if not current_line:  # Skip empty lines
+                    lines[i] = "" # Ensure empty lines become truly empty for join
                     continue
                     
                 # If the line doesn't end with a sentence-ending punctuation, add a period
-                if line and not line[-1] in '.?!':
-                    lines[i] = line + '.'
+                if not current_line[-1] in '.?!':
+                    lines[i] = current_line + '.'
+                else:
+                    lines[i] = current_line # Keep as is if already ends with punctuation
             
             # Step 3: Rejoin with newlines to preserve the line structure
             processed_text = '\n'.join(lines)
             
-            # Step 4: Ensure proper spacing before and after newlines for tokenization
+            # Step 4: Ensure proper spacing before and after newlines for tokenization (original logic)
             processed_text = processed_text.replace('\n', ' \n ')
             
-            # Step 5: Clean up multiple spaces
+            # Step 5: Clean up multiple spaces (original logic)
             processed_text = ' '.join(processed_text.split())
-            
-            # Step 6: Add trailing space for Benepar
-            processed_text += ' '
+
+        # --- NEW: Space-padding for specific punctuation ---
+        # This is applied *after* the main newline and space normalization from the blocks above.
+        logger.debug(f"Text before punctuation padding (snippet): '{processed_text[:200]}...'")
         
-        return processed_text
+        temp_padded_text = processed_text
+        for char_code in ['(', ')', '[', ']', '{', '}']:
+            temp_padded_text = temp_padded_text.replace(char_code, f" {char_code} ")
+        
+        # --- Final space cleanup and ensure a single trailing space if text is not empty ---
+        # This consolidates spaces from padding and normalizes overall spacing.
+        final_text = ' '.join(temp_padded_text.split())
+
+        if final_text: # Only add trailing space if the string is not empty
+            final_text += ' '
+        
+        logger.debug(f"Preprocessed text for Benepar (snippet): '{final_text[:200]}...'")
+        return final_text
 
     def _tree_to_text(self, tree: Tree) -> str:
         """
