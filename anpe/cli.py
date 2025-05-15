@@ -21,7 +21,9 @@ from anpe.utils.setup_models import (  # Import specific functions
     SPACY_MODEL_MAP,
     BENEPAR_MODEL_MAP,
     DEFAULT_SPACY_ALIAS,
-    DEFAULT_BENEPAR_ALIAS
+    DEFAULT_BENEPAR_ALIAS,
+    INSTALLABLE_SPACY_ALIASES,
+    INSTALLABLE_BENEPAR_ALIASES
 )
 # Import cleaning utility
 from anpe.utils.clean_models import clean_all, SPACY_MODEL_MAP as CLEAN_SPACY_MAP, BENEPAR_MODEL_MAP as CLEAN_BENEPAR_MAP
@@ -633,105 +635,141 @@ def main(args: Optional[List[str]] = None) -> int:
                     return 1
             
             else: # Normal setup
-                spacy_alias = parsed_args.spacy_model
-                benepar_alias = parsed_args.benepar_model
-                
-                # Handle the 'all' option for spaCy models
-                if spacy_alias == 'all':
-                    logger.info("Installing ALL spaCy models...")
-                    all_success = True
-                    spacy_aliases = [alias for alias in SPACY_MODEL_MAP.keys() if alias not in ["all"]]
-                    
-                    for alias in spacy_aliases:
+                orig_spacy_arg = parsed_args.spacy_model
+                orig_benepar_arg = parsed_args.benepar_model
+
+                spacy_all_processed_successfully = False
+                benepar_all_processed_successfully = False
+
+                # --- Handle 'all' for spaCy ---
+                if orig_spacy_arg == 'all':
+                    logger.info("Installing ALL designated spaCy models...")
+                    current_all_spacy_success = True
+                    # Get all actual aliases excluding 'all' itself from the choices if SPACY_MODEL_MAP contains 'all' as a key by mistake
+                    # Use the defined aliases for actual installation
+                    spacy_install_aliases = [alias for alias in INSTALLABLE_SPACY_ALIASES if alias in SPACY_MODEL_MAP]
+
+
+                    for alias in spacy_install_aliases:
                         print(f"--- Installing spaCy model: {SPACY_MODEL_MAP[alias]} (alias: {alias}) ---", file=sys.stderr)
                         try:
-                            setup_result = setup_models(
+                            setup_component_result = setup_models(
                                 spacy_model_alias=alias,
-                                benepar_model_alias=None,  # Don't install Benepar models in this loop
+                                benepar_model_alias=None, 
                                 log_callback=cli_log_callback
                             )
-                            if not setup_result:
-                                all_success = False
-                                logger.error(f"Failed to install spaCy model: {alias}")
+                            if not setup_component_result:
+                                current_all_spacy_success = False
+                                logger.error(f"Failed to install/verify individual spaCy model: {alias}")
                         except Exception as e:
-                            all_success = False
-                            logger.error(f"Error installing spaCy model {alias}: {str(e)}")
+                            current_all_spacy_success = False
+                            logger.error(f"Error installing individual spaCy model {alias}: {str(e)}", exc_info=True)
                     
-                    if not all_success:
-                        print("--- Some spaCy models failed to install. Check the logs for details. ---", file=sys.stderr)
-                        return 1
-                    
-                    # Clear spacy_alias so we don't try to install it again below
-                    spacy_alias = None
-                    
-                    if benepar_alias is None:
-                        # If no Benepar model was specified, we're done
-                        print("--- All spaCy models installed successfully. ---", file=sys.stderr)
-                        return 0
+                    if not current_all_spacy_success:
+                        logger.error("One or more spaCy models failed to install during 'all' operation.")
+                        # Do not return 1 yet, Benepar 'all' might also be requested. We'll return based on overall.
+                    else:
+                        logger.info("All spaCy models processed successfully via --spacy all.")
+                    spacy_all_processed_successfully = current_all_spacy_success
                 
-                # Handle the 'all' option for Benepar models
-                if benepar_alias == 'all':
-                    logger.info("Installing ALL Benepar models...")
-                    all_success = True
-                    benepar_aliases = [alias for alias in BENEPAR_MODEL_MAP.keys() if alias not in ["all"]]
-                    
-                    for alias in benepar_aliases:
+                # --- Handle 'all' for Benepar ---
+                if orig_benepar_arg == 'all':
+                    logger.info("Installing ALL designated Benepar models...")
+                    current_all_benepar_success = True
+                    # Use the defined aliases for actual installation
+                    benepar_install_aliases = [alias for alias in INSTALLABLE_BENEPAR_ALIASES if alias in BENEPAR_MODEL_MAP]
+
+                    for alias in benepar_install_aliases:
                         print(f"--- Installing Benepar model: {BENEPAR_MODEL_MAP[alias]} (alias: {alias}) ---", file=sys.stderr)
                         try:
-                            setup_result = setup_models(
-                                spacy_model_alias=None,  # Don't install spaCy models in this loop
+                            setup_component_result = setup_models(
+                                spacy_model_alias=None,
                                 benepar_model_alias=alias,
                                 log_callback=cli_log_callback
                             )
-                            if not setup_result:
-                                all_success = False
-                                logger.error(f"Failed to install Benepar model: {alias}")
+                            if not setup_component_result:
+                                current_all_benepar_success = False
+                                logger.error(f"Failed to install/verify individual Benepar model: {alias}")
                         except Exception as e:
-                            all_success = False
-                            logger.error(f"Error installing Benepar model {alias}: {str(e)}")
-                    
-                    if not all_success:
-                        print("--- Some Benepar models failed to install. Check the logs for details. ---", file=sys.stderr)
-                        return 1
-                    
-                    # Clear benepar_alias so we don't try to install it again below
-                    benepar_alias = None
-                    
-                    if spacy_alias is None:
-                        # If no spaCy model was specified, we're done
-                        print("--- All Benepar models installed successfully. ---", file=sys.stderr)
-                        return 0
+                            current_all_benepar_success = False
+                            logger.error(f"Error installing individual Benepar model {alias}: {str(e)}", exc_info=True)
+
+                    if not current_all_benepar_success:
+                        logger.error("One or more Benepar models failed to install during 'all' operation.")
+                    else:
+                        logger.info("All Benepar models processed successfully via --benepar all.")
+                    benepar_all_processed_successfully = current_all_benepar_success
+
+                # --- Final setup_models call for specific models or defaults ---
+                # Determine the aliases to pass to the final setup_models call.
+                # If 'all' was processed for a type, its specific alias for this call should be None.
                 
-                # If we've reached this point, we need to do a normal setup with any remaining model aliases
-                if spacy_alias is None and benepar_alias is None:
-                    logger.info("No specific models provided for regular installation.")
-                    return 0  # Success - we've already installed everything above
+                final_spacy_alias = None
+                if not spacy_all_processed_successfully and orig_spacy_arg and orig_spacy_arg != 'all':
+                    final_spacy_alias = orig_spacy_arg
+                elif not spacy_all_processed_successfully and not orig_spacy_arg: # Not 'all' and not specified -> default for this call
+                    final_spacy_alias = None 
+                # If spacy_all_processed_successfully is True, final_spacy_alias remains None (already handled)
+
+                final_benepar_alias = None
+                if not benepar_all_processed_successfully and orig_benepar_arg and orig_benepar_arg != 'all':
+                    final_benepar_alias = orig_benepar_arg
+                elif not benepar_all_processed_successfully and not orig_benepar_arg: # Not 'all' and not specified -> default
+                    final_benepar_alias = None
+                # If benepar_all_processed_successfully is True, final_benepar_alias remains None
+
+                # Conditions for making the final call:
+                # 1. spaCy part needs doing (wasn't 'all' successfully, or is a specific model/default)
+                # OR
+                # 2. Benepar part needs doing (wasn't 'all' successfully, or is a specific model/default)
                 
-                # Continue with normal setup for any remaining models
-                if not spacy_alias and not benepar_alias:
-                    logger.info("No specific models provided, setting up default spaCy (md) and Benepar (default) models.")
-                    spacy_alias = DEFAULT_SPACY_ALIAS
-                    benepar_alias = DEFAULT_BENEPAR_ALIAS
-                elif not spacy_alias:
-                    logger.info(f"Setting up default spaCy ({DEFAULT_SPACY_ALIAS}) and specified Benepar ({benepar_alias}).")
-                    spacy_alias = DEFAULT_SPACY_ALIAS
-                elif not benepar_alias:
-                    logger.info(f"Setting up specified spaCy ({spacy_alias}) and default Benepar ({DEFAULT_BENEPAR_ALIAS}).")
-                    benepar_alias = DEFAULT_BENEPAR_ALIAS
-                else:
-                    logger.info(f"Setting up spaCy='{spacy_alias}', Benepar='{benepar_alias}'")
+                needs_final_call = False
+                if not spacy_all_processed_successfully and (orig_spacy_arg != 'all'): # Specific spaCy or default spaCy
+                    needs_final_call = True
+                if not benepar_all_processed_successfully and (orig_benepar_arg != 'all'): # Specific benepar or default benepar
+                    needs_final_call = True
+                
+                if needs_final_call:
+                    log_parts = []
+                    if final_spacy_alias: log_parts.append(f"spaCy='{final_spacy_alias}'")
+                    elif not spacy_all_processed_successfully and orig_spacy_arg is None: log_parts.append(f"default spaCy ('{DEFAULT_SPACY_ALIAS}')")
                     
-                try:
-                    setup_models(
-                        spacy_model_alias=spacy_alias, 
-                        benepar_model_alias=benepar_alias, 
+                    if final_benepar_alias: log_parts.append(f"Benepar='{final_benepar_alias}'")
+                    elif not benepar_all_processed_successfully and orig_benepar_arg is None: log_parts.append(f"default Benepar ('{DEFAULT_BENEPAR_ALIAS}')")
+
+                    if log_parts:
+                        logger.info(f"Performing final setup for: {', '.join(log_parts)}.")
+                    else: # This case implies 'all' was specified for one but not the other, and the other was None.
+                          # The 'all' part would have logged. If the other part is truly default (None), then this call handles it.
+                        if final_spacy_alias is None and final_benepar_alias is None and \
+                           (not spacy_all_processed_successfully and orig_spacy_arg is None) and \
+                           (not benepar_all_processed_successfully and orig_benepar_arg is None):
+                            logger.info(f"Performing final setup for: default spaCy ('{DEFAULT_SPACY_ALIAS}'), default Benepar ('{DEFAULT_BENEPAR_ALIAS}').")
+
+
+                    overall_success = setup_models(
+                        spacy_model_alias=final_spacy_alias,
+                        benepar_model_alias=final_benepar_alias,
                         log_callback=cli_log_callback
                     )
-                    print(f"--- Setup for spaCy='{spacy_alias}', Benepar='{benepar_alias}' finished successfully. ---", file=sys.stderr)
-                except Exception as e:
-                    logger.error(f"Setup failed: {str(e)}")
-                    print(f"Error: {str(e)}", file=sys.stderr)
-                    return 1 # Error during setup
+                    if not overall_success:
+                        logger.error("One or more models failed to install during the final setup phase.")
+                        return 1 # Error during this specific setup call
+                    logger.info("Final model setup phase complete.")
+                
+                # Determine overall success based on 'all' processing and the final call (if any)
+                # If any 'all' part failed, it's an overall failure.
+                if (orig_spacy_arg == 'all' and not spacy_all_processed_successfully) or \
+                   (orig_benepar_arg == 'all' and not benepar_all_processed_successfully):
+                    logger.error("Overall setup failed due to issues in 'all' model processing.")
+                    return 1
+                
+                # If we reached here, all requested operations (specific, default, or 'all') either
+                # succeeded or the final_call handled the remaining/default parts.
+                # The final return 0 for the setup command is later.
+            
+            # This is the return for the `setup` command path if no earlier error return.
+            return 0 # Success for setup command
         
         else:
             # Should not happen if argparse is set up correctly

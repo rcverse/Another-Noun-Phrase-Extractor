@@ -1,6 +1,6 @@
 import pytest
 import argparse
-from unittest.mock import patch, MagicMock
+from unittest.mock import patch, MagicMock, ANY
 import sys
 import logging
 from _pytest.logging import LogCaptureFixture
@@ -8,7 +8,7 @@ from _pytest.logging import LogCaptureFixture
 # Import the CLI module itself
 from anpe import cli
 # Import constants needed for assertions
-from anpe.utils.setup_models import DEFAULT_SPACY_ALIAS, DEFAULT_BENEPAR_ALIAS 
+from anpe.utils.setup_models import DEFAULT_SPACY_ALIAS, DEFAULT_BENEPAR_ALIAS, SPACY_MODEL_MAP, BENEPAR_MODEL_MAP
 
 # --- Test Fixtures ---
 
@@ -206,25 +206,46 @@ def test_cli_extract_export_error(mock_get_logger, mock_create_extractor, mock_s
 # --- Tests for 'setup' command ---
 
 @patch('anpe.cli.sys.exit')
-@patch('anpe.cli.setup_models') 
-@patch('anpe.cli.logging.getLogger') # Patch the logger
-def test_cli_setup_default(mock_get_logger, mock_setup, mock_sys_exit):
-    """Test CLI setup command with default models."""
+@patch('anpe.utils.setup_models.install_benepar_model')
+@patch('anpe.utils.setup_models.install_spacy_model')
+@patch('anpe.utils.setup_models.check_benepar_model')
+@patch('anpe.utils.setup_models.check_spacy_model')
+@patch('anpe.cli.logging.getLogger') # Keep logger patch if used
+def test_cli_setup_default(
+    mock_get_logger, 
+    mock_check_spacy, 
+    mock_check_benepar, 
+    mock_install_spacy, 
+    mock_install_benepar, 
+    mock_sys_exit
+):
+    """Test CLI setup command with default models triggering installations."""
     # Configure mock logger
     mock_logger = MagicMock()
     mock_get_logger.return_value = mock_logger
-    
+
+    # Simulate models are not installed
+    mock_check_spacy.return_value = False
+    mock_check_benepar.return_value = False
+    # Simulate successful installation
+    mock_install_spacy.return_value = True
+    mock_install_benepar.return_value = True
+
+    # Expected default aliases from anpe.utils.setup_models constants
+    from anpe.utils.setup_models import DEFAULT_SPACY_ALIAS, DEFAULT_BENEPAR_ALIAS, SPACY_MODEL_MAP, BENEPAR_MODEL_MAP
+
     exit_code = cli.main(['setup'])
-    
+
     assert exit_code == 0
     mock_sys_exit.assert_not_called()
-    mock_setup.assert_called_once()
-    call_args, call_kwargs = mock_setup.call_args
-    # Check actual defaults passed by cli.main logic
-    assert call_kwargs.get('spacy_model_alias') == DEFAULT_SPACY_ALIAS # e.g., 'md'
-    assert call_kwargs.get('benepar_model_alias') == DEFAULT_BENEPAR_ALIAS # e.g., 'default'
-    assert 'log_callback' in call_kwargs # Correct key is log_callback
-    assert callable(call_kwargs['log_callback'])
+
+    # Verify checks were called with full model names derived from default aliases
+    mock_check_spacy.assert_called_once_with(model_name=SPACY_MODEL_MAP[DEFAULT_SPACY_ALIAS])
+    mock_check_benepar.assert_called_once_with(model_name=BENEPAR_MODEL_MAP[DEFAULT_BENEPAR_ALIAS])
+
+    # Verify install functions were called with default aliases since checks returned False
+    mock_install_spacy.assert_called_once_with(alias=DEFAULT_SPACY_ALIAS, model_map=SPACY_MODEL_MAP, log_callback=ANY)
+    mock_install_benepar.assert_called_once_with(alias=DEFAULT_BENEPAR_ALIAS, model_map=BENEPAR_MODEL_MAP, log_callback=ANY)
 
 @patch('anpe.cli.sys.exit')
 @patch('anpe.cli.setup_models')
@@ -251,26 +272,59 @@ def test_cli_setup_specific_models(mock_get_logger, mock_setup, mock_sys_exit):
     assert callable(call_kwargs['log_callback'])
 
 @patch('anpe.cli.sys.exit')
-@patch('anpe.cli.setup_models')
-@patch('anpe.cli.logging.getLogger') # Patch the logger
-def test_cli_setup_error(mock_get_logger, mock_setup, mock_sys_exit, capsys):
-    """Test CLI setup handles errors during model setup."""
-    # Configure mock logger
+@patch('anpe.utils.setup_models.install_benepar_model') # Mock the actual function in setup_models
+@patch('anpe.utils.setup_models.install_spacy_model')   # Mock the actual function in setup_models
+@patch('anpe.utils.setup_models.check_benepar_model')
+@patch('anpe.utils.setup_models.check_spacy_model')
+@patch('anpe.cli.logging.getLogger')
+def test_cli_setup_error(
+    mock_get_logger, 
+    mock_check_spacy, 
+    mock_check_benepar, 
+    mock_install_spacy, 
+    mock_install_benepar, 
+    mock_sys_exit, 
+    capsys
+):
+    """Test CLI setup handles errors during model setup (e.g., spaCy model install fails)."""
     mock_logger = MagicMock()
     mock_get_logger.return_value = mock_logger
+
+    # Simulate spaCy model is not installed, but Benepar is (or its check passes)
+    mock_check_spacy.return_value = False
+    mock_check_benepar.return_value = True # Assume Benepar is fine or its check passes
+
+    # Simulate an error during spaCy model installation
+    mock_install_spacy.return_value = False # Indicates failure
+    mock_install_benepar.return_value = True # Assume Benepar would install if called
+
+    # Expected default aliases from anpe.utils.setup_models constants
+    from anpe.utils.setup_models import DEFAULT_SPACY_ALIAS, DEFAULT_BENEPAR_ALIAS, SPACY_MODEL_MAP, BENEPAR_MODEL_MAP
+
+    exit_code = cli.main(['setup']) # Run default setup
     
-    mock_setup.side_effect = OSError("Mock Model Download Error")
-    
-    exit_code = cli.main(['setup'])
-    
-    assert exit_code == 1 
-    mock_sys_exit.assert_not_called()
-    mock_setup.assert_called_once()
-    
-    # Check the error message printed to stderr
+    assert exit_code == 1 # Expect failure exit code
+    mock_sys_exit.assert_not_called() # main should return 1, not call sys.exit directly for this
+
+    mock_check_spacy.assert_called_once_with(model_name=SPACY_MODEL_MAP[DEFAULT_SPACY_ALIAS])
+    # Benepar check might also be called depending on logic, or not if spaCy fails first. 
+    # For this test, let's assume it's called.
+    mock_check_benepar.assert_called_once_with(model_name=BENEPAR_MODEL_MAP[DEFAULT_BENEPAR_ALIAS])
+
+    # Assert spaCy installation was attempted
+    mock_install_spacy.assert_called_once_with(alias=DEFAULT_SPACY_ALIAS, model_map=SPACY_MODEL_MAP, log_callback=ANY)
+    # Benepar installation should NOT be attempted if its check returned True
+    mock_install_benepar.assert_not_called() 
+
+    # Check the error message logged by cli.main for failed setup
+    # The specific model failure is logged by setup_models internal logger (or callback).
+    # cli.main logs a more general message based on the False return from setup_models.
+    mock_logger.error.assert_any_call('One or more models failed to install during the final setup phase.')
+
+    # Verify stderr output if cli.py directly prints for this specific failure case
     captured = capsys.readouterr()
-    # Match actual logged error format (printed by except block)
-    assert "Error: Mock Model Download Error" in captured.err
+    # Example: assert "Failed to install spaCy model" in captured.err
+    # However, current cli.py relies on logging for these messages rather than direct print to stderr for individual model failures.
 
 # --- Tests for 'clean' command ---
 

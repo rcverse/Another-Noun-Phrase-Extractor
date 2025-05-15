@@ -44,6 +44,10 @@ BENEPAR_MODEL_MAP = {
 }
 DEFAULT_BENEPAR_ALIAS = "default"
 
+# Define canonical lists of aliases intended for "install all" functionality
+INSTALLABLE_SPACY_ALIASES = ["sm", "md", "lg", "trf"]
+INSTALLABLE_BENEPAR_ALIASES = ["default", "large"]
+
 # Set up NLTK data path focusing on user's directory
 def setup_nltk_data_dir() -> str:
     """Ensures user's NLTK data directory exists and is preferred.
@@ -272,7 +276,7 @@ def install_spacy_model(model_name: str = "en_core_web_md", log_callback: Option
     specified spaCy model using `python -m spacy download`.
 
     Args:
-        model_name (str): The name of the spaCy model to install (e.g., "en_core_web_trf").
+        model_name (str): The alias (e.g., 'md', 'trf') or full name (e.g., 'en_core_web_md') of the spaCy model to install.
         log_callback (Optional[Callable[[str], None]]): Optional callback for logging.
 
     Returns:
@@ -664,138 +668,86 @@ def install_benepar_model(model_name: str = "benepar_en3", log_callback: Optiona
         return False
 
 def setup_models(
-    spacy_model_alias: str = DEFAULT_SPACY_ALIAS,
-    benepar_model_alias: str = DEFAULT_BENEPAR_ALIAS,
+    spacy_model_alias: Optional[str] = None, 
+    benepar_model_alias: Optional[str] = None,
     log_callback: Optional[Callable[[str], None]] = None
 ) -> bool:
     """
-    Checks for required models (specified spaCy/Benepar) and attempts
-    to install any that are missing. Uses user-friendly aliases for models.
-
-    Args:
-        spacy_model_alias (str): Alias for spaCy model ('sm', 'md', 'lg', 'trf').
-                                 Defaults to 'md'.
-        benepar_model_alias (str): Alias for Benepar model ('default', 'large').
-                                   Defaults to 'default'.
-        log_callback (Optional[Callable[[str], None]]): Optional callback function to receive 
-                                                        real-time log output.
-
-    Returns:
-        bool: True if all required models (based on selected aliases) are
-              present after the check/install process, False otherwise.
+    Set up specified spaCy and Benepar models.
+    If an alias is None, attempts to install/verify the default model for that type.
+    Returns True if all necessary operations succeeded, False otherwise.
     """
-    msg = f"Starting model setup process for spaCy='{spacy_model_alias}', benepar='{benepar_model_alias}'..."
-    logger.info(msg)
-    if log_callback:
-        log_callback(msg)
-
-    final_status = True  # Tracks if all models are OK by the end
-    spacy_needed = bool(spacy_model_alias)
-    benepar_needed = bool(benepar_model_alias)
-
-    actual_spacy_model = None
-    if spacy_needed:
-        spacy_alias_lower = spacy_model_alias.lower()
-        actual_spacy_model = SPACY_MODEL_MAP.get(spacy_alias_lower)
-        if not actual_spacy_model:
-            msg = f"Error: Invalid spaCy model alias '{spacy_model_alias}'. Available: {list(SPACY_MODEL_MAP.keys())}."
+    
+    # Helper for logging via callback or logger
+    def _log(msg: str, level: str = "INFO"):
+        if log_callback:
+            log_callback(msg) # Callback usually implies INFO level for CLI
+        elif level.upper() == "DEBUG":
+            logger.debug(msg)
+        elif level.upper() == "WARNING":
+            logger.warning(msg)
+        elif level.upper() == "ERROR":
             logger.error(msg)
-            if log_callback:
-                log_callback(msg)
-            return False # Fail immediately on invalid alias
-    else:
-        msg = "spaCy model setup skipped (alias not provided)."
-        logger.info(msg)
-        if log_callback:
-            log_callback(msg)
-
-    actual_benepar_model = None
-    if benepar_needed:
-        benepar_alias_lower = benepar_model_alias.lower()
-        actual_benepar_model = BENEPAR_MODEL_MAP.get(benepar_alias_lower)
-        if not actual_benepar_model:
-            msg = f"Error: Invalid Benepar model alias '{benepar_model_alias}'. Available: {list(BENEPAR_MODEL_MAP.keys())}."
-            logger.error(msg)
-            if log_callback:
-                log_callback(msg)
-            return False # Fail immediately on invalid alias
-    else:
-        msg = "Benepar model setup skipped (alias not provided)."
-        logger.info(msg)
-        if log_callback:
-            log_callback(msg)
-
-    # --- Check and Install spaCy ---
-    if spacy_needed:
-        msg_check = f"Checking for required spaCy model '{actual_spacy_model}' (alias '{spacy_model_alias}')..."
-        logger.info(msg_check)
-        if log_callback:
-            log_callback(msg_check)
-
-        if check_spacy_model(model_name=actual_spacy_model):
-            msg = f"Required spaCy model '{actual_spacy_model}' already installed."
-            logger.info(msg)
-            if log_callback:
-                log_callback(msg)
         else:
-            msg = f"Required spaCy model '{actual_spacy_model}' not found. Attempting installation..."
             logger.info(msg)
-            if log_callback:
-                log_callback(msg)
-            if not install_spacy_model(actual_spacy_model, log_callback=log_callback):
-                msg = f"Failed to install required spaCy model '{actual_spacy_model}'."
-                logger.error(msg)
-                if log_callback:
-                    log_callback(msg)
-                final_status = False
-            else:
-                 msg = f"Successfully installed spaCy model '{actual_spacy_model}'."
-                 logger.info(msg)
-                 if log_callback:
-                     log_callback(msg)
 
-    # --- Check and Install Benepar ---
-    if benepar_needed:
-        msg_check = f"Checking for required Benepar model '{actual_benepar_model}' (alias '{benepar_model_alias}')..."
-        logger.info(msg_check)
-        if log_callback:
-            log_callback(msg_check)
+    _log(f"Starting model setup process for spaCy='{spacy_model_alias if spacy_model_alias else 'Default'}', Benepar='{benepar_model_alias if benepar_model_alias else 'Default'}'...")
 
-        if check_benepar_model(model_name=actual_benepar_model):
-            msg = f"Required Benepar model '{actual_benepar_model}' already installed."
-            logger.info(msg)
-            if log_callback:
-                log_callback(msg)
-        else:
-            msg = f"Required Benepar model '{actual_benepar_model}' not found. Attempting installation..."
-            logger.info(msg)
-            if log_callback:
-                log_callback(msg)
-            if not install_benepar_model(actual_benepar_model, log_callback=log_callback):
-                msg = f"Failed to install required Benepar model '{actual_benepar_model}'."
-                logger.error(msg)
-                if log_callback:
-                    log_callback(msg)
-                final_status = False
-            else:
-                msg = f"Successfully installed Benepar model '{actual_benepar_model}'."
-                logger.info(msg)
-                if log_callback:
-                    log_callback(msg)
+    spacy_overall_success = True
+    benepar_overall_success = True
 
-    # --- Final Status ---
-    if final_status:
-        msg = "Model setup process completed successfully."
-        logger.info(msg)
-        if log_callback:
-            log_callback(msg)
+    # --- SpaCy Model Setup ---
+    # Determine the actual spaCy alias to process: use provided, or default if None.
+    effective_spacy_alias = spacy_model_alias if spacy_model_alias is not None else DEFAULT_SPACY_ALIAS
+    _log(f"Effective spaCy alias for setup: {effective_spacy_alias}")
+
+    spacy_full_name = SPACY_MODEL_MAP.get(effective_spacy_alias)
+
+    if not spacy_full_name:
+        _log(f"Invalid spaCy model alias provided: '{effective_spacy_alias}'. Cannot proceed with spaCy setup.", level="ERROR")
+        spacy_overall_success = False
     else:
-        msg = "Model setup process failed for one or more models. Please review logs."
-        logger.error(msg)
-        if log_callback:
-            log_callback(msg)
+        _log(f"Processing spaCy model: {spacy_full_name} (alias: {effective_spacy_alias})")
+        if not check_spacy_model(model_name=spacy_full_name):
+            _log(f"SpaCy model '{spacy_full_name}' not found. Attempting installation for alias '{effective_spacy_alias}'...")
+            # install_spacy_model expects the alias, not the full name, to map to download URL etc.
+            if not install_spacy_model(alias=effective_spacy_alias, model_map=SPACY_MODEL_MAP, log_callback=log_callback):
+                _log(f"Failed to install spaCy model '{spacy_full_name}' (alias: {effective_spacy_alias}).", level="ERROR")
+                spacy_overall_success = False
+            else:
+                _log(f"SpaCy model '{spacy_full_name}' (alias: {effective_spacy_alias}) installed successfully.")
+        else:
+            _log(f"SpaCy model '{spacy_full_name}' (alias: {effective_spacy_alias}) is already present.")
 
-    return final_status
+    # --- Benepar Model Setup ---
+    effective_benepar_alias = benepar_model_alias if benepar_model_alias is not None else DEFAULT_BENEPAR_ALIAS
+    _log(f"Effective Benepar alias for setup: {effective_benepar_alias}")
+    
+    benepar_full_name = BENEPAR_MODEL_MAP.get(effective_benepar_alias)
+
+    if not benepar_full_name:
+        _log(f"Invalid Benepar model alias provided: '{effective_benepar_alias}'. Cannot proceed with Benepar setup.", level="ERROR")
+        benepar_overall_success = False
+    else:
+        _log(f"Processing Benepar model: {benepar_full_name} (alias: {effective_benepar_alias})")
+        if not check_benepar_model(model_name=benepar_full_name):
+            _log(f"Benepar model '{benepar_full_name}' not found. Attempting installation for alias '{effective_benepar_alias}'...")
+            # install_benepar_model expects the alias
+            if not install_benepar_model(alias=effective_benepar_alias, model_map=BENEPAR_MODEL_MAP, log_callback=log_callback):
+                _log(f"Failed to install Benepar model '{benepar_full_name}' (alias: {effective_benepar_alias}).", level="ERROR")
+                benepar_overall_success = False
+            else:
+                _log(f"Benepar model '{benepar_full_name}' (alias: {effective_benepar_alias}) installed successfully.")
+        else:
+            _log(f"Benepar model '{benepar_full_name}' (alias: {effective_benepar_alias}) is already present.")
+
+    final_success = spacy_overall_success and benepar_overall_success
+    if final_success:
+        _log("Model setup process completed successfully.")
+    else:
+        _log("Model setup process encountered errors.", level="ERROR")
+        
+    return final_success
 
 def main(log_callback: Optional[Callable[[str], None]] = None) -> int:
     """

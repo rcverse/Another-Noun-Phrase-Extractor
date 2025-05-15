@@ -4,7 +4,7 @@ import csv
 import os
 import subprocess
 from pathlib import Path
-from unittest.mock import patch, ANY
+from unittest.mock import patch, ANY, MagicMock
 import tempfile
 import shutil
 import site
@@ -12,10 +12,7 @@ import nltk
 import time
 import sys # Added for mocking sys.exit
 import importlib.metadata # Added for exception
-
-# Import the main CLI entrypoint
-# from anpe.cli import main as cli_main # Old import
-import anpe.cli # New import
+import anpe.cli 
 
 # Define a constant for the output directory relative to this test file
 OUTPUT_DIR = Path(__file__).parent / "cli_output"
@@ -302,48 +299,30 @@ def test_feature_cli_extract_from_file(): # Removed runner, tmp_path
 
 # --- Feature Tests ---
 
-# Patches apply to the test process environment
-# Patch the public install functions, not private ones
-@patch('anpe.utils.setup_models.install_benepar_model', return_value=True)
-@patch('anpe.utils.setup_models.install_spacy_model', return_value=True) 
-@patch('anpe.utils.setup_models.importlib.metadata.distribution', side_effect=importlib.metadata.PackageNotFoundError)
-@patch('anpe.utils.setup_models._check_spacy_physical_path', return_value=False)
-@patch('anpe.utils.setup_models.check_spacy_model', return_value=False)
-@patch('anpe.utils.setup_models.check_benepar_model', return_value=False)
-@patch('sys.exit') # Mock sys.exit
-def test_feature_cli_setup(
-    mock_exit, 
-    mock_check_benepar, 
-    mock_check_spacy, 
-    mock_check_phys_path, 
-    mock_distribution, 
-    mock_install_spacy,  # Correct mock arg name
-    mock_install_benepar # Correct mock arg name
-):
+@patch('sys.exit') 
+def test_feature_cli_setup(mock_sys_exit):
     """
-    Feature Test: Verify CLI 'setup' command triggers install functions.
-    Mocks checks (importlib, load, path) & install functions to prevent actual install.
-    Calls cli.main directly to ensure mocks are active.
+    Feature Test: Verify CLI 'setup' command calls the main setup_models utility
+    for default models.
+    Mocks the setup_models utility to prevent actual installation and checks.
+    Calls cli.main directly.
     """
-    # No need to configure subprocess mock anymore
-    
-    # Default models are 'md' and 'default' based on constants
-    from anpe.utils.setup_models import DEFAULT_SPACY_ALIAS, DEFAULT_BENEPAR_ALIAS, BENEPAR_MODEL_MAP, SPACY_MODEL_MAP
-    expected_spacy_name = SPACY_MODEL_MAP[DEFAULT_SPACY_ALIAS]
-    expected_benepar_name = BENEPAR_MODEL_MAP[DEFAULT_BENEPAR_ALIAS]
+    with patch.object(anpe.cli, 'setup_models', autospec=True) as mock_setup_models_in_cli:
+        mock_setup_models_in_cli.return_value = True
 
-    # Call cli_main directly instead of using subprocess
-    anpe.cli.main(['setup'])
+        # Call main using the freshly imported module reference
+        exit_code = anpe.cli.main(['setup'])
 
-    # Assert that the check functions were called with the correct model name
-    mock_check_spacy.assert_any_call(model_name=expected_spacy_name)
-    mock_check_benepar.assert_any_call(model_name=expected_benepar_name)
-
-    # Assert that the install functions were called using positional args for model_name
-    mock_install_spacy.assert_called_once_with(expected_spacy_name, log_callback=ANY)
-    mock_install_benepar.assert_called_once_with(expected_benepar_name, log_callback=ANY)
-    
-    mock_exit.assert_not_called() # Ensure setup didn't exit unexpectedly
+        assert exit_code == 0
+        mock_sys_exit.assert_not_called()
+        mock_setup_models_in_cli.assert_called_once()
+        
+        args, kwargs = mock_setup_models_in_cli.call_args
+        
+        assert kwargs.get('spacy_model_alias') is None
+        assert kwargs.get('benepar_model_alias') is None
+        assert 'log_callback' in kwargs
+        assert callable(kwargs['log_callback'])
 
 @patch('anpe.cli.clean_all')
 @patch('sys.exit') # Mock sys.exit
