@@ -64,16 +64,18 @@ def parse_args(args: Optional[List[str]] = None) -> argparse.Namespace:
     process_group.add_argument("--structures", type=str,
                         help="Comma-separated list of structure patterns to include")
     process_group.add_argument(
-        "--spacy-model", 
+        "--spacy-model", "--spacy",
+        dest="spacy_model",
         choices=list(SPACY_MODEL_MAP.keys()), # Use keys from the map as choices
         default=None, # Let extractor handle default/auto-detection
-        help="Specify spaCy model alias to USE for extraction (e.g., md, lg). Overrides auto-detection."
+        help="Specify spaCy model alias to USE for extraction (e.g., md, lg). Can use --spacy as shorter form."
     )
     process_group.add_argument(
-        "--benepar-model",
+        "--benepar-model", "--benepar",
+        dest="benepar_model",
         choices=list(BENEPAR_MODEL_MAP.keys()), # Use keys from the map as choices
         default=None, # Let extractor handle default/auto-detection
-        help="Specify Benepar model alias to USE for extraction (e.g., default, large). Overrides auto-detection."
+        help="Specify Benepar model alias to USE for extraction (e.g., default, large). Can use --benepar as shorter form."
     )
     
     # Output options
@@ -96,30 +98,51 @@ def parse_args(args: Optional[List[str]] = None) -> argparse.Namespace:
     # Setup command
     setup_parser = subparsers.add_parser('setup', help='Setup required models or clean existing models')
     setup_group = setup_parser.add_argument_group("Installation Options")
+    spacy_choices = list(SPACY_MODEL_MAP.keys()) + ["all"]
+    benepar_choices = list(BENEPAR_MODEL_MAP.keys()) + ["all"]
+    
     setup_group.add_argument(
-        "--spacy-model",
-        choices=list(SPACY_MODEL_MAP.keys()), # Use keys from the map as choices
+        "--spacy-model", "--spacy",
+        dest="spacy_model",
+        choices=spacy_choices,
         default=None, # Make default None so we can check if user specified it
-        help="Specify the spaCy model alias to install (e.g., sm, md, lg, trf). If not specified, installs default."
+        help="Specify the spaCy model alias to install (e.g., sm, md, lg, trf) or 'all' to install all models. Can use --spacy as shorter form."
     )
     setup_group.add_argument(
-        "--benepar-model",
-        choices=list(BENEPAR_MODEL_MAP.keys()), # Use keys from the map as choices
+        "--benepar-model", "--benepar",
+        dest="benepar_model",
+        choices=benepar_choices,
         default=None, # Make default None
-        help="Specify the Benepar model alias to install (e.g., default, large). If not specified, installs default."
+        help="Specify the Benepar model alias to install (e.g., default, large) or 'all' to install all models. Can use --benepar as shorter form."
+    )
+    setup_group.add_argument(
+        "--check-models",
+        action="store_true",
+        help="Check and display current model installation status and which models would be auto-selected."
     )
     
     # Mutually exclusive group for clean vs. install
     clean_group = setup_parser.add_argument_group("Cleanup Options")
-    clean_group.add_argument(
+    clean_mutex = clean_group.add_mutually_exclusive_group()
+    clean_mutex.add_argument(
         "--clean-models",
         action="store_true",
-        help="Remove all known ANPE-related models (spaCy and Benepar). Mutually exclusive with specific model installation."
+        help="Remove all known ANPE-related models (spaCy and Benepar)."
+    )
+    clean_mutex.add_argument(
+        "--clean-spacy",
+        choices=list(SPACY_MODEL_MAP.keys()),
+        help="Remove a specific spaCy model by alias (e.g., md, lg). Mutually exclusive with --clean-models."
+    )
+    clean_mutex.add_argument(
+        "--clean-benepar",
+        choices=list(BENEPAR_MODEL_MAP.keys()),
+        help="Remove a specific Benepar model by alias (e.g., default, large). Mutually exclusive with --clean-models."
     )
     clean_group.add_argument(
         "-f", "--force",
         action="store_true",
-        help="Force removal without user confirmation when using --clean-models."
+        help="Force removal without user confirmation when using any clean option."
     )
     
     # Logging options (apply to both setup and clean)
@@ -329,6 +352,109 @@ def print_np_to_stdout(np_item: Dict, level: int = 0) -> None:
     if level == 0:
         print()
 
+def check_and_display_models() -> None:
+    """Check model installation status and display which models would be auto-selected."""
+    # Import model_finder functions needed
+    from anpe.utils.model_finder import (
+        find_installed_spacy_models,
+        find_installed_benepar_models,
+        select_best_spacy_model,
+        select_best_benepar_model
+    )
+
+    print("=== ANPE Model Installation Status ===")
+    
+    # Check for spaCy models
+    spacy_models = find_installed_spacy_models()
+    print("\n--- SpaCy Models ---")
+    if not spacy_models:
+        print("✗ No ANPE-compatible spaCy models found.")
+    else:
+        print(f"Found {len(spacy_models)} installed spaCy models:")
+        for model in spacy_models:
+            alias_match = [alias for alias, name in SPACY_MODEL_MAP.items() if name == model]
+            alias_info = f"(alias: {', '.join(alias_match)})" if alias_match else ""
+            is_default = model == SPACY_MODEL_MAP.get(DEFAULT_SPACY_ALIAS)
+            default_tag = " [DEFAULT]" if is_default else ""
+            print(f"✓ {model} {alias_info}{default_tag}")
+        
+        # Show which model would be selected
+        selected_model = select_best_spacy_model(spacy_models)
+        if selected_model:
+            print(f"\nIf not specified, would auto-select: {selected_model}")
+        else:
+            print("\nNo suitable model available for auto-selection.")
+    
+    # Check for Benepar models
+    benepar_models = find_installed_benepar_models()
+    print("\n--- Benepar Models ---")
+    if not benepar_models:
+        print("✗ No ANPE-compatible Benepar models found.")
+    else:
+        print(f"Found {len(benepar_models)} installed Benepar models:")
+        for model in benepar_models:
+            alias_match = [alias for alias, name in BENEPAR_MODEL_MAP.items() if name == model]
+            alias_info = f"(alias: {', '.join(alias_match)})" if alias_match else ""
+            is_default = model == BENEPAR_MODEL_MAP.get(DEFAULT_BENEPAR_ALIAS)
+            default_tag = " [DEFAULT]" if is_default else ""
+            print(f"✓ {model} {alias_info}{default_tag}")
+        
+        # Show which model would be selected
+        selected_model = select_best_benepar_model(benepar_models)
+        if selected_model:
+            print(f"\nIf not specified, would auto-select: {selected_model}")
+        else:
+            print("\nNo suitable model available for auto-selection.")
+    
+    # Provide recommendations
+    print("\n=== Recommendations ===")
+    
+    spacy_default = SPACY_MODEL_MAP.get(DEFAULT_SPACY_ALIAS)
+    benepar_default = BENEPAR_MODEL_MAP.get(DEFAULT_BENEPAR_ALIAS)
+    
+    if not spacy_models:
+        print(f"• Run 'anpe setup' to install the default spaCy model ({spacy_default}).")
+    elif spacy_default not in spacy_models:
+        print(f"• Consider installing the default spaCy model: anpe setup --spacy-model {DEFAULT_SPACY_ALIAS}")
+    
+    if not benepar_models:
+        print(f"• Run 'anpe setup' to install the default Benepar model ({benepar_default}).")
+    elif benepar_default not in benepar_models:
+        print(f"• Consider installing the default Benepar model: anpe setup --benepar-model {DEFAULT_BENEPAR_ALIAS}")
+    
+    if spacy_models and benepar_models:
+        print("• Your setup is sufficient to use ANPE.")
+    else:
+        print("• You need both spaCy and Benepar models to use ANPE.")
+    
+    print("\nFor more information, see: anpe setup --help")
+
+def get_user_confirmation(action_description: str, force: bool = False) -> bool:
+    """Ask user for confirmation before proceeding with an action.
+    
+    Args:
+        action_description: Description of the action that needs confirmation
+        force: If True, skip confirmation and return True
+        
+    Returns:
+        bool: True if user confirmed or force was True, False otherwise
+    """
+    if force:
+        logger.debug("--force flag used, skipping confirmation.")
+        return True
+    
+    # Check if running interactively
+    if not sys.stdin.isatty():
+        logger.warning("Non-interactive session detected, confirmation skipped. Use --force to bypass.")
+        return False
+    
+    try:
+        confirm = input(f"{action_description}? This cannot be undone. [y/N]: ")
+        return confirm.lower() == 'y'
+    except EOFError:
+        logger.warning("Non-interactive input detected, confirmation skipped. Use --force to bypass.")
+        return False
+
 def main(args: Optional[List[str]] = None) -> int:
     """Main CLI entry point."""
     parsed_args = parse_args(args)
@@ -418,46 +544,170 @@ def main(args: Optional[List[str]] = None) -> int:
                 else:
                     setup_logger.info(message)
             
+            # Add special handling for the check-models command
+            if parsed_args.check_models:
+                logger.info("Checking model installation status...")
+                try:
+                    check_and_display_models()
+                    return 0  # Success
+                except Exception as e:
+                    logger.error(f"Error during model check: {str(e)}", exc_info=True)
+                    print(f"Error: {str(e)}", file=sys.stderr)
+                    return 1  # Error during check
+            
+            # Handle model cleaning options
             if parsed_args.clean_models:
-                logger.info("Executing model cleanup...")
-                print("--- Executing Model Cleanup ---", file=sys.stderr)
-                # Confirmation logic moved into clean_all, handle abort based on return?
-                # Or keep simple confirmation here?
-                confirmed = False
-                if parsed_args.force:
-                    confirmed = True
-                    logger.debug("--force flag used, skipping confirmation.")
-                else:
-                    # Check if running interactively
-                    if sys.stdin.isatty():
-                        try:
-                            confirm = input("Remove all detected models? This cannot be undone. [y/N]: ")
-                            if confirm.lower() == 'y':
-                                confirmed = True
-                        except EOFError: 
-                            logger.warning("Non-interactive input detected, confirmation skipped. Use --force to bypass.")
-                    else:
-                         logger.warning("Non-interactive session detected, confirmation skipped. Use --force to bypass.")
-                         
+                logger.info("Executing complete model cleanup...")
+                print("--- Executing Complete Model Cleanup ---", file=sys.stderr)
+                confirmed = get_user_confirmation("Remove all detected models", parsed_args.force)
                 if confirmed:
                     try:
-                        # Pass the logger instance to clean_all
                         clean_all(logger=logger, force=parsed_args.force)
                         print("--- Model Cleanup Finished Successfully. ---", file=sys.stderr)
                         logger.info("Model cleanup finished successfully.")
                     except Exception as e:
                         logger.error(f"Cleanup failed: {str(e)}", exc_info=True)
                         print(f"Error: {str(e)}", file=sys.stderr)
-                        return 1 # Error during cleanup
+                        return 1  # Error during cleanup
                 else:
-                    logger.info("Cleanup aborted.") # Changed from ERROR to INFO
-                    print("Cleanup aborted.", file=sys.stderr) # Also print to stderr
-                    return 1 # <<< FIX: Ensure non-zero return on abort
-
+                    logger.info("Cleanup aborted.")
+                    print("Cleanup aborted.", file=sys.stderr)
+                    return 1
+            
+            # Handle specific spaCy model cleanup
+            elif parsed_args.clean_spacy:
+                spacy_alias = parsed_args.clean_spacy
+                spacy_model = SPACY_MODEL_MAP.get(spacy_alias)
+                logger.info(f"Executing cleanup of spaCy model: {spacy_model} (alias: {spacy_alias})")
+                print(f"--- Executing Cleanup for spaCy model: {spacy_model} ---", file=sys.stderr)
+                
+                from anpe.utils.clean_models import uninstall_spacy_model
+                
+                confirmed = get_user_confirmation(f"Remove spaCy model '{spacy_model}'", parsed_args.force)
+                if confirmed:
+                    try:
+                        result = uninstall_spacy_model(spacy_model, logger=logger)
+                        if result:
+                            print(f"--- Cleanup of spaCy model '{spacy_model}' finished successfully. ---", file=sys.stderr)
+                            logger.info(f"Cleanup of spaCy model '{spacy_model}' finished successfully.")
+                        else:
+                            print(f"--- Cleanup of spaCy model '{spacy_model}' failed. ---", file=sys.stderr)
+                            logger.error(f"Cleanup of spaCy model '{spacy_model}' failed.")
+                            return 1  # Error during cleanup
+                    except Exception as e:
+                        logger.error(f"Cleanup failed: {str(e)}", exc_info=True)
+                        print(f"Error: {str(e)}", file=sys.stderr)
+                        return 1  # Error during cleanup
+                else:
+                    logger.info("Cleanup aborted.")
+                    print("Cleanup aborted.", file=sys.stderr)
+                    return 1
+            
+            # Handle specific Benepar model cleanup
+            elif parsed_args.clean_benepar:
+                benepar_alias = parsed_args.clean_benepar
+                benepar_model = BENEPAR_MODEL_MAP.get(benepar_alias)
+                logger.info(f"Executing cleanup of Benepar model: {benepar_model} (alias: {benepar_alias})")
+                print(f"--- Executing Cleanup for Benepar model: {benepar_model} ---", file=sys.stderr)
+                
+                from anpe.utils.clean_models import uninstall_benepar_model
+                
+                confirmed = get_user_confirmation(f"Remove Benepar model '{benepar_model}'", parsed_args.force)
+                if confirmed:
+                    try:
+                        result = uninstall_benepar_model(benepar_model, logger=logger)
+                        if result:
+                            print(f"--- Cleanup of Benepar model '{benepar_model}' finished successfully. ---", file=sys.stderr)
+                            logger.info(f"Cleanup of Benepar model '{benepar_model}' finished successfully.")
+                        else:
+                            print(f"--- Cleanup of Benepar model '{benepar_model}' failed. ---", file=sys.stderr)
+                            logger.error(f"Cleanup of Benepar model '{benepar_model}' failed.")
+                            return 1  # Error during cleanup
+                    except Exception as e:
+                        logger.error(f"Cleanup failed: {str(e)}", exc_info=True)
+                        print(f"Error: {str(e)}", file=sys.stderr)
+                        return 1  # Error during cleanup
+                else:
+                    logger.info("Cleanup aborted.")
+                    print("Cleanup aborted.", file=sys.stderr)
+                    return 1
+            
             else: # Normal setup
                 spacy_alias = parsed_args.spacy_model
                 benepar_alias = parsed_args.benepar_model
                 
+                # Handle the 'all' option for spaCy models
+                if spacy_alias == 'all':
+                    logger.info("Installing ALL spaCy models...")
+                    all_success = True
+                    spacy_aliases = [alias for alias in SPACY_MODEL_MAP.keys() if alias not in ["all"]]
+                    
+                    for alias in spacy_aliases:
+                        print(f"--- Installing spaCy model: {SPACY_MODEL_MAP[alias]} (alias: {alias}) ---", file=sys.stderr)
+                        try:
+                            setup_result = setup_models(
+                                spacy_model_alias=alias,
+                                benepar_model_alias=None,  # Don't install Benepar models in this loop
+                                log_callback=cli_log_callback
+                            )
+                            if not setup_result:
+                                all_success = False
+                                logger.error(f"Failed to install spaCy model: {alias}")
+                        except Exception as e:
+                            all_success = False
+                            logger.error(f"Error installing spaCy model {alias}: {str(e)}")
+                    
+                    if not all_success:
+                        print("--- Some spaCy models failed to install. Check the logs for details. ---", file=sys.stderr)
+                        return 1
+                    
+                    # Clear spacy_alias so we don't try to install it again below
+                    spacy_alias = None
+                    
+                    if benepar_alias is None:
+                        # If no Benepar model was specified, we're done
+                        print("--- All spaCy models installed successfully. ---", file=sys.stderr)
+                        return 0
+                
+                # Handle the 'all' option for Benepar models
+                if benepar_alias == 'all':
+                    logger.info("Installing ALL Benepar models...")
+                    all_success = True
+                    benepar_aliases = [alias for alias in BENEPAR_MODEL_MAP.keys() if alias not in ["all"]]
+                    
+                    for alias in benepar_aliases:
+                        print(f"--- Installing Benepar model: {BENEPAR_MODEL_MAP[alias]} (alias: {alias}) ---", file=sys.stderr)
+                        try:
+                            setup_result = setup_models(
+                                spacy_model_alias=None,  # Don't install spaCy models in this loop
+                                benepar_model_alias=alias,
+                                log_callback=cli_log_callback
+                            )
+                            if not setup_result:
+                                all_success = False
+                                logger.error(f"Failed to install Benepar model: {alias}")
+                        except Exception as e:
+                            all_success = False
+                            logger.error(f"Error installing Benepar model {alias}: {str(e)}")
+                    
+                    if not all_success:
+                        print("--- Some Benepar models failed to install. Check the logs for details. ---", file=sys.stderr)
+                        return 1
+                    
+                    # Clear benepar_alias so we don't try to install it again below
+                    benepar_alias = None
+                    
+                    if spacy_alias is None:
+                        # If no spaCy model was specified, we're done
+                        print("--- All Benepar models installed successfully. ---", file=sys.stderr)
+                        return 0
+                
+                # If we've reached this point, we need to do a normal setup with any remaining model aliases
+                if spacy_alias is None and benepar_alias is None:
+                    logger.info("No specific models provided for regular installation.")
+                    return 0  # Success - we've already installed everything above
+                
+                # Continue with normal setup for any remaining models
                 if not spacy_alias and not benepar_alias:
                     logger.info("No specific models provided, setting up default spaCy (md) and Benepar (default) models.")
                     spacy_alias = DEFAULT_SPACY_ALIAS

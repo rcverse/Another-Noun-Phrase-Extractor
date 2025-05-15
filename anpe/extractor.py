@@ -9,10 +9,11 @@ import warnings
 import spacy.cli
 from pathlib import Path
 import sys
+import re
 # Add Span and Doc imports
 from spacy.tokens import Doc, Span, Token
 import time
-import re
+
 
 
 from anpe.config import DEFAULT_CONFIG
@@ -833,8 +834,20 @@ class ANPEExtractor:
         logger.debug(f"Text before punctuation padding (snippet): '{processed_text[:200]}...'")
         
         temp_padded_text = processed_text
-        for char_code in ['(', ')', '[', ']', '{', '}']:
-            temp_padded_text = temp_padded_text.replace(char_code, f" {char_code} ")
+        
+        # For opening brackets: ensure space before (unless at start of text or already has space)
+        # but don't add space after
+        for char_code in ['(', '[', '{']:
+            # Pattern: match char_code not preceded by space or start of string
+            # Lookbehind assertion (?<!) checks what comes before without including it in match
+            temp_padded_text = re.sub(f'(?<!^)(?<!\s){re.escape(char_code)}', f' {char_code}', temp_padded_text)
+            
+        # For closing brackets: ensure space after (unless already has space or at end of text)
+        # but don't add space before
+        for char_code in [')', ']', '}']:
+            # Pattern: match char_code not followed by space or end of string
+            # Lookahead assertion (?!) checks what comes after without including it in match
+            temp_padded_text = re.sub(f'{re.escape(char_code)}(?!\s)(?!$)', f'{char_code} ', temp_padded_text)
         
         # --- Final space cleanup and ensure a single trailing space if text is not empty ---
         # This consolidates spaces from padding and normalizes overall spacing.

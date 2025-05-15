@@ -2,14 +2,25 @@
 
 All notable changes to the ANPE project will be documented in this file.
 
+## [1.1.0] - 2025-05-15
+
+### Added
+
+- **Enhanced model installation options:**
+  - Added new `all` option to both `--spacy-model` (or `--spacy`) and `--benepar-model` (or `--benepar`) CLI arguments; Both model types can be installed at once with `anpe setup --spacy all --benepar all`.
+  - Added `--check-models` flag to display model installation status and auto-selection information.
+
+### Improved
+- Bracket handling now respect standard English formatting (no additional space around them).
+
 ## [1.0.3] - 2025-05-12
 
 ### Improved
 
 - **Further enhanced robustness for texts with complex punctuation (building on 1.0.2):**
-    - Modified the `_preprocess_text_for_benepar` method to intelligently add spaces around parentheses `()`, square brackets `[]`, and curly braces `{}`.
-    - This pre-processing step ensures these punctuation marks are more consistently tokenized as separate entities by both spaCy and Benepar's underlying tokenizer *before* they reach the `_normalize_text_for_matching` step.
-    - The change preserves the existing sophisticated newline handling logic controlled by the `newline_breaks` setting.
+  - Modified the `_preprocess_text_for_benepar` method to intelligently add spaces around parentheses `()`, square brackets `[]`, and curly braces `{}`.
+  - This pre-processing step ensures these punctuation marks are more consistently tokenized as separate entities by both spaCy and Benepar's underlying tokenizer *before* they reach the `_normalize_text_for_matching` step.
+  - The change preserves the existing sophisticated newline handling logic controlled by the `newline_breaks` setting.
 - Added detailed `DEBUG` logging in `_preprocess_text_for_benepar` to show the text transformations, including the state before and after punctuation padding.
 
 ## [1.0.2] - 2025-05-09
