@@ -711,7 +711,7 @@ def setup_models(
         if not check_spacy_model(model_name=spacy_full_name):
             _log(f"SpaCy model '{spacy_full_name}' not found. Attempting installation for alias '{effective_spacy_alias}'...")
             # install_spacy_model expects the alias, not the full name, to map to download URL etc.
-            if not install_spacy_model(alias=effective_spacy_alias, model_map=SPACY_MODEL_MAP, log_callback=log_callback):
+            if not install_spacy_model(model_name=effective_spacy_alias, log_callback=log_callback):
                 _log(f"Failed to install spaCy model '{spacy_full_name}' (alias: {effective_spacy_alias}).", level="ERROR")
                 spacy_overall_success = False
             else:
@@ -733,7 +733,7 @@ def setup_models(
         if not check_benepar_model(model_name=benepar_full_name):
             _log(f"Benepar model '{benepar_full_name}' not found. Attempting installation for alias '{effective_benepar_alias}'...")
             # install_benepar_model expects the alias
-            if not install_benepar_model(alias=effective_benepar_alias, model_map=BENEPAR_MODEL_MAP, log_callback=log_callback):
+            if not install_benepar_model(model_name=benepar_full_name, log_callback=log_callback):
                 _log(f"Failed to install Benepar model '{benepar_full_name}' (alias: {effective_benepar_alias}).", level="ERROR")
                 benepar_overall_success = False
             else:

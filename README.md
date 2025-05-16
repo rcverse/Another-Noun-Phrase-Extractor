@@ -66,7 +66,7 @@ Currently, ANPE only supports **English** and is compatible with Python **3.9** 
 
 ### GUI App
 
-[To be released]
+Please visit [ANPE Studio repo](https://github.com/rcverse/anpe-studio) to download the latest release
 
 ## Installation
 
@@ -678,13 +678,9 @@ For a comprehensive explanation of all structure patterns and their detection lo
 
 ## GUI Application
 
-> *❗[Under development]*
->
-> Please note that the gui app is now still being developed, no release is provided at the moment.
-
 》***"Oh no, code again! I just want a quick tool, kill me already!😵"***
 
-No worries, ANPE provides a graphical user interface (GUI) for easier interaction with the library. Best part of all - it is a standalone app and requires no environment setup. Supports Mac and Windows.
+No worries, ANPE provides a graphical user interface (GUI) for easier interaction with the library. Best part of all - it is a standalone app and requires no environment setup. Supports Windows and macOS. Download it here [ANPE Studio repo](https://github.com/rcverse/anpe-studio)
 
 ![ANPE GUI Screenshot](/pics/anpe_gui_app_windows.png)
 
@@ -694,15 +690,11 @@ No worries, ANPE provides a graphical user interface (GUI) for easier interactio
 - **Input Modes**: Process text via Direct Text Input or File Input.
 - **File Handling**: Add single files or entire directories; view and manage the list.
 - **Batch Processing**: Automatically handles multiple files from selected directories.
-- **Visual Configuration**: Easily configure all ANPE settings:
-  - General: Include Nested Phrases, Include Metadata, Treat Newlines as Boundaries.
-  - Filtering: Min/Max NP length, Accept Pronouns.
-  - Structure Filtering: Master toggle switch and individual selection for specific NP structures (Determiner, Compound, Relative Clause, etc.).
+- **Visual Configuration**: Easily configure all ANPE settings with visualized interface
 - **Real-time Log Viewer**: Track operations and potential issues with log level filtering.
-- **Results Visualization**: View formatted extraction results in the Output tab.
+- **Results Viewer**: View formatted extraction results in the Output tab.
 - **Export Options**: Export results to TXT, CSV, or JSON formats to a selected directory.
 
-For more details on the GUI structure or building it from source, see the ANPE GUI repo.
 
 ## Contributing
 
@@ -795,7 +787,7 @@ ANPE is under active development with several features being considered for futu
 - [ ] **Multilingual Support**
   - [ ] Evaluate and integrate with multilingual versions of spaCy and Benepar
   - [ ] Implement language-specific structural pattern detection
-  - [ ] Support for language-specific grammatical constructions
+
 
 - [ ] **Enhanced Structural Analysis**
   - [ ] Add more granular structural labels for NP categorization
@@ -834,14 +826,14 @@ I spent a lot of time on this project. If you use ANPE in your research or proje
   author = {Chen, Nuo},
   title = {{ANPE: Another Noun Phrase Extractor}},
   url = {https://github.com/rcverse/another-noun-phrase-extractor},
-  version = {1.1.0},
+  version = {1.1.1},
   year = {2025}
 }
 ```
 
 ### Plain Text (APA style)
 
-Chen, N. (2025). *ANPE: Another Noun Phrase Extractor* (Version 1.1.0) [Computer software]. Retrieved from https://github.com/rcverse/another-noun-phrase-extractor
+Chen, N. (2025). *ANPE: Another Noun Phrase Extractor* (Version 1.1.1) [Computer software]. Retrieved from https://github.com/rcverse/another-noun-phrase-extractor
 
 ## Acknowledgements
 

@@ -6,7 +6,7 @@ All notable changes to the ANPE project will be documented in this file.
 
 ### Fixed
 
-- Corrected an issue in the feature test suite (`test_feature_cli.py`) where CLI command invocations (specifically for `setup` and `clean` commands) could interfere with mocking mechanisms. The tests now directly call `anpe.cli.main` ensuring more reliable and isolated test outcomes.
+- Corrected model setup problems and centralized default model management.
 
 ## [1.1.0] - 2025-05-15
 

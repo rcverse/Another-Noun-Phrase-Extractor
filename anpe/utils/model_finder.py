@@ -8,7 +8,7 @@ from typing import List, Optional
 import logging
 
 # Assuming setup_models is adjacent or correctly in path for map import
-from .setup_models import SPACY_MODEL_MAP, BENEPAR_MODEL_MAP, NLTK_DATA_DIR
+from .setup_models import SPACY_MODEL_MAP, BENEPAR_MODEL_MAP, NLTK_DATA_DIR, DEFAULT_SPACY_ALIAS, DEFAULT_BENEPAR_ALIAS
 
 logger = logging.getLogger(__name__) # Use module-specific logger
 
@@ -112,13 +112,13 @@ def select_best_spacy_model(models: List[str]) -> Optional[str]:
         return None
 
     # New logic: Prioritize default model if installed
-    default_spacy_model = "en_core_web_md" # Assuming 'md' is the default alias
-    if default_spacy_model in models:
-        logger.debug(f"Default spaCy model '{default_spacy_model}' is installed. Selecting it.")
-        return default_spacy_model
+    default_spacy_model_name = SPACY_MODEL_MAP[DEFAULT_SPACY_ALIAS]
+    if default_spacy_model_name in models:
+        logger.debug(f"Default spaCy model '{default_spacy_model_name}' is installed. Selecting it.")
+        return default_spacy_model_name
 
     # Fallback: Use the preference list if default is not installed
-    logger.debug(f"Default spaCy model '{default_spacy_model}' not found. Checking preference list: {SPACY_PREFERENCE}")
+    logger.debug(f"Default spaCy model '{default_spacy_model_name}' not found. Checking preference list: {SPACY_PREFERENCE}")
     for preferred_model in SPACY_PREFERENCE:
         if preferred_model in models:
             logger.debug(f"Selected preferred spaCy model from list: {preferred_model}")
@@ -147,13 +147,13 @@ def select_best_benepar_model(models: List[str]) -> Optional[str]:
         return None
 
     # New logic: Prioritize default model if installed
-    default_benepar_model = "benepar_en3" # Assuming 'default' alias maps to this
-    if default_benepar_model in models:
-        logger.debug(f"Default Benepar model '{default_benepar_model}' is installed. Selecting it.")
-        return default_benepar_model
+    default_benepar_model_name = BENEPAR_MODEL_MAP[DEFAULT_BENEPAR_ALIAS]
+    if default_benepar_model_name in models:
+        logger.debug(f"Default Benepar model '{default_benepar_model_name}' is installed. Selecting it.")
+        return default_benepar_model_name
 
     # Fallback: Use the preference list if default is not installed
-    logger.debug(f"Default Benepar model '{default_benepar_model}' not found. Checking preference list: {BENEPAR_PREFERENCE}")
+    logger.debug(f"Default Benepar model '{default_benepar_model_name}' not found. Checking preference list: {BENEPAR_PREFERENCE}")
     for preferred_model in BENEPAR_PREFERENCE:
         if preferred_model in models:
             logger.debug(f"Selected preferred Benepar model from list: {preferred_model}")
