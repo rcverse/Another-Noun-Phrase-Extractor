@@ -2,6 +2,13 @@
 
 All notable changes to the ANPE project will be documented in this file.
 
+## [1.1.2] - 2025-05-16
+
+### Fixed
+- Corrected parameter expectations in integration tests for `install_spacy_model` and `install_benepar_model` after refactoring.
+- Ensured `install_benepar_model` can accept an alias and resolves it to the full model name internally, consistent with `install_spacy_model`.
+- Improved logging style and structure in `anpe.utils.setup_models` for better clarity and diagnosability during model setup processes.
+
 ## [1.1.1] - 2025-05-16
 
 ### Fixed

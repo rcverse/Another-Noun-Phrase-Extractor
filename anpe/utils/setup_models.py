@@ -55,6 +55,9 @@ def setup_nltk_data_dir() -> str:
     Returns:
         str: The path to the user's NLTK data directory.
     """
+    logger.info("--- Starting: NLTK Data Directory Setup ---")
+    nltk_user_dir_base = os.path.join(os.path.expanduser("~"), "nltk_data") # Define potential path for error messages
+
     try:
         # User-specific directory (in home directory)
         home = os.path.expanduser("~")
@@ -79,18 +82,21 @@ def setup_nltk_data_dir() -> str:
         if nltk.data.path[0] != nltk_user_dir:
              msg = f"Expected {nltk_user_dir} to be the first NLTK path, but found {nltk.data.path[0]}. This might cause issues."
              logger.warning(msg)
-
+        
+        logger.info(f"--- Finished: NLTK Data Directory Setup (Path: {nltk_user_dir}) ---")
         return nltk_user_dir
 
     except PermissionError:
-        msg = f"Permission denied creating or accessing NLTK data directory at {nltk_user_dir}. Please check permissions."
+        msg = f"Permission denied creating or accessing NLTK data directory at {nltk_user_dir_base}. Please check permissions."
         logger.error(msg)
-        return nltk_user_dir
+        logger.error("--- Finished: NLTK Data Directory Setup (Error: Permission Denied) ---")
+        return nltk_user_dir_base # Return the base path even on error
     except Exception as e:
         msg = f"Unexpected error during NLTK data directory setup: {e}"
         logger.error(msg)
+        logger.error(f"--- Finished: NLTK Data Directory Setup (Error: {e}) ---")
         # Try returning a default path
-        return os.path.join(os.path.expanduser("~"), "nltk_data")
+        return nltk_user_dir_base # Return the base path even on error
 
 # Get the primary NLTK data directory path
 NLTK_DATA_DIR = setup_nltk_data_dir()
@@ -130,6 +136,10 @@ def check_all_models_present(
     log_callback: Optional[Callable[[str], None]] = None
 ) -> bool:
     """Check if all required models (specified spaCy/Benepar) are present."""
+    log_entry = "--- Starting: Check All Models Present ---"
+    logger.info(log_entry)
+    if log_callback: log_callback(log_entry)
+
     # Map aliases to actual names for checking
     # Handle None case for aliases before calling .lower()
     spacy_model_name = SPACY_MODEL_MAP.get(spacy_model_alias.lower() if spacy_model_alias else None, SPACY_MODEL_MAP[DEFAULT_SPACY_ALIAS])
@@ -150,6 +160,9 @@ def check_all_models_present(
         logger.info(msg)
         if log_callback:
             log_callback(msg)
+        log_entry = f"--- Finished: Check All Models Present (Result: All Found: spaCy='{spacy_model_name}', Benepar='{benepar_model_name}') ---"
+        logger.info(log_entry)
+        if log_callback: log_callback(log_entry)
     else:
         # Log which specific model is missing
         missing = [name for name, present in results.items() if not present]
@@ -159,6 +172,9 @@ def check_all_models_present(
         logger.warning(msg)
         if log_callback:
             log_callback(msg)
+        log_entry = f"--- Finished: Check All Models Present (Result: Missing Models - {', '.join(missing)}. Status: {status_msg}) ---"
+        logger.warning(log_entry)
+        if log_callback: log_callback(log_entry)
     return all_present
 
 # --- Model Installation Functions ---
@@ -193,6 +209,11 @@ def _extract_zip_archive(zip_path: str, destination_dir: str, archive_name: str,
         True if extraction was successful or target directory already existed, False otherwise.
     """
     extract_path = os.path.join(destination_dir, archive_name)
+    
+    log_entry = f"--- Starting: ZIP Extraction ({archive_name}) ---"
+    logger.info(log_entry)
+    if log_callback: log_callback(log_entry)
+
     if not os.path.exists(zip_path):
         msg = f"Zip file {zip_path} not found, but target directory {extract_path} exists. Assuming pre-extracted."
         logger.debug(msg)
@@ -200,13 +221,24 @@ def _extract_zip_archive(zip_path: str, destination_dir: str, archive_name: str,
             log_callback(msg)
             
         # If the extracted path already exists, maybe it's okay?
-        exists = os.path.exists(extract_path)
-        if exists:
+        if os.path.exists(extract_path):
             msg = f"Zip file {zip_path} not found, but target directory {extract_path} exists. Assuming pre-extracted."
             logger.debug(msg)
             if log_callback:
                 log_callback(msg)
-        return exists
+            log_entry_finish = f"--- Finished: ZIP Extraction ({archive_name}) (Result: Skipped, target exists) ---"
+            logger.info(log_entry_finish)
+            if log_callback: log_callback(log_entry_finish)
+            return True # Assuming it's okay if target dir already exists
+        else:
+            msg = f"Zip file {zip_path} not found, and target directory {extract_path} does not exist. Cannot proceed."
+            logger.warning(msg)
+            if log_callback:
+                log_callback(msg)
+            log_entry_finish = f"--- Finished: ZIP Extraction ({archive_name}) (Result: Failed, zip and target missing) ---"
+            logger.warning(log_entry_finish)
+            if log_callback: log_callback(log_entry_finish)
+            return False
 
     msg = f"Extracting {zip_path}..."
     logger.info(msg)
@@ -254,18 +286,27 @@ def _extract_zip_archive(zip_path: str, destination_dir: str, archive_name: str,
         if log_callback:
             log_callback(msg)
             
+        log_entry_finish = f"--- Finished: ZIP Extraction ({archive_name}) (Result: Success) ---"
+        logger.info(log_entry_finish)
+        if log_callback: log_callback(log_entry_finish)
         return True
     except zipfile.BadZipFile:
         msg = f"Error: {zip_path} is not a valid zip file."
         logger.error(msg)
         if log_callback:
             log_callback(msg)
+        log_entry_finish = f"--- Finished: ZIP Extraction ({archive_name}) (Result: Failed, BadZipFile) ---"
+        logger.error(log_entry_finish)
+        if log_callback: log_callback(log_entry_finish)
         return False
     except Exception as e:
         msg = f"Error extracting {zip_path}: {e}"
         logger.error(msg)
         if log_callback:
             log_callback(msg)
+        log_entry_finish = f"--- Finished: ZIP Extraction ({archive_name}) (Result: Failed, Exception: {e}) ---"
+        logger.error(log_entry_finish)
+        if log_callback: log_callback(log_entry_finish)
         return False
 
 def install_spacy_model(model_name: str = "en_core_web_md", log_callback: Optional[Callable[[str], None]] = None) -> bool:
@@ -284,6 +325,9 @@ def install_spacy_model(model_name: str = "en_core_web_md", log_callback: Option
               were successful, False otherwise.
     """
     full_model_name = SPACY_MODEL_MAP.get(model_name.lower(), model_name) # Ensure we use the full name
+    log_entry_start = f"--- Starting: Install spaCy Model ({full_model_name}) ---"
+    logger.info(log_entry_start)
+    if log_callback: log_callback(log_entry_start)
 
     # --- Step 1: Handle spacy-transformers dependency for _trf models ---
     is_transformer_model = full_model_name.endswith("_trf")
@@ -309,6 +353,7 @@ def install_spacy_model(model_name: str = "en_core_web_md", log_callback: Option
                 logger.info(msg)
                 if log_callback:
                     log_callback(msg)
+                logger.info("  [Action]: Installing spacy[transformers] via pip...")
 
                 process = subprocess.Popen(pip_command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
                 stdout, stderr = process.communicate()
@@ -386,6 +431,8 @@ def install_spacy_model(model_name: str = "en_core_web_md", log_callback: Option
                         logger.error("[Verification Failed] CRITICAL: Could not import 'spacy-transformers' library even after pip reported successful installation.")
                         if log_callback:
                             log_callback("Failed to import 'spacy-transformers' post-install.")
+                        logger.error(f"--- Aborting: Install spaCy Model ({full_model_name}) (Error: spacy-transformers import failed post-pip) ---")
+                        if log_callback: log_callback(f"--- Aborting: Install spaCy Model ({full_model_name}) (Error: spacy-transformers import failed post-pip) ---")
                         return False # This is a hard failure for the library itself.
                     except Exception as e_fact: # Catch other errors during the factory check attempt
                         logger.warning(f"[Verification Warning] Non-critical error during post-install factory check attempt: {e_fact}. Proceeding with model download.")
@@ -399,6 +446,8 @@ def install_spacy_model(model_name: str = "en_core_web_md", log_callback: Option
                     logger.error(error_msg)
                     if log_callback:
                         log_callback(error_msg)
+                    logger.error(f"--- Aborting: Install spaCy Model ({full_model_name}) (Error: pip install spacy[transformers] failed) ---")
+                    if log_callback: log_callback(f"--- Aborting: Install spaCy Model ({full_model_name}) (Error: pip install spacy[transformers] failed) ---")
                     return False # Failed to install spacy-transformers
 
         except ImportError:
@@ -408,12 +457,16 @@ def install_spacy_model(model_name: str = "en_core_web_md", log_callback: Option
             logger.error(error_msg)
             if log_callback:
                 log_callback(error_msg)
+            logger.error(f"--- Aborting: Install spaCy Model ({full_model_name}) (Error: spaCy import failed for transformer check) ---")
+            if log_callback: log_callback(f"--- Aborting: Install spaCy Model ({full_model_name}) (Error: spaCy import failed for transformer check) ---")
             return False
         except Exception as e:
             error_msg = f"An unexpected error occurred during spacy-transformers pre-check or installation: {e}"
             logger.error(error_msg)
             if log_callback:
                 log_callback(error_msg)
+            logger.error(f"--- Aborting: Install spaCy Model ({full_model_name}) (Error: Unexpected error in spacy-transformers setup: {e}) ---")
+            if log_callback: log_callback(f"--- Aborting: Install spaCy Model ({full_model_name}) (Error: Unexpected error in spacy-transformers setup: {e}) ---")
             return False
 
     # --- Step 2: Download the spaCy model ---
@@ -422,6 +475,7 @@ def install_spacy_model(model_name: str = "en_core_web_md", log_callback: Option
     logger.info(msg)
     if log_callback:
         log_callback(msg)
+    logger.info(f"  [Action]: Downloading spaCy model '{full_model_name}' using 'spacy download'...")
 
     command = [sys.executable, "-m", "spacy", "download", full_model_name]
     try:
@@ -437,58 +491,119 @@ def install_spacy_model(model_name: str = "en_core_web_md", log_callback: Option
                 log_callback(f"stdout: {stdout}") # Pass stdout for GUI display
             # Final check: ensure model is physically present (spaCy download can be weird)
             # And also try to load it as the ultimate verification.
-            if _check_spacy_physical_path(full_model_name) and check_spacy_model(full_model_name):
-                msg = f"Verification successful: '{full_model_name}' is installed and loadable."
-                logger.info(msg)
-                if log_callback:
-                    log_callback(msg)
-                return True
-            else:
-                error_msg = f"Post-download verification failed for '{full_model_name}'. Model files might be missing or model is not loadable despite successful download command."
+            # --- Start of modified logic for post-download verification ---
+            is_physically_present = _check_spacy_physical_path(full_model_name)
+
+            if not is_physically_present:
+                error_msg = f"Post-download check failed: Model files for '{full_model_name}' are missing despite a successful download command. Please try again."
                 logger.error(error_msg)
                 if log_callback:
                     log_callback(error_msg)
+                log_entry_finish = f"--- Finished: Install spaCy Model ({full_model_name}) (Result: Failed, physical files missing post-download) ---"
+                logger.error(log_entry_finish)
+                if log_callback: log_callback(log_entry_finish)
                 return False
+            else: # Files are physically present
+                path_msg = f"Physical files for '{full_model_name}' confirmed present."
+                logger.info(path_msg)
+                if log_callback:
+                    log_callback(path_msg)
+                
+                is_loadable = check_spacy_model(full_model_name)
+
+                if is_loadable:
+                    success_msg = f"Verification successful: '{full_model_name}' is installed and loadable."
+                    logger.info(success_msg)
+                    if log_callback:
+                        log_callback(success_msg)
+                    log_entry_finish = f"--- Finished: Install spaCy Model ({full_model_name}) (Result: Success, loadable) ---"
+                    logger.info(log_entry_finish)
+                    if log_callback: log_callback(log_entry_finish)
+                    return True
+                else: # Not loadable
+                    # is_transformer_model is defined at the start of the function
+                    if is_transformer_model:
+                        # Special case: Transformer model installed, files present, but not loading (likely needs restart)
+                        restart_needed_msg = f"SUCCESS_RESTART_NEEDED: spaCy transformer model '{full_model_name}' installed successfully. An application restart or Python environment refresh is likely required to activate and use this model."
+                        logger.warning(restart_needed_msg) # Log as warning due to the caveat
+                        if log_callback:
+                            log_callback(restart_needed_msg)
+                        log_entry_finish = f"--- Finished: Install spaCy Model ({full_model_name}) (Result: Success, Restart Needed for Transformer) ---"
+                        logger.info(log_entry_finish) # Info because install itself was "successful"
+                        if log_callback: log_callback(log_entry_finish)
+                        return True # Installation considered successful, but needs restart
+                    else:
+                        # Non-transformer model, files present, but not loadable - this is an unexpected error
+                        error_msg = f"Post-download verification failed for non-transformer model '{full_model_name}'. Model files are present, but the model is not loadable. This may indicate a deeper issue with the model or spaCy environment."
+                        logger.error(error_msg)
+                        if log_callback:
+                            log_callback(error_msg)
+                        log_entry_finish = f"--- Finished: Install spaCy Model ({full_model_name}) (Result: Failed, present but not loadable) ---"
+                        logger.error(log_entry_finish)
+                        if log_callback: log_callback(log_entry_finish)
+                        return False
+            # --- End of modified logic ---
         else:
             error_msg = f"Failed to download spaCy model '{full_model_name}'. Exit code: {return_code}.\nStdout: {stdout}\nStderr: {stderr}"
             logger.error(error_msg)
             if log_callback:
                 log_callback(error_msg)
                 log_callback(f"stderr: {stderr}") # Pass stderr for GUI display
+            log_entry_finish = f"--- Finished: Install spaCy Model ({full_model_name}) (Result: Failed, spacy download command error) ---"
+            logger.error(log_entry_finish)
+            if log_callback: log_callback(log_entry_finish)
             return False
     except FileNotFoundError:
         error_msg = f"Error: The command 'python' or 'spacy' was not found. Make sure Python and spaCy are installed and in your PATH."
         logger.error(error_msg)
         if log_callback:
             log_callback(error_msg)
+        log_entry_finish = f"--- Finished: Install spaCy Model ({full_model_name}) (Result: Failed, FileNotFoundError for python/spacy) ---"
+        logger.error(log_entry_finish)
+        if log_callback: log_callback(log_entry_finish)
         return False
     except Exception as e:
         error_msg = f"An unexpected error occurred during spaCy model download: {e}"
         logger.error(error_msg)
         if log_callback:
             log_callback(error_msg)
+        log_entry_finish = f"--- Finished: Install spaCy Model ({full_model_name}) (Result: Failed, Unexpected Exception: {e}) ---"
+        logger.error(log_entry_finish)
+        if log_callback: log_callback(log_entry_finish)
         return False
 
 def install_benepar_model(model_name: str = "benepar_en3", log_callback: Optional[Callable[[str], None]] = None) -> bool:
     """Install the specified Benepar model, with manual extraction fallback.
     
     Args:
-        model_name (str): Name of the Benepar model to install.
+        model_name (str): Alias (e.g., 'default') or full name (e.g., 'benepar_en3') of the Benepar model to install.
         log_callback (Optional[Callable[[str], None]]): Optional callback function to receive real-time log output.
             
     Returns:
         bool: True if installation was successful, False otherwise.
     """
-    if not model_name: # Basic validation
-        msg = "No Benepar model name provided to install."
+    # Resolve alias to full model name, or use model_name if it's already a full name
+    # .lower() is used for the lookup key if model_name is an alias.
+    # If model_name is not in the map (e.g., it's already a full name), it will be used as is.
+    resolved_model_name = BENEPAR_MODEL_MAP.get(model_name.lower() if isinstance(model_name, str) else model_name, model_name)
+
+    log_entry_start = f"--- Starting: Install Benepar Model (Input: '{model_name}', Resolved: '{resolved_model_name}') ---"
+    logger.info(log_entry_start)
+    if log_callback: log_callback(log_entry_start)
+
+    if not resolved_model_name: # Should ideally not happen if model_name is valid
+        msg = f"Cannot resolve Benepar model identifier: '{model_name}'."
         logger.error(msg)
         if log_callback:
             log_callback(msg)
+        log_entry_finish = f"--- Finished: Install Benepar Model ('{model_name}') (Result: Failed, Could not resolve identifier) ---"
+        logger.error(log_entry_finish)
+        if log_callback: log_callback(log_entry_finish)
         return False
         
     models_dir = os.path.join(NLTK_DATA_DIR, "models")
-    model_dir_path = os.path.join(models_dir, model_name)
-    model_zip_path = os.path.join(models_dir, f"{model_name}.zip")
+    model_dir_path = os.path.join(models_dir, resolved_model_name)
+    model_zip_path = os.path.join(models_dir, f"{resolved_model_name}.zip")
     subprocess_ok = False # Track subprocess success
     files_ok_after_attempt = False # Track if files seem okay after attempt
 
@@ -516,9 +631,12 @@ def install_benepar_model(model_name: str = "benepar_en3", log_callback: Optiona
             # Optionally, could return False here if removing the zip is critical 
             # return False 
     # --- End: Added logic ---
+    logger.info(f"  Target NLTK_DATA_DIR for Benepar: {NLTK_DATA_DIR}")
+    logger.info(f"  Expected model directory: {model_dir_path}")
+    logger.info(f"  Expected model zip: {model_zip_path}")
 
     try:
-        msg = f"Attempting to download Benepar model '{model_name}' using subprocess..."
+        msg = f"Attempting to download Benepar model '{resolved_model_name}' using subprocess..."
         logger.info(msg)
         if log_callback:
             log_callback(msg)
@@ -528,18 +646,19 @@ def install_benepar_model(model_name: str = "benepar_en3", log_callback: Optiona
         current_env['NLTK_DATA'] = NLTK_DATA_DIR
         msg = f"Subprocess environment will use NLTK_DATA: {current_env.get('NLTK_DATA')}"
         logger.debug(msg)
-        if log_callback:
-            log_callback(msg)
+        # No need to callback debug usually
+        # if log_callback:
+        #     log_callback(msg)
 
         # Escape backslashes in the path for the command string
         escaped_nltk_data_dir = NLTK_DATA_DIR.replace('\\', '\\\\') # Double escape needed for f-string then command
 
         # Create the Python command as a string
-        py_command = f"import nltk; import benepar; nltk.data.path.insert(0, r'{escaped_nltk_data_dir}'); benepar.download('{model_name}')"
+        py_command = f"import nltk; import benepar; nltk.data.path.insert(0, r'{escaped_nltk_data_dir}'); benepar.download('{resolved_model_name}')"
         
         # Use Popen instead of run for real-time output
         cmd = [sys.executable, '-c', py_command]
-        msg = f"Running command: {' '.join(cmd)}"
+        msg = f"  [Action]: Running Benepar download command: {' '.join(cmd)}"
         logger.info(msg)
         if log_callback:
             log_callback(msg)
@@ -566,25 +685,33 @@ def install_benepar_model(model_name: str = "benepar_en3", log_callback: Optiona
         try:
             return_code = process.wait(timeout=1200)  # 20 minutes timeout
             if return_code == 0:
-                msg = f"Benepar download subprocess finished successfully for '{model_name}'."
+                msg = f"Benepar download subprocess finished successfully for '{resolved_model_name}'."
                 logger.info(msg)
                 if log_callback:
                     log_callback(msg)
                 subprocess_ok = True
             else:
-                msg = f"Benepar download subprocess failed for '{model_name}' with return code {return_code}."
+                msg = f"Benepar download subprocess failed for '{resolved_model_name}' with return code {return_code}."
                 logger.warning(msg)
                 if log_callback:
                     log_callback(msg)
                 subprocess_ok = False
                 # If subprocess failed, return False immediately
+                # Make sure to log the finish status before returning
+                log_entry_finish = f"--- Finished: Install Benepar Model ('{resolved_model_name}') (Result: Failed, subprocess error code {return_code}) ---"
+                logger.error(log_entry_finish)
+                if log_callback: log_callback(log_entry_finish)
                 return False 
         except subprocess.TimeoutExpired:
-            msg = f"Benepar download subprocess timed out for '{model_name}'."
+            msg = f"Benepar download subprocess timed out for '{resolved_model_name}'."
             logger.error(msg)
             if log_callback:
                 log_callback(msg)
             process.kill()
+            # Log finish status
+            log_entry_finish = f"--- Finished: Install Benepar Model ('{resolved_model_name}') (Result: Failed, subprocess timeout) ---"
+            logger.error(log_entry_finish)
+            if log_callback: log_callback(log_entry_finish)
             return False
 
         # This part is now only reached if subprocess_ok was potentially True
@@ -607,8 +734,8 @@ def install_benepar_model(model_name: str = "benepar_en3", log_callback: Optiona
                 if log_callback:
                     log_callback(msg)
                     
-                if _extract_zip_archive(model_zip_path, models_dir, model_name, log_callback):
-                    msg = f"Manual extraction of {model_name} successful."
+                if _extract_zip_archive(model_zip_path, models_dir, resolved_model_name, log_callback):
+                    msg = f"Manual extraction of {resolved_model_name} successful."
                     logger.info(msg)
                     if log_callback:
                         log_callback(msg)
@@ -628,43 +755,55 @@ def install_benepar_model(model_name: str = "benepar_en3", log_callback: Optiona
 
         # Final verification only makes sense if files seemed okay after the attempt
         if files_ok_after_attempt:
-            msg = f"Verifying Benepar model '{model_name}' using check function..."
+            msg = f"Verifying Benepar model '{resolved_model_name}' using check function..."
             logger.info(msg)
             if log_callback:
                 log_callback(msg)
                 
-            if check_benepar_model(model_name):
-                msg = f"Benepar model '{model_name}' is present and verified."
+            if check_benepar_model(resolved_model_name): # Pass resolved_model_name here
+                msg = f"Benepar model '{resolved_model_name}' is present and verified."
                 logger.info(msg)
                 if log_callback:
                     log_callback(msg)
                 # Return True only if the final check passes
+                log_entry_finish = f"--- Finished: Install Benepar Model ('{resolved_model_name}') (Result: Success, verified) ---"
+                logger.info(log_entry_finish)
+                if log_callback: log_callback(log_entry_finish)
                 return True
             else:
-                msg = f"Benepar model '{model_name}' verification failed even though files seemed present."
+                msg = f"Benepar model '{resolved_model_name}' verification failed even though files seemed present."
                 logger.error(msg)
                 if log_callback:
                     log_callback(msg)
+                log_entry_finish = f"--- Finished: Install Benepar Model ('{resolved_model_name}') (Result: Failed, verification check failed) ---"
+                logger.error(log_entry_finish)
+                if log_callback: log_callback(log_entry_finish)
                 return False
         else:
              # If files weren't okay after attempt, the installation failed.
-             msg = f"Installation failed for Benepar model '{model_name}' - files not found or extraction failed."
+             msg = f"Installation failed for Benepar model '{resolved_model_name}' - files not found or extraction failed."
              logger.error(msg)
              if log_callback:
                  log_callback(msg)
+             log_entry_finish = f"--- Finished: Install Benepar Model ('{resolved_model_name}') (Result: Failed, files not found or extraction failed) ---"
+             logger.error(log_entry_finish)
+             if log_callback: log_callback(log_entry_finish)
              return False
 
     except Exception as e:
-        msg = f"An unexpected error occurred during Benepar model '{model_name}' installation: {e}"
-        logger.error(msg, exc_info=True)
+        msg = f"An unexpected error occurred during Benepar model '{resolved_model_name}' installation: {e}"
+        logger.error(msg, exc_info=True) # exc_info=True is good for unexpected errors
         if log_callback:
             log_callback(msg)
         # Log stderr if it was a CalledProcessError originally wrapped
         if hasattr(e, 'stderr'):
-             msg = f"Subprocess stderr: {e.stderr}"
-             logger.error(msg)
+             err_stderr_msg = f"Subprocess stderr: {e.stderr}"
+             logger.error(err_stderr_msg)
              if log_callback:
-                 log_callback(msg)
+                 log_callback(err_stderr_msg)
+        log_entry_finish = f"--- Finished: Install Benepar Model ('{resolved_model_name}') (Result: Failed, Unexpected Exception: {e}) ---"
+        logger.error(log_entry_finish)
+        if log_callback: log_callback(log_entry_finish)
         return False
 
 def setup_models(
@@ -682,16 +821,13 @@ def setup_models(
     def _log(msg: str, level: str = "INFO"):
         if log_callback:
             log_callback(msg) # Callback usually implies INFO level for CLI
-        elif level.upper() == "DEBUG":
-            logger.debug(msg)
-        elif level.upper() == "WARNING":
-            logger.warning(msg)
-        elif level.upper() == "ERROR":
-            logger.error(msg)
-        else:
-            logger.info(msg)
+        
+        # Map level string to logger method more robustly
+        log_method = getattr(logger, level.lower(), logger.info)
+        log_method(msg)
 
-    _log(f"Starting model setup process for spaCy='{spacy_model_alias if spacy_model_alias else 'Default'}', Benepar='{benepar_model_alias if benepar_model_alias else 'Default'}'...")
+
+    _log(f"--- Starting: Overall Model Setup Process (spaCy='{spacy_model_alias if spacy_model_alias else 'Default'}', Benepar='{benepar_model_alias if benepar_model_alias else 'Default'}') ---", level="INFO")
 
     spacy_overall_success = True
     benepar_overall_success = True
@@ -699,53 +835,66 @@ def setup_models(
     # --- SpaCy Model Setup ---
     # Determine the actual spaCy alias to process: use provided, or default if None.
     effective_spacy_alias = spacy_model_alias if spacy_model_alias is not None else DEFAULT_SPACY_ALIAS
-    _log(f"Effective spaCy alias for setup: {effective_spacy_alias}")
+    _log(f"  [Section]: Effective spaCy alias for setup: {effective_spacy_alias}", level="INFO")
 
-    spacy_full_name = SPACY_MODEL_MAP.get(effective_spacy_alias)
+    spacy_full_name = SPACY_MODEL_MAP.get(effective_spacy_alias.lower() if effective_spacy_alias else None) # Ensure lower for map lookup
 
     if not spacy_full_name:
         _log(f"Invalid spaCy model alias provided: '{effective_spacy_alias}'. Cannot proceed with spaCy setup.", level="ERROR")
         spacy_overall_success = False
     else:
-        _log(f"Processing spaCy model: {spacy_full_name} (alias: {effective_spacy_alias})")
+        _log(f"  Processing spaCy model: {spacy_full_name} (alias: {effective_spacy_alias})", level="INFO")
         if not check_spacy_model(model_name=spacy_full_name):
-            _log(f"SpaCy model '{spacy_full_name}' not found. Attempting installation for alias '{effective_spacy_alias}'...")
+            _log(f"  SpaCy model '{spacy_full_name}' not found. Attempting installation for alias '{effective_spacy_alias}'...", level="INFO")
             # install_spacy_model expects the alias, not the full name, to map to download URL etc.
+            # Pass effective_spacy_alias to install_spacy_model
             if not install_spacy_model(model_name=effective_spacy_alias, log_callback=log_callback):
-                _log(f"Failed to install spaCy model '{spacy_full_name}' (alias: {effective_spacy_alias}).", level="ERROR")
+                _log(f"  Failed to install spaCy model '{spacy_full_name}' (alias: {effective_spacy_alias}).", level="ERROR")
                 spacy_overall_success = False
             else:
-                _log(f"SpaCy model '{spacy_full_name}' (alias: {effective_spacy_alias}) installed successfully.")
+                # install_spacy_model now has its own detailed success/restart_needed logging.
+                # We just confirm if it returned True here.
+                 _log(f"  SpaCy model installation process for '{spacy_full_name}' (alias: {effective_spacy_alias}) completed (check logs from install_spacy_model for final status).", level="INFO" if spacy_overall_success else "WARNING")
+                 # Re-check after install attempt to set spacy_overall_success accurately based on loadability.
+                 # The install_spacy_model returning True might mean "installed, restart needed".
+                 # For overall_success, we need to know if it's USABLE NOW or will be after restart.
+                 # For simplicity here, if install_spacy_model returns true, we trust its outcome.
+                 # The check_spacy_model *after* might be misleading if a restart is needed.
+                 # Let's rely on the return of install_spacy_model for success here.
+                 # If it returned False, spacy_overall_success is already False.
+                 # If it returned True (even with restart needed), we consider this part of setup "successful".
+                 pass # No need to change spacy_overall_success if install_spacy_model returned True
         else:
-            _log(f"SpaCy model '{spacy_full_name}' (alias: {effective_spacy_alias}) is already present.")
+            _log(f"  SpaCy model '{spacy_full_name}' (alias: {effective_spacy_alias}) is already present.", level="INFO")
 
     # --- Benepar Model Setup ---
     effective_benepar_alias = benepar_model_alias if benepar_model_alias is not None else DEFAULT_BENEPAR_ALIAS
-    _log(f"Effective Benepar alias for setup: {effective_benepar_alias}")
+    _log(f"  [Section]: Effective Benepar alias for setup: {effective_benepar_alias}", level="INFO")
     
-    benepar_full_name = BENEPAR_MODEL_MAP.get(effective_benepar_alias)
+    # benepar_full_name is still useful for the initial check_benepar_model call
+    benepar_full_name = BENEPAR_MODEL_MAP.get(effective_benepar_alias.lower() if effective_benepar_alias else None) 
 
-    if not benepar_full_name:
+    if not benepar_full_name: # Check if alias is valid
         _log(f"Invalid Benepar model alias provided: '{effective_benepar_alias}'. Cannot proceed with Benepar setup.", level="ERROR")
         benepar_overall_success = False
     else:
-        _log(f"Processing Benepar model: {benepar_full_name} (alias: {effective_benepar_alias})")
-        if not check_benepar_model(model_name=benepar_full_name):
-            _log(f"Benepar model '{benepar_full_name}' not found. Attempting installation for alias '{effective_benepar_alias}'...")
-            # install_benepar_model expects the alias
-            if not install_benepar_model(model_name=benepar_full_name, log_callback=log_callback):
-                _log(f"Failed to install Benepar model '{benepar_full_name}' (alias: {effective_benepar_alias}).", level="ERROR")
+        _log(f"  Processing Benepar model: {benepar_full_name} (alias: {effective_benepar_alias})", level="INFO")
+        if not check_benepar_model(model_name=benepar_full_name): # Check using the full name
+            _log(f"  Benepar model '{benepar_full_name}' not found. Attempting installation for alias '{effective_benepar_alias}'...", level="INFO")
+            # Call install_benepar_model with the alias; it will resolve it internally.
+            if not install_benepar_model(model_name=effective_benepar_alias, log_callback=log_callback):
+                _log(f"  Failed to install Benepar model using alias '{effective_benepar_alias}' (resolved to '{benepar_full_name}').", level="ERROR")
                 benepar_overall_success = False
             else:
-                _log(f"Benepar model '{benepar_full_name}' (alias: {effective_benepar_alias}) installed successfully.")
+                _log(f"  Benepar model (alias: '{effective_benepar_alias}', resolved to '{benepar_full_name}') installation process completed.", level="INFO")
         else:
-            _log(f"Benepar model '{benepar_full_name}' (alias: {effective_benepar_alias}) is already present.")
+            _log(f"  Benepar model '{benepar_full_name}' (alias: {effective_benepar_alias}) is already present.", level="INFO")
 
     final_success = spacy_overall_success and benepar_overall_success
     if final_success:
-        _log("Model setup process completed successfully.")
+        _log("--- Finished: Overall Model Setup Process (Result: Success) ---", level="INFO")
     else:
-        _log("Model setup process encountered errors.", level="ERROR")
+        _log("--- Finished: Overall Model Setup Process (Result: Encountered Errors) ---", level="ERROR")
         
     return final_success
 
@@ -761,23 +910,35 @@ def main(log_callback: Optional[Callable[[str], None]] = None) -> int:
     """
     # This main is primarily for direct CLI invocation: `python -m anpe.utils.setup_models`
     # Configure logging if run directly (Application should configure otherwise)
-    logging.basicConfig(level=logging.INFO, 
-                        format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
-    logger.info("--- Running ANPE Model Setup Utility (using default models) --- ")
+    # BasicConfig should ideally be called only once. If this module is imported,
+    # the calling application should set up logging.
+    if not logging.getLogger().hasHandlers(): # Check if root logger has handlers
+        logging.basicConfig(level=logging.INFO, 
+                            format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+
+    main_logger = logging.getLogger(__name__ + ".main") # Create a child logger for main
+    main_logger.info("======== STARTING ANPE MODEL SETUP UTILITY (CLI MODE) ========")
     
     # First check if the default models are already present
+    main_logger.info("--- Checking for default models (spaCy: %s, Benepar: %s) ---", DEFAULT_SPACY_ALIAS, DEFAULT_BENEPAR_ALIAS)
     if check_all_models_present(log_callback=log_callback): # Uses default arguments
-        logger.info("--- All required default models are already present. No installation needed. --- ")
+        main_logger.info("--- All required default models are already present. No installation needed. ---")
+        main_logger.info("======== ANPE MODEL SETUP UTILITY FINISHED (SUCCESS) ========")
         return 0
     
+    main_logger.info("--- Not all default models present. Proceeding with setup for defaults. ---")
     # If not all default models are present, run the setup process with defaults
     if setup_models(log_callback=log_callback): # Uses default arguments + callback
-        logger.info("--- Setup Complete: All required default models are now present. --- ")
+        main_logger.info("--- Setup Complete: All required default models should now be present. --- ")
+        main_logger.info("======== ANPE MODEL SETUP UTILITY FINISHED (SUCCESS) ========")
         return 0
     else:
-        logger.error("--- Setup Failed: One or more default models could not be installed or verified. Please check logs above. --- ")
+        main_logger.error("--- Setup Failed: One or more default models could not be installed or verified. Please check logs above. --- ")
+        main_logger.error("======== ANPE MODEL SETUP UTILITY FINISHED (ERRORS) ========")
         return 1
 
 if __name__ == "__main__":
     # Removed sys.exit call, let main return the code
-    main() # Calls main which configures basic logging
+    # The main function now configures basic logging if no handlers are set.
+    exit_code = main() # Calls main which configures basic logging
+    sys.exit(exit_code) # Explicitly exit with the code from main

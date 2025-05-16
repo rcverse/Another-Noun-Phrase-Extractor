@@ -244,8 +244,8 @@ def test_cli_setup_default(
     mock_check_benepar.assert_called_once_with(model_name=BENEPAR_MODEL_MAP[DEFAULT_BENEPAR_ALIAS])
 
     # Verify install functions were called with default aliases since checks returned False
-    mock_install_spacy.assert_called_once_with(alias=DEFAULT_SPACY_ALIAS, model_map=SPACY_MODEL_MAP, log_callback=ANY)
-    mock_install_benepar.assert_called_once_with(alias=DEFAULT_BENEPAR_ALIAS, model_map=BENEPAR_MODEL_MAP, log_callback=ANY)
+    mock_install_spacy.assert_called_once_with(model_name=DEFAULT_SPACY_ALIAS, log_callback=ANY)
+    mock_install_benepar.assert_called_once_with(model_name=DEFAULT_BENEPAR_ALIAS, log_callback=ANY)
 
 @patch('anpe.cli.sys.exit')
 @patch('anpe.cli.setup_models')
@@ -312,7 +312,7 @@ def test_cli_setup_error(
     mock_check_benepar.assert_called_once_with(model_name=BENEPAR_MODEL_MAP[DEFAULT_BENEPAR_ALIAS])
 
     # Assert spaCy installation was attempted
-    mock_install_spacy.assert_called_once_with(alias=DEFAULT_SPACY_ALIAS, model_map=SPACY_MODEL_MAP, log_callback=ANY)
+    mock_install_spacy.assert_called_once_with(model_name=DEFAULT_SPACY_ALIAS, log_callback=ANY)
     # Benepar installation should NOT be attempted if its check returned True
     mock_install_benepar.assert_not_called() 
 
