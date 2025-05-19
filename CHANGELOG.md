@@ -2,6 +2,15 @@
 
 All notable changes to the ANPE project will be documented in this file.
 
+## [1.1.3] - 2025-05-19
+
+### Improved
+- Enhanced transformer model installation and error handling in `anpe.utils.setup_models`:
+  - Added `adhoc_trf_module_install` parameter to suppress expected transformer errors during installation
+  - Improved error logging for transformer models with appropriate severity levels based on context
+  - Simplified verification logic for `spacy[transformers]` installation to be more robust
+  - Made transformer error messages more informative with clear guidance about environment refresh needs
+
 ## [1.1.2] - 2025-05-16
 
 ### Fixed

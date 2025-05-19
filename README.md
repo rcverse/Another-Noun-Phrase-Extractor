@@ -826,14 +826,14 @@ I spent a lot of time on this project. If you use ANPE in your research or proje
   author = {Chen, Nuo},
   title = {{ANPE: Another Noun Phrase Extractor}},
   url = {https://github.com/rcverse/another-noun-phrase-extractor},
-  version = {1.1.2},
+  version = {1.1.3},
   year = {2025}
 }
 ```
 
 ### Plain Text (APA style)
 
-Chen, N. (2025). *ANPE: Another Noun Phrase Extractor* (Version 1.1.2) [Computer software]. Retrieved from https://github.com/rcverse/another-noun-phrase-extractor
+Chen, N. (2025). *ANPE: Another Noun Phrase Extractor* (Version 1.1.3) [Computer software]. Retrieved from https://github.com/rcverse/another-noun-phrase-extractor
 
 ## Acknowledgements
 

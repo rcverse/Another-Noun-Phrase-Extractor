@@ -240,7 +240,7 @@ def test_cli_setup_default(
     mock_sys_exit.assert_not_called()
 
     # Verify checks were called with full model names derived from default aliases
-    mock_check_spacy.assert_called_once_with(model_name=SPACY_MODEL_MAP[DEFAULT_SPACY_ALIAS])
+    mock_check_spacy.assert_called_once_with(model_name=SPACY_MODEL_MAP[DEFAULT_SPACY_ALIAS], adhoc_trf_module_install=False)
     mock_check_benepar.assert_called_once_with(model_name=BENEPAR_MODEL_MAP[DEFAULT_BENEPAR_ALIAS])
 
     # Verify install functions were called with default aliases since checks returned False
@@ -306,7 +306,7 @@ def test_cli_setup_error(
     assert exit_code == 1 # Expect failure exit code
     mock_sys_exit.assert_not_called() # main should return 1, not call sys.exit directly for this
 
-    mock_check_spacy.assert_called_once_with(model_name=SPACY_MODEL_MAP[DEFAULT_SPACY_ALIAS])
+    mock_check_spacy.assert_called_once_with(model_name=SPACY_MODEL_MAP[DEFAULT_SPACY_ALIAS], adhoc_trf_module_install=False)
     # Benepar check might also be called depending on logic, or not if spaCy fails first. 
     # For this test, let's assume it's called.
     mock_check_benepar.assert_called_once_with(model_name=BENEPAR_MODEL_MAP[DEFAULT_BENEPAR_ALIAS])

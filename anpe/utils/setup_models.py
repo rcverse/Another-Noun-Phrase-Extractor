@@ -103,8 +103,17 @@ NLTK_DATA_DIR = setup_nltk_data_dir()
 
 # --- Model Checking Functions ---
 
-def check_spacy_model(model_name: str = "en_core_web_md") -> bool:
-    """Check if the specified spaCy model is installed and loadable."""
+def check_spacy_model(model_name: str = "en_core_web_md", adhoc_trf_module_install: bool = False) -> bool:
+    """Check if the specified spaCy model is installed and loadable.
+    
+    Args:
+        model_name (str): The name of the spaCy model to check.
+        adhoc_trf_module_install (bool): If True, suppresses transformer error messages and indicates
+                                         we're in an ad-hoc transformer module installation process.
+        
+    Returns:
+        bool: True if the model is present and loadable, False otherwise.
+    """
     try:
         spacy.load(model_name)
         logger.debug(f"spaCy model '{model_name}' is present.")
@@ -113,7 +122,24 @@ def check_spacy_model(model_name: str = "en_core_web_md") -> bool:
         logger.debug(f"spaCy model '{model_name}' not found.")
         return False
     except Exception as e: # Catch other potential errors during loading
-        logger.error(f"Error checking spaCy model '{model_name}': {e}")
+        error_msg = str(e)
+        # Check if it's a transformer model and the error is the E002 factory error
+        is_transformer_model_error = (
+            model_name.endswith("_trf") and
+            "[E002]" in error_msg and 
+            ("transformer" in error_msg.lower() or "curated_transformer" in error_msg.lower())
+        )
+        
+        if is_transformer_model_error:
+            if adhoc_trf_module_install:
+                # In ad-hoc install mode, log as INFO since this error is expected
+                logger.info(f"Loading check failed for spaCy transformer model '{model_name}', but this is expected during installation. The model should be available after environment refresh or application restart.")
+            else:
+                # Not in ad-hoc mode, log as ERROR
+                logger.error(f"Error loading spaCy transformer model '{model_name}': Cannot find necessary 'transformer' components. An application restart or Python environment refresh is likely required to use this model.")
+        else:
+            # For non-transformer errors, log as ERROR as before
+            logger.error(f"Error checking spaCy model '{model_name}': {e}")
         return False
 
 def check_benepar_model(model_name: str = "benepar_en3") -> bool:
@@ -151,7 +177,7 @@ def check_all_models_present(
         log_callback(msg)
         
     results = {
-        "spacy": check_spacy_model(model_name=spacy_model_name),
+        "spacy": check_spacy_model(model_name=spacy_model_name, adhoc_trf_module_install=False),
         "benepar": check_benepar_model(model_name=benepar_model_name),
     }
     all_present = all(results.values())
@@ -309,7 +335,7 @@ def _extract_zip_archive(zip_path: str, destination_dir: str, archive_name: str,
         if log_callback: log_callback(log_entry_finish)
         return False
 
-def install_spacy_model(model_name: str = "en_core_web_md", log_callback: Optional[Callable[[str], None]] = None) -> bool:
+def install_spacy_model(model_name: str = "en_core_web_md", log_callback: Optional[Callable[[str], None]] = None, adhoc_trf_module_install: bool = True) -> bool:
     """Install the specified spaCy model using pip and spacy download.
 
     This function first checks if the model is a transformer model. If so, it attempts
@@ -319,6 +345,8 @@ def install_spacy_model(model_name: str = "en_core_web_md", log_callback: Option
     Args:
         model_name (str): The alias (e.g., 'md', 'trf') or full name (e.g., 'en_core_web_md') of the spaCy model to install.
         log_callback (Optional[Callable[[str], None]]): Optional callback for logging.
+        adhoc_trf_module_install (bool): Whether to suppress transformer errors during installation checks.
+                                         Defaults to True for installation context.
 
     Returns:
         bool: True if installation (including spacy-transformers if needed) and download
@@ -365,77 +393,23 @@ def install_spacy_model(model_name: str = "en_core_web_md", log_callback: Option
                     if log_callback:
                         log_callback(msg)
 
-                    # --- Verification for spacy-transformers ---
-                    logger.info("[Verification] Invalidating importlib caches before library/factory check...")
+                    # --- Simple Verification for spacy-transformers ---
                     importlib.invalidate_caches()
                     
-                    spacy_transformers_import_ok = False
                     try:
-                        # Try to get a fresh import of spacy_transformers
-                        if 'spacy_transformers' in sys.modules:
-                            logger.debug("[Verification] Temporarily removing 'spacy_transformers' from sys.modules.")
-                            original_spacy_transformers = sys.modules['spacy_transformers']
-                            del sys.modules['spacy_transformers']
-                            try:
-                                import spacy_transformers
-                                logger.debug("[Verification] Re-imported 'spacy_transformers' successfully.")
-                            finally:
-                                # Restore original, whether import succeeded or failed, to avoid breaking other code
-                                if 'spacy_transformers' not in sys.modules:
-                                     sys.modules['spacy_transformers'] = original_spacy_transformers
-                                     logger.debug("[Verification] Restored original 'spacy_transformers' to sys.modules.")
-                        else:
-                            import spacy_transformers # Standard import if not already in sys.modules
-                            logger.debug("[Verification] Imported 'spacy_transformers' freshly.")
+                        # Basic import check - no need to reload modules
+                        import spacy_transformers
+                        logger.info("'spacy-transformers' library imported successfully after pip install.")
                         
-                        spacy_transformers_import_ok = True
-                        logger.info("[Verification OK] 'spacy-transformers' library imported successfully after pip install.")
-                        
-                        # Now, attempt the factory check (best effort, for logging/warning)
-                        fresh_spacy_module_for_check = None
-                        original_spacy_module_in_sys = sys.modules.get('spacy')
-                        if original_spacy_module_in_sys:
-                            logger.debug("[Verification Factory Check] Temporarily removing 'spacy' from sys.modules.")
-                            del sys.modules['spacy']
-                        
-                        try:
-                            import spacy as spacy_for_factory_check
-                            fresh_spacy_module_for_check = spacy_for_factory_check
-                            if original_spacy_module_in_sys:
-                                logger.debug("[Verification Factory Check] Re-imported 'spacy' for factory check.")
-                            else:
-                                logger.debug("[Verification Factory Check] Freshly imported 'spacy' for factory check.")
-                        except ImportError:
-                            logger.warning("[Verification Factory Check] Could not import spaCy to check factories.")
-                        finally:
-                            if original_spacy_module_in_sys and 'spacy' not in sys.modules:
-                                sys.modules['spacy'] = original_spacy_module_in_sys
-                                logger.debug("[Verification Factory Check] Restored original 'spacy' to sys.modules.")
-                            elif original_spacy_module_in_sys and fresh_spacy_module_for_check and id(fresh_spacy_module_for_check) != id(original_spacy_module_in_sys):
-                                sys.modules['spacy'] = original_spacy_module_in_sys
-                                logger.debug("[Verification Factory Check] Restored original 'spacy' to sys.modules after factory check.")
-
-                        if fresh_spacy_module_for_check:
-                            nlp_blank_check = fresh_spacy_module_for_check.blank("en")
-                            if "transformer" in nlp_blank_check.factories:
-                                logger.info("[Verification Note] 'transformer' factory IS present in current spaCy runtime.")
-                            else:
-                                logger.warning("[Verification Warning] 'transformer' factory is NOT (yet) present in current spaCy runtime. "
-                                               "A restart of the application might be needed to use transformer models.")
-                            if "curated_transformer" not in nlp_blank_check.factories:
-                                logger.warning("[Verification Note] 'curated_transformer' factory is NOT (yet) present in current spaCy runtime.")
-                        else:
-                            logger.warning("[Verification Warning] Could not get a spaCy instance to perform post-install factory check.")
-
                     except ImportError:
-                        logger.error("[Verification Failed] CRITICAL: Could not import 'spacy-transformers' library even after pip reported successful installation.")
+                        logger.error("CRITICAL: Could not import 'spacy-transformers' library even after pip reported successful installation.")
                         if log_callback:
                             log_callback("Failed to import 'spacy-transformers' post-install.")
                         logger.error(f"--- Aborting: Install spaCy Model ({full_model_name}) (Error: spacy-transformers import failed post-pip) ---")
                         if log_callback: log_callback(f"--- Aborting: Install spaCy Model ({full_model_name}) (Error: spacy-transformers import failed post-pip) ---")
                         return False # This is a hard failure for the library itself.
-                    except Exception as e_fact: # Catch other errors during the factory check attempt
-                        logger.warning(f"[Verification Warning] Non-critical error during post-install factory check attempt: {e_fact}. Proceeding with model download.")
+                    except Exception as e_fact: # Catch other errors during the import check
+                        logger.warning(f"[Verification Warning] Non-critical error during post-install import check: {e_fact}. Proceeding with model download.")
 
                     # If spacy_transformers_import_ok is True (which it would be to reach here unless an exception above returned False),
                     # we consider the spacy-transformers *dependency* itself "installed".
@@ -509,7 +483,8 @@ def install_spacy_model(model_name: str = "en_core_web_md", log_callback: Option
                 if log_callback:
                     log_callback(path_msg)
                 
-                is_loadable = check_spacy_model(full_model_name)
+                # Use adhoc_trf_module_install=True for transformer models during installation
+                is_loadable = check_spacy_model(full_model_name, adhoc_trf_module_install=is_transformer_model)
 
                 if is_loadable:
                     success_msg = f"Verification successful: '{full_model_name}' is installed and loadable."
@@ -844,7 +819,7 @@ def setup_models(
         spacy_overall_success = False
     else:
         _log(f"  Processing spaCy model: {spacy_full_name} (alias: {effective_spacy_alias})", level="INFO")
-        if not check_spacy_model(model_name=spacy_full_name):
+        if not check_spacy_model(model_name=spacy_full_name, adhoc_trf_module_install=False):
             _log(f"  SpaCy model '{spacy_full_name}' not found. Attempting installation for alias '{effective_spacy_alias}'...", level="INFO")
             # install_spacy_model expects the alias, not the full name, to map to download URL etc.
             # Pass effective_spacy_alias to install_spacy_model
